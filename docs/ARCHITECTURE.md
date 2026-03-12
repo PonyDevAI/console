@@ -63,3 +63,10 @@ This layer should be additive and must not break local-first operation.
 - Repositories remain in their original filesystem locations and are treated as source-of-truth working copies.
 - `~/.console/workspaces/` stores Console-owned metadata/cache/artifacts only.
 - Console tracks repo references, not repo ownership.
+
+## Architecture decision records
+
+- [ADR 0001: Local file-based state](decisions/0001-local-file-state.md)
+- [ADR 0002: SSE streaming transport](decisions/0002-sse-streaming-transport.md)
+- [ADR 0003: Worker adapter boundary](decisions/0003-worker-adapter-boundary.md)
+- [Implementation assumptions and ambiguities](IMPLEMENTATION_ASSUMPTIONS.md)
