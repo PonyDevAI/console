@@ -1,8 +1,6 @@
-# Console CLI (Initial Draft)
+# Console CLI (Phase 0)
 
-This document defines early command behavior for the local Console CLI.
-
-## Command overview
+Console currently provides a lightweight local CLI with five commands:
 
 ```bash
 console init
@@ -14,61 +12,50 @@ console worker scan
 
 ## `console init`
 
-Purpose:
-- Initialize local Console directories and baseline config under `~/.console/`.
+Initializes local state under `~/.console/` if it does not already exist.
 
-Expected behavior:
-- Create missing directories (`state/`, `credentials/`, `logs/`, `artifacts/`, `workspaces/`).
-- Create `config.json` with defaults if missing.
-- Create baseline state files (`workspaces.json`, `workers.json`) if missing.
-- Avoid destructive overwrite by default.
+Created layout:
+
+```text
+~/.console/
+  config.json
+  state/
+    workspaces.json
+    workers.json
+  credentials/
+  logs/
+  artifacts/
+  workspaces/
+```
 
 ## `console start`
 
-Purpose:
-- Start the local Console daemon and API/UI backend services.
+Ensures local state exists (runs the same setup as `init`) and starts a small HTTP server on `127.0.0.1:8080`.
 
-Expected behavior:
-- Validate local config.
-- Start HTTP server endpoints.
-- Expose SSE stream endpoints for run output.
-- Report bind address and health information.
+Endpoints:
+- `GET /api/health` → `{ "ok": true }`
+- `GET /api/status` → basic runtime status JSON
 
 ## `console status`
 
-Purpose:
-- Show current daemon status and basic runtime state.
-
-Expected behavior:
-- Indicate whether daemon is running.
-- Show configured paths and active profile/context.
-- Optionally show connected/discovered workers.
+Prints a basic local status summary:
+- Whether `~/.console/` is initialized
+- Console home path
+- Exposed API endpoints
 
 ## `console doctor`
 
-Purpose:
-- Run local environment diagnostics.
-
-Expected behavior:
-- Check directory permissions for `~/.console/`.
-- Validate config/state file readability.
-- Check availability of supported worker CLIs in `PATH`.
-- Report actionable warnings and errors.
+Runs lightweight environment checks:
+- `~/.console/` existence
+- `config.json` readability
+- worker CLI availability in `PATH` (`cursor`, `claude`, `codex`)
 
 ## `console worker scan`
 
-Purpose:
-- Discover available local worker CLIs and refresh worker state.
+Scans `PATH` for supported worker CLIs and writes the current snapshot to:
 
-Expected behavior:
-- Probe known executables (Cursor CLI, Claude CLI, Codex CLI).
-- Capture version/capability hints where possible.
-- Update `state/workers.json`.
-- Produce human-readable scan summary.
+```text
+~/.console/state/workers.json
+```
 
-## CLI design principles
-
-- Local-first and explicit behavior.
-- Safe defaults (no destructive writes without confirmation/flags).
-- Machine-readable output mode can be added later (for scripting).
-- Clear error messaging with direct remediation guidance.
+The command prints a concise summary of found/missing workers.

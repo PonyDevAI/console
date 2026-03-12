@@ -75,3 +75,23 @@ Console starts local-first by design:
 - [Worker Model](docs/WORKER_MODEL.md)
 - [Web UI](docs/WEB_UI.md)
 - [Development Guide](docs/DEVELOPMENT.md)
+
+## Phase 0 quickstart
+
+Backend:
+
+```bash
+go run ./cmd/console init
+go run ./cmd/console start
+```
+
+Frontend:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+Open the Vite URL (default `http://127.0.0.1:5173`) to view the placeholder Console UI.
+

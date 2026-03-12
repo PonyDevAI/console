@@ -1,69 +1,44 @@
-# Development Guide (Initial)
+# Development Guide
 
-This guide describes a practical local development loop for Console.
-It is written for an early-stage implementation where conventions may still evolve.
+This guide covers the Phase 0 local development loop for Console.
 
 ## Prerequisites
 
-- Go toolchain (for backend daemon/control plane).
-- Node.js + npm/pnpm (for frontend).
-- Local worker CLIs to test adapter behavior (Cursor CLI, Claude CLI, Codex CLI as available).
+- Go 1.22+
+- Node.js 18+
 
-## Suggested repository structure (conceptual)
+## Backend (Go CLI + API)
 
-A likely initial shape:
+From repository root:
 
-```text
-/backend   # Go daemon, APIs, worker adapters
-/frontend  # Vite + React + Tailwind UI
-/docs      # project docs
+```bash
+go run ./cmd/console init
+go run ./cmd/console status
+go run ./cmd/console doctor
+go run ./cmd/console worker scan
+go run ./cmd/console start
 ```
 
-Exact paths can evolve as implementation lands.
+`console start` serves a minimal API on `127.0.0.1:8080`:
+- `GET /api/health`
+- `GET /api/status`
 
-## Local development loop
+## Frontend (Vite + React + TypeScript)
 
-1. Initialize local Console state:
-   - `console init`
+From `web/`:
 
-2. Run backend in dev mode:
-   - Start daemon/API server with verbose logging.
+```bash
+npm install
+npm run dev
+```
 
-3. Run frontend dev server:
-   - Start Vite dev server and point it at local backend.
+The Vite dev server proxies `/api/*` to `http://127.0.0.1:8080`.
 
-4. Verify end-to-end flow:
-   - Select workspace/repo/worker.
-   - Submit a prompt.
-   - Confirm SSE output streaming and terminal run status.
+## Current Phase 0 scope
 
-5. Run diagnostics as needed:
-   - `console doctor`
-   - `console worker scan`
+- Local file scaffolding under `~/.console/`
+- Minimal CLI command surface
+- Minimal API health/status endpoints
+- Placeholder UI sections for workspace/repo/worker/chat/output
 
-## Backend development focus
-
-- Keep control-plane and adapter boundaries explicit.
-- Build worker adapters behind interfaces for testability.
-- Prefer structured logs and consistent error categories.
-- Ensure safe handling of credentials and command traces.
-
-## Frontend development focus
-
-- Keep layout and interaction straightforward.
-- Render streaming output incrementally and robustly.
-- Surface worker/run context clearly to avoid operator confusion.
-- Start simple; introduce complexity only when justified by real workflows.
-
-## Testing guidance (early stage)
-
-- Unit test worker adapter command construction and parsing.
-- Add integration tests for run lifecycle APIs where practical.
-- Validate SSE event order and reconnect behavior.
-- Manually test with at least one real local worker CLI.
-
-## Documentation and iteration
-
-- Keep docs aligned with actual implementation status.
-- Avoid documenting speculative features as complete.
-- Update architecture/roadmap docs when phase assumptions change.
+Real workspace management, run execution, and streaming output behavior are intentionally deferred.
