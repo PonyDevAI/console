@@ -10,22 +10,25 @@ The current web UI is intentionally minimal and honest about scope.
 
 ## Current screen sections
 
-The single page includes clear placeholders for:
-- Workspace area
-- Repo selection area
-- Worker selection area
-- Chat input area
-- Output panel area
+The single page includes:
+- Workspace list (loaded from backend API)
+- Worker list (loaded from backend API)
+- Repo selection placeholder
+- Chat input placeholder
+- Output panel placeholder
 
 ## Backend connectivity
 
-On load, the page calls `GET /api/health` and displays backend status (`loading`, `online`, `offline`).
+On load, the page calls:
+- `GET /api/health` to show backend status (`loading`, `online`, `offline`)
+- `GET /api/workspaces` to render workspace rows or an empty-state message
+- `GET /api/workers` to render worker rows or an empty-state message
 
 During local development, Vite proxies `/api/*` calls to `http://127.0.0.1:8080`.
 
 ## Not implemented yet
 
-- Workspace/repo/worker state management
+- Workspace creation/editing from the web UI
 - Chat run submission
 - Streaming output rendering
 - Session history and run lifecycle UX
