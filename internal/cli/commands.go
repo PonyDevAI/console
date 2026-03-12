@@ -42,27 +42,8 @@ func Run(args []string) error {
 }
 
 func runInit(paths config.Paths) error {
-	dirs := []string{paths.Home, paths.StateDir, paths.Credentials, paths.Logs, paths.Artifacts, paths.WorkspaceDir}
-	for _, dir := range dirs {
-		if err := state.EnsureDir(dir); err != nil {
-			return err
-		}
-	}
-
-	defaultConfig := map[string]any{
-		"version": "phase0",
-		"server": map[string]any{
-			"address": "127.0.0.1:8080",
-		},
-	}
-
-	if err := state.EnsureJSONFile(paths.ConfigFile, defaultConfig); err != nil {
-		return err
-	}
-	if err := state.EnsureJSONFile(paths.Workspaces, []any{}); err != nil {
-		return err
-	}
-	if err := state.EnsureJSONFile(paths.Workers, map[string]any{"workers": []any{}}); err != nil {
+	store := state.NewStore(paths)
+	if err := store.EnsureInitialized(); err != nil {
 		return err
 	}
 
@@ -71,13 +52,19 @@ func runInit(paths config.Paths) error {
 }
 
 func runStart(paths config.Paths) error {
-	if err := runInit(paths); err != nil {
+	store := state.NewStore(paths)
+	if err := store.EnsureInitialized(); err != nil {
 		return err
 	}
 
-	address := "127.0.0.1:8080"
+	cfg, err := store.ReadConfig()
+	if err != nil {
+		return err
+	}
+
+	address := cfg.Server.Address
 	fmt.Printf("Console server listening on http://%s\n", address)
-	return api.NewServer(address).Start()
+	return api.NewServer(address, store).Start()
 }
 
 func runStatus(paths config.Paths) error {
@@ -156,12 +143,13 @@ func runDoctor(paths config.Paths) error {
 }
 
 func runWorkerScan(paths config.Paths) error {
-	if err := runInit(paths); err != nil {
+	store := state.NewStore(paths)
+	if err := store.EnsureInitialized(); err != nil {
 		return err
 	}
 
 	snapshot := worker.ScanKnownWorkers()
-	if err := state.WriteJSONFile(paths.Workers, snapshot); err != nil {
+	if err := store.UpdateWorkers(snapshot); err != nil {
 		return err
 	}
 

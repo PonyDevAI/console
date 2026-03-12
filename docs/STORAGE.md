@@ -55,6 +55,37 @@ Console does not relocate or mirror repositories as authoritative source.
 Repository paths remain where users keep them on disk.
 Console stores references and metadata only.
 
+
+### Current JSON shapes
+
+`config.json`:
+
+```json
+{
+  "version": "phase0",
+  "server": { "address": "127.0.0.1:8080" }
+}
+```
+
+`state/workspaces.json`:
+
+```json
+{
+  "workspaces": []
+}
+```
+
+Each workspace record stores `id`, `name`, `repoPath`, `createdAt`, and `modifiedAt`.
+
+`state/workers.json`:
+
+```json
+{
+  "scannedAt": "<rfc3339>",
+  "workers": []
+}
+```
+
 ## Future storage transition: SQLite
 
 SQLite should be introduced when the product needs:

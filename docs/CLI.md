@@ -30,11 +30,17 @@ Created layout:
 
 ## `console start`
 
-Ensures local state exists (runs the same setup as `init`) and starts a small HTTP server on `127.0.0.1:8080`.
+Ensures local state exists (runs the same setup as `init`) and starts a small HTTP server.
+
+The bind address is read from `~/.console/config.json` at `server.address` (default `127.0.0.1:8080`).
 
 Endpoints:
 - `GET /api/health` → `{ "ok": true }`
 - `GET /api/status` → basic runtime status JSON
+- `GET /api/workspaces` → workspace list from `~/.console/state/workspaces.json`
+- `POST /api/workspaces` → add workspace with `{ "name": "...", "repoPath": "/abs/path" }`
+- `GET /api/workers` → worker snapshot from `~/.console/state/workers.json`
+- `POST /api/workers/scan` → scan known worker CLIs and persist snapshot
 
 ## `console status`
 
