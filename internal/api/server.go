@@ -3,9 +3,12 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/PonyDevAI/console/internal/run"
 	"github.com/PonyDevAI/console/internal/state"
 	"github.com/PonyDevAI/console/internal/worker"
 )
@@ -13,10 +16,11 @@ import (
 type Server struct {
 	Address string
 	store   *state.Store
+	runs    *run.Manager
 }
 
-func NewServer(address string, store *state.Store) *Server {
-	return &Server{Address: address, store: store}
+func NewServer(address string, store *state.Store, runs *run.Manager) *Server {
+	return &Server{Address: address, store: store, runs: runs}
 }
 
 func (s *Server) Start() error {
@@ -39,8 +43,113 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/workspaces", s.handleWorkspaces)
 	mux.HandleFunc("/api/workers", s.handleWorkers)
 	mux.HandleFunc("/api/workers/scan", s.handleWorkersScan)
+	mux.HandleFunc("/api/runs", s.handleRuns)
+	mux.HandleFunc("/api/runs/", s.handleRunStream)
 
 	return http.ListenAndServe(s.Address, mux)
+}
+
+func (s *Server) handleRuns(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeMethodNotAllowed(w, http.MethodPost)
+		return
+	}
+
+	var input run.CreateInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, http.StatusBadRequest, errors.New("invalid JSON request body"))
+		return
+	}
+
+	created, err := s.runs.Create(input)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"run":        created,
+		"streamPath": fmt.Sprintf("/api/runs/%s/stream", created.ID),
+	})
+}
+
+func (s *Server) handleRunStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, http.MethodGet)
+		return
+	}
+
+	runID, ok := parseRunStreamPath(r.URL.Path)
+	if !ok {
+		writeError(w, http.StatusNotFound, errors.New("run stream not found"))
+		return
+	}
+
+	events, err := s.runs.Events(runID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, errors.New("streaming unsupported"))
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	for _, event := range events {
+		if err := writeSSE(w, event); err != nil {
+			return
+		}
+	}
+	flusher.Flush()
+
+	subscription, unsubscribe, err := s.runs.Subscribe(runID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	defer unsubscribe()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case event, open := <-subscription:
+			if !open {
+				return
+			}
+			if err := writeSSE(w, event); err != nil {
+				return
+			}
+			flusher.Flush()
+		}
+	}
+}
+
+func parseRunStreamPath(path string) (string, bool) {
+	if !strings.HasPrefix(path, "/api/runs/") {
+		return "", false
+	}
+	trimmed := strings.TrimPrefix(path, "/api/runs/")
+	parts := strings.Split(strings.Trim(trimmed, "/"), "/")
+	if len(parts) != 2 || parts[1] != "stream" || parts[0] == "" {
+		return "", false
+	}
+	return parts[0], true
+}
+
+func writeSSE(w http.ResponseWriter, event run.Event) error {
+	bytes, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(w, "data: %s\n\n", string(bytes))
+	return err
 }
 
 func (s *Server) handleWorkspaces(w http.ResponseWriter, r *http.Request) {

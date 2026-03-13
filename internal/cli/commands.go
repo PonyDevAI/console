@@ -8,6 +8,7 @@ import (
 
 	"github.com/PonyDevAI/console/internal/api"
 	"github.com/PonyDevAI/console/internal/config"
+	"github.com/PonyDevAI/console/internal/run"
 	"github.com/PonyDevAI/console/internal/state"
 	"github.com/PonyDevAI/console/internal/worker"
 )
@@ -64,7 +65,8 @@ func runStart(paths config.Paths) error {
 
 	address := cfg.Server.Address
 	fmt.Printf("Console server listening on http://%s\n", address)
-	return api.NewServer(address, store).Start()
+	runManager := run.NewManager(worker.DefaultRegistry(), paths.Logs)
+	return api.NewServer(address, store, runManager).Start()
 }
 
 func runStatus(paths config.Paths) error {

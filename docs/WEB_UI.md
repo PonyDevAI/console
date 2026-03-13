@@ -1,6 +1,6 @@
-# Web UI (Phase 0 Placeholder)
+# Web UI (Local Execution Loop)
 
-The current web UI is intentionally minimal and honest about scope.
+The web UI now includes a minimal but real local execution loop.
 
 ## Stack
 
@@ -13,9 +13,16 @@ The current web UI is intentionally minimal and honest about scope.
 The single page includes:
 - Workspace list (loaded from backend API)
 - Worker list (loaded from backend API)
-- Repo selection placeholder
-- Chat input placeholder
-- Output panel placeholder
+- Run form:
+  - workspace repo quick-select,
+  - manual repo path input,
+  - worker selector,
+  - prompt input,
+  - run submit button
+- Output panel:
+  - current run id/status/error/exit code,
+  - streamed output lines from SSE,
+  - state transition lines from SSE events
 
 ## Backend connectivity
 
@@ -24,11 +31,16 @@ On load, the page calls:
 - `GET /api/workspaces` to render workspace rows or an empty-state message
 - `GET /api/workers` to render worker rows or an empty-state message
 
+For run execution, the page calls:
+- `POST /api/runs` to create and start a run
+- `GET /api/runs/:id/stream` using `EventSource` (SSE) to receive output and state events
+
 During local development, Vite proxies `/api/*` calls to `http://127.0.0.1:8080`.
 
-## Not implemented yet
+## Scope intentionally deferred
 
-- Workspace creation/editing from the web UI
-- Chat run submission
-- Streaming output rendering
-- Session history and run lifecycle UX
+Still not implemented:
+- Session/history browsing
+- Run replay/resume
+- Database-backed persistence
+- Multi-run dashboard and controls
