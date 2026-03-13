@@ -1,0 +1,153 @@
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+
+// ── CLI Tool ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CliTool {
+    pub name: String,
+    pub display_name: String,
+    pub installed: bool,
+    pub local_version: Option<String>,
+    pub remote_version: Option<String>,
+    pub path: Option<PathBuf>,
+    pub last_checked: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CliToolsState {
+    pub tools: Vec<CliTool>,
+}
+
+// ── Provider ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Provider {
+    pub id: String,
+    pub name: String,
+    pub api_endpoint: String,
+    pub api_key_ref: String,
+    pub active: bool,
+    pub apps: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub modified_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProvidersState {
+    pub providers: Vec<Provider>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateProviderRequest {
+    pub name: String,
+    pub api_endpoint: String,
+    pub api_key_ref: String,
+    pub apps: Vec<String>,
+}
+
+// ── MCP Server ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    pub transport: McpTransport,
+    pub command: Option<String>,
+    pub args: Vec<String>,
+    pub url: Option<String>,
+    pub env: std::collections::HashMap<String, String>,
+    pub enabled_apps: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum McpTransport {
+    Stdio,
+    Http,
+    Sse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServersState {
+    pub servers: Vec<McpServer>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateMcpServerRequest {
+    pub name: String,
+    pub transport: McpTransport,
+    pub command: Option<String>,
+    pub args: Vec<String>,
+    pub url: Option<String>,
+    pub env: std::collections::HashMap<String, String>,
+    pub enabled_apps: Vec<String>,
+}
+
+// ── Skill ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Skill {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub source: Option<String>,
+    pub enabled_apps: Vec<String>,
+    pub installed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillsState {
+    pub skills: Vec<Skill>,
+}
+
+// ── Prompt ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptPreset {
+    pub id: String,
+    pub name: String,
+    pub content: String,
+    pub active: bool,
+    pub apps: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub modified_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromptsState {
+    pub prompts: Vec<PromptPreset>,
+}
+
+// ── Config ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsoleConfig {
+    pub version: String,
+    pub server: ServerConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerConfig {
+    pub address: String,
+}
+
+impl Default for ConsoleConfig {
+    fn default() -> Self {
+        Self {
+            version: "0.1.0".to_string(),
+            server: ServerConfig {
+                address: "127.0.0.1:8080".to_string(),
+            },
+        }
+    }
+}
+
+// ── Adapter types ──
+
+#[derive(Debug, Clone)]
+pub struct InstalledInfo {
+    pub version: String,
+    pub path: PathBuf,
+}

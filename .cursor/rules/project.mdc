@@ -1,20 +1,19 @@
 ---
-description: Console project rules (condensed)
 alwaysApply: true
 ---
 
 # Console Rules (Condensed)
 
 - Canonical source: `AGENTS.md`.
-- Project identity: Console is a local AI coding control plane.
-- Scope now: workspace/repo/worker selection, chat-triggered runs, streaming output.
-- Keep control plane (state/routing/API) separate from execution plane (worker adapters).
-- Use explicit adapters for Cursor CLI, Claude CLI, and Codex CLI.
-- Do not hard-code one worker implementation into core business logic.
-- Prefer simple, local-first solutions; avoid premature distributed orchestration, queue systems, and heavy infra.
-- Storage default: file-based config/state under `~/.console/`; defer SQLite until justified by history/indexing/query needs.
-- Repos are external filesystem source-of-truth; `~/.console/workspaces/` is Console-owned metadata/cache/artifacts.
-- Default stack: backend Go, frontend Vite + React + Tailwind.
+- Project identity: Console is a local AI CLI unified management platform.
+- Scope now: CLI version management, provider/model management, MCP server management, skills management, Web UI management panel.
+- Keep management plane (state/config/API/sync) separate from execution plane (worker adapters).
+- Use explicit CLI adapters for Claude CLI, Codex CLI, Gemini CLI, and Cursor CLI.
+- Config sync engine is the core integration layer — translates unified config to each CLI's native format.
+- Do not hard-code one CLI implementation into core business logic.
+- Prefer simple, local-first solutions; avoid premature distributed orchestration.
+- Storage default: file-based config/state under `~/.console/`; defer SQLite until justified.
+- Default stack: backend Rust (axum), frontend Vite + React + Tailwind.
 - Default streaming transport: SSE unless a strong reason exists.
 - Keep modules small and composable; favor clarity over abstraction-heavy frameworks.
 - Update docs in `docs/` when behavior or architecture changes.

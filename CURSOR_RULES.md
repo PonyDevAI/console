@@ -1,42 +1,13 @@
-# Cursor Project Rules (Human-Readable)
+# CURSOR_RULES.md
 
-`AGENTS.md` is the canonical project engineering guide for Console.
-This file is a Cursor-oriented restatement and must stay aligned with `AGENTS.md`.
+This repository uses `AGENTS.md` as the canonical engineering guide.
 
-## Core direction
+## Rule source
 
-- Console is a local AI coding control plane.
-- Prefer simple, local-first solutions.
-- Keep control plane and execution plane separate.
-- Favor clarity over heavy abstractions.
+- Follow `AGENTS.md` for project identity, architecture, storage, adapter model, UI model, coding rules, and scope limits.
+- If this file and `AGENTS.md` ever conflict, `AGENTS.md` wins.
 
-## Product focus (now)
+## Cursor-specific note
 
-- Workspace/repo/worker selection.
-- Chat-triggered runs.
-- Streaming output UX.
-
-## Architecture guardrails
-
-- Use explicit worker adapters (Cursor CLI / Claude CLI / Codex CLI).
-- Do not hard-wire a single worker into core business logic.
-- Keep modules small and composable.
-- Avoid introducing distributed orchestration, queue-heavy systems, or other heavy infra early.
-
-## Storage and paths
-
-- Use file-based config/state first.
-- Defer SQLite until history/indexing/query needs clearly justify it.
-- Repositories stay at real external filesystem paths.
-- `~/.console/workspaces/` is Console-owned metadata/cache/artifact space.
-
-## Stack defaults
-
-- Backend: Go.
-- Frontend: Vite + React + Tailwind.
-- Streaming: SSE by default.
-
-## Documentation
-
-- Update `docs/` when behavior or architecture changes.
-- Document architectural decisions when introduced.
+- Keep changes small, explicit, and aligned with the local-first management-platform direction described in `AGENTS.md`.
+- Backend is Rust (axum). Frontend is Vite + React + Tailwind.

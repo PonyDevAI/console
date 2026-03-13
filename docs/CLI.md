@@ -1,67 +1,61 @@
-# Console CLI (Phase 0)
+# CLI Commands
 
-Console currently provides a lightweight local CLI with five commands:
+Console provides a CLI for initialization and daemon management.
 
-```bash
-console init
-console start
-console status
-console doctor
-console worker scan
-```
+## Commands
 
-## `console init`
+### `console init`
 
-Initializes local state under `~/.console/` if it does not already exist.
+Initialize the `~/.console/` directory structure.
 
-Created layout:
+Creates:
+- `config.json` with default settings
+- `state/` directory with empty state files
+- `credentials/` directory
+- `skills/` directory
+- `logs/` directory
+- `backups/` directory
+- `cache/` directory
 
-```text
-~/.console/
-  config.json
-  state/
-    workspaces.json
-    workers.json
-  credentials/
-  logs/
-  artifacts/
-  workspaces/
-```
+### `console start`
 
-## `console start`
+Start the Console daemon (HTTP API server).
 
-Ensures local state exists (runs the same setup as `init`) and starts a small HTTP server.
+Options:
+- `--port <port>` — override default port (default: 8080)
+- `--host <host>` — override default host (default: 127.0.0.1)
 
-The bind address is read from `~/.console/config.json` at `server.address` (default `127.0.0.1:8080`).
+### `console status`
 
-Endpoints:
-- `GET /api/health` → `{ "ok": true }`
-- `GET /api/status` → basic runtime status JSON
-- `GET /api/workspaces` → workspace list from `~/.console/state/workspaces.json`
-- `POST /api/workspaces` → add workspace with `{ "name": "...", "repoPath": "/abs/path" }`
-- `GET /api/workers` → worker snapshot from `~/.console/state/workers.json`
-- `POST /api/workers/scan` → scan known worker CLIs and persist snapshot
+Show daemon status and basic system info.
 
-## `console status`
+### `console doctor`
 
-Prints a basic local status summary:
-- Whether `~/.console/` is initialized
-- Console home path
-- Exposed API endpoints
+Run diagnostic checks:
+- Verify `~/.console/` directory structure.
+- Detect installed CLI tools and their versions.
+- Check for version updates.
+- Validate config file integrity.
+- Report any issues with suggested fixes.
 
-## `console doctor`
+### `console scan`
 
-Runs lightweight environment checks:
-- `~/.console/` existence
-- `config.json` readability
-- worker CLI availability in `PATH` (`cursor`, `claude`, `codex`)
+Scan for installed CLI tools and update `state/cli_tools.json`.
 
-## `console worker scan`
+### `console sync (planned)`
 
-Scans `PATH` for supported worker CLIs and writes the current snapshot to:
+> Not yet implemented.
 
-```text
-~/.console/state/workers.json
-```
+Sync Console configuration to all managed CLI tools:
+- Write provider configs to each CLI's native format.
+- Write MCP server configs to each CLI's native format.
+- Sync enabled skills to each CLI's skill directory.
 
-The command prints a concise summary of found/missing workers.
+### `console backup (planned)`
+
+> Not yet implemented.
+
+Create a backup of current configuration under `~/.console/backups/`.
+
+Options:
+- `--name <name>` — custom backup name (default: timestamp-based)

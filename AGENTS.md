@@ -6,30 +6,39 @@ If any tool-specific rule file conflicts with this file, follow `AGENTS.md`.
 ## Project identity
 
 - Project name: **Console**.
-- Console is a **local AI coding control plane**.
-- Console coordinates local coding runs across supported worker CLIs.
+- Console is a **local AI CLI unified management platform**.
+- Console provides a Web UI and local daemon for managing AI coding CLI tools — including version lifecycle, provider/model configuration, MCP servers, skills, and system prompts.
 - Prefer local-first behavior and straightforward implementation choices.
 
 ## Product scope
 
 Current focus:
-- Workspace / repository / worker selection.
-- Chat-triggered worker runs.
-- Streaming run output in the UI.
+- CLI tool version management (install / upgrade / uninstall / version detection).
+- Provider / model management (multi-endpoint switching, API key management, cross-app sync).
+- MCP server unified management (CRUD, per-app enable/disable, config sync).
+- Skills management (SSOT repository, install/uninstall, cross-app sync).
+- Web UI as the primary management interface.
 
-Out of scope for early phases:
+Supported CLI tools (extensible via adapter interface):
+- Claude CLI
+- Codex CLI
+- Gemini CLI
+- Cursor CLI
+
+Deferred to later phases:
+- Run execution and streaming output (architecture preserved, priority lowered).
 - Distributed orchestration.
 - Queue-heavy or multi-node scheduling infrastructure.
-- Cloud-first operational complexity.
 
 ## Architecture principles
 
 - Maintain strict separation between:
-  - **Control plane**: config/state, routing, API, session/run tracking.
-  - **Execution plane**: worker adapters that invoke local CLIs.
+  - **Management plane**: config/state, version management, provider/MCP/skill management, API, sync engine.
+  - **Execution plane**: worker adapters that invoke local CLIs for run execution.
+- A **config sync engine** is the core differentiator — it translates Console's unified config into each CLI's native format and writes to the correct paths.
 - Keep modules small and composable.
 - Favor clarity over abstraction-heavy frameworks.
-- Do not hard-code one worker implementation into core business logic.
+- Use explicit CLI adapters; do not hard-code one CLI implementation into core logic.
 - Introduce new architectural layers only when justified by concrete use-cases.
 - Document architecture decisions when they are introduced.
 
@@ -38,36 +47,36 @@ Out of scope for early phases:
 - Start with local file-based state/config under `~/.console/`.
 - Defer SQLite until history/indexing/query needs are clearly justified.
 - Treat repository paths as external source-of-truth filesystem locations.
-- Treat `~/.console/workspaces/` as Console-owned metadata/cache/artifact space only.
+- Treat `~/.console/` as Console-owned metadata/cache/artifact space only.
 
-## Worker model
+## CLI adapter model
 
-- Use explicit worker adapters for:
-  - Cursor CLI
-  - Claude CLI
-  - Codex CLI
-- Adapter behavior must be isolated behind a shared contract.
-- Core logic should depend on adapter interfaces, not worker-specific details.
+- Use explicit adapters for each supported CLI tool.
+- Each adapter knows:
+  - How to detect installation and version.
+  - Where the CLI's config files live and their format.
+  - How to read/write provider, MCP, skill, and prompt configs in native format.
+- Adapter behavior must be isolated behind a shared trait/interface.
+- Core logic should depend on adapter interfaces, not CLI-specific details.
 
 ## UI model
 
-- Keep the UX centered on:
-  - selecting workspace/repository/worker,
-  - triggering runs from chat-like interactions,
-  - viewing streaming output.
-- Default streaming transport is **SSE** unless a strong, demonstrated reason requires another transport.
+- Web UI is the primary management interface (similar to an admin panel).
+- Key pages: Dashboard, Version Management, Provider Management, MCP Management, Skills Management, Prompt Management.
+- Run execution UI is preserved but deprioritized.
+- Default streaming transport is **SSE** unless a strong reason requires another transport.
 
 ## Default implementation stack
 
-- Backend default language: **Go**.
-- Frontend default stack: **Vite + React + Tailwind**.
+- Backend: **Rust** (axum), chosen for future Tauri desktop GUI compatibility.
+- Frontend: **Vite + React + TypeScript + Tailwind CSS**.
 
 ## Coding guidelines
 
 - Prefer simple, explicit code paths.
 - Keep files and modules focused on one responsibility.
 - Avoid introducing heavy infrastructure patterns prematurely.
-- Keep boundaries between control-plane and execution-plane code obvious.
+- Keep boundaries between management-plane and execution-plane code obvious.
 
 ## Documentation expectations
 

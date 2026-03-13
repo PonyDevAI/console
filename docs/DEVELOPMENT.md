@@ -1,44 +1,86 @@
 # Development Guide
 
-This guide covers the Phase 0 local development loop for Console.
-
 ## Prerequisites
 
-- Go 1.22+
+- Rust 1.75+ (with cargo)
 - Node.js 18+
 
-## Backend (Go CLI + API)
-
-From repository root:
+## Quick start
 
 ```bash
-go run ./cmd/console init
-go run ./cmd/console status
-go run ./cmd/console doctor
-go run ./cmd/console worker scan
-go run ./cmd/console start
+make init   # install deps, build backend, init ~/.console/
+make dev    # start with hot-reload
 ```
 
-`console start` serves a minimal API on `127.0.0.1:8080`:
-- `GET /api/health`
-- `GET /api/status`
+Open `http://127.0.0.1:5173` to access the management panel.
 
-## Frontend (Vite + React + TypeScript)
+## Make commands
 
-From `web/`:
+| Command      | Description                                      |
+|-------------|--------------------------------------------------|
+| `make init`  | Install deps, build backend, init `~/.console/`  |
+| `make dev`   | Start with hot-reload (cargo-watch + Vite HMR)   |
+| `make run`   | Start backend + frontend (no hot-reload)          |
+| `make build` | Build production release                          |
+| `make check` | Type-check backend (cargo) + frontend (tsc)       |
+| `make clean` | Remove build artifacts                            |
+| `make doctor`| Run diagnostic checks                             |
+| `make scan`  | Scan for installed CLI tools                      |
+| `make help`  | Show all available commands                       |
+
+## Hot-reload in dev mode
+
+`make dev` starts two processes in parallel:
+
+- **Rust backend**: `cargo-watch` monitors `src/` for changes, auto-recompiles and restarts the API server on `:8080`.
+- **React frontend**: Vite dev server on `:5173` with HMR (Hot Module Replacement). Proxies `/api/*` to the backend.
+
+Press `Ctrl+C` to stop both processes.
+
+## Manual commands
+
+If you prefer running things separately:
 
 ```bash
-npm install
-npm run dev
+# Terminal 1 — backend with hot-reload
+cargo watch -w src -x 'run -- start'
+
+# Terminal 2 — frontend with HMR
+cd web && npm run dev
 ```
 
-The Vite dev server proxies `/api/*` to `http://127.0.0.1:8080`.
+Or without hot-reload:
 
-## Current Phase 0 scope
+```bash
+# Terminal 1 — backend
+cargo run -- start
 
-- Local file scaffolding under `~/.console/`
-- Minimal CLI command surface
-- Minimal API health/status endpoints
-- Placeholder UI sections for workspace/repo/worker/chat/output
+# Terminal 2 — frontend
+cd web && npm run dev
+```
 
-Real workspace management, run execution, and streaming output behavior are intentionally deferred.
+## Project structure
+
+```
+console/
+  Cargo.toml               # Rust project manifest
+  Makefile                  # Dev commands
+  src/
+    main.rs                 # Entry point
+    cli/                    # CLI commands (init, start, doctor)
+    api/                    # HTTP API routes (axum)
+    services/               # Business logic (version, provider, mcp, skill, prompt)
+    adapters/               # CLI adapter implementations
+    sync/                   # Config sync engine
+    storage/                # Local file read/write
+    models/                 # Data structures
+  web/                      # Frontend (Vite + React + Tailwind)
+  docs/                     # Documentation
+```
+
+## Adding a new CLI adapter
+
+1. Create `src/adapters/<name>.rs` implementing the `CliAdapter` trait.
+2. Register the adapter in `src/adapters/mod.rs`.
+3. Add config path mappings and format handlers.
+4. Test with `make doctor` to verify detection.

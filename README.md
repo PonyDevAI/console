@@ -1,88 +1,68 @@
 # Console
 
-Console is a **local AI coding control console**. It provides a web UI and local daemon for managing workspaces, repositories, and local CLI-based AI workers.
+Console is a **local AI CLI unified management platform**. It provides a web UI and local daemon for managing the full lifecycle of AI coding CLI tools — version management, provider/model switching, MCP server configuration, skills management, and system prompts.
 
-The initial focus is practical and local-first:
-- Run on your machine.
-- Work with repos at their real filesystem paths.
-- Route requests to local worker CLIs (for example Cursor CLI, Claude CLI, and Codex CLI).
-- Stream execution output in the UI.
+## What Console does
 
-## What Console is
-
-Console is a control surface for AI-assisted coding workflows:
-- A local control plane for configuration, routing, session state, and run tracking.
-- A worker adapter layer around local CLI tools.
-- A web UI for selecting workspace/repo/worker and viewing streaming run output.
+- **Version management**: detect, install, upgrade, and uninstall AI CLI tools (Claude CLI, Codex CLI, Gemini CLI, Cursor CLI, and more via adapters).
+- **Provider / model management**: configure multiple API endpoints and keys, switch active providers, sync across all managed CLIs.
+- **MCP server management**: unified CRUD for MCP servers, per-app enable/disable, auto-sync to each CLI's native config.
+- **Skills management**: single source of truth skill repository, install/uninstall/enable/disable, sync to CLI skill directories.
+- **System prompt management**: manage prompt presets, cross-app format adaptation (CLAUDE.md, AGENTS.md, GEMINI.md).
+- **Run execution** (deferred priority): route prompts to local CLI workers and stream output via SSE.
 
 ## What Console is not (yet)
 
-Console is not currently intended to be:
 - A cloud-hosted orchestration platform.
 - A replacement for git hosting or CI systems.
-- A full distributed job scheduler in early phases.
+- A full distributed job scheduler.
 
-SQLite-backed querying, deep run history analytics, and richer orchestration capabilities are intentionally deferred.
+## Core differentiator
 
-## Current phase
+Unlike CLI-only tools, Console provides a **Web UI management panel** as the primary interface. Unlike desktop-only tools, Console runs as a lightweight local daemon accessible from any browser. The **config sync engine** translates Console's unified configuration into each CLI's native format automatically.
 
-Console is in an early design and implementation stage:
-- Backend target stack: Go.
-- Frontend target stack: Vite + React + Tailwind.
-- Initial run streaming transport: SSE.
-- Initial state/config storage: file-based under `~/.console/`.
+## Supported CLI tools
 
-## Long-term direction
+| CLI | Status |
+|-----|--------|
+| Claude CLI | Supported |
+| Codex CLI | Supported |
+| Gemini CLI | Supported |
+| Cursor CLI | Supported |
+| Custom | Extensible via adapter interface |
 
-Over time, Console is expected to evolve toward a broader orchestration model:
-- Multiple worker types and capabilities.
-- Better run lifecycle visibility and approvals.
-- Artifact management and indexing.
-- A job-board style operational view (in spirit similar to a future bull-board-like model), specialized for AI worker execution across repositories.
+## Tech stack
 
-## Local-first philosophy
+- Backend: Rust (axum)
+- Frontend: Vite + React + TypeScript + Tailwind CSS
+- Storage: local files under `~/.console/`, SQLite when justified
+- Streaming: SSE
 
-Console starts local-first by design:
-- Repositories remain where they already live on disk.
-- Console-owned state is stored separately under `~/.console/`.
-- Credentials are managed locally under `~/.console/credentials/`.
-- Lightweight file-based state comes first; SQLite is introduced only when richer query requirements justify it.
-
-## Initial local file layout
+## Local file layout
 
 ```text
 ~/.console/
-  config.json
+  config.json              # Console config (port, theme, etc.)
   state/
-    workspaces.json
-    workers.json
-  credentials/
-  logs/
-  artifacts/
-  workspaces/
+    cli_tools.json         # Detected CLI tools and versions
+    providers.json         # Provider configurations
+    mcp_servers.json       # MCP server configurations
+    prompts.json           # Prompt presets
+    workspaces.json        # Workspaces (preserved)
+  credentials/             # API keys and secrets
+  skills/                  # SSOT skill repository
+  logs/                    # Run logs
+  backups/                 # Config backups
+  cache/                   # Version check cache, etc.
 ```
 
-`~/.console/workspaces/` is for Console metadata/cache/artifacts and does **not** replace repository source locations.
-
-## Documentation map
-
-- [Goals](docs/GOALS.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Tech Stack](docs/TECH_STACK.md)
-- [Storage Model](docs/STORAGE.md)
-- [CLI Commands](docs/CLI.md)
-- [Worker Model](docs/WORKER_MODEL.md)
-- [Web UI](docs/WEB_UI.md)
-- [Development Guide](docs/DEVELOPMENT.md)
-
-## Phase 0 quickstart
+## Quickstart
 
 Backend:
 
 ```bash
-go run ./cmd/console init
-go run ./cmd/console start
+cargo run -- init
+cargo run -- start
 ```
 
 Frontend:
@@ -93,5 +73,20 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL (default `http://127.0.0.1:5173`) to view the placeholder Console UI.
+Open the Vite URL (default `http://127.0.0.1:5173`) to access the Console management panel.
 
+## Documentation
+
+- [Goals](docs/GOALS.md)
+- [Roadmap](docs/ROADMAP.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Tech Stack](docs/TECH_STACK.md)
+- [Storage Model](docs/STORAGE.md)
+- [CLI Commands](docs/CLI.md)
+- [CLI Adapter Model](docs/ADAPTER_MODEL.md)
+- [Web UI](docs/WEB_UI.md)
+- [Development Guide](docs/DEVELOPMENT.md)
+
+## Current phase
+
+Console is in Phase 0 (foundation and scaffolding). See [Roadmap](docs/ROADMAP.md) for details.
