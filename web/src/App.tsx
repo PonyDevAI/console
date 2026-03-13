@@ -1,9 +1,11 @@
 import { Routes, Route, NavLink } from "react-router-dom";
+import { ToastContainer } from "./components/Toast";
 import Dashboard from "./pages/Dashboard";
-import VersionPage from "./pages/VersionPage";
-import ProviderPage from "./pages/ProviderPage";
 import McpPage from "./pages/McpPage";
+import NotFound from "./pages/NotFound";
+import ProviderPage from "./pages/ProviderPage";
 import SkillPage from "./pages/SkillPage";
+import VersionPage from "./pages/VersionPage";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: "◉" },
@@ -29,9 +31,7 @@ export default function App() {
               end={item.to === "/"}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
-                  isActive
-                    ? "bg-zinc-800 font-medium text-white"
-                    : "hover:bg-zinc-800/50 hover:text-white"
+                  isActive ? "bg-zinc-800 font-medium text-white" : "hover:bg-zinc-800/50 hover:text-white"
                 }`
               }
             >
@@ -50,9 +50,11 @@ export default function App() {
           <Route path="/providers" element={<ProviderPage />} />
           <Route path="/mcp" element={<McpPage />} />
           <Route path="/skills" element={<SkillPage />} />
-          <Route path="*" element={<div className="text-red-600">404 Not Found</div>} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+
+      <ToastContainer />
     </div>
   );
 }

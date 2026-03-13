@@ -53,21 +53,21 @@ export default function VersionPage() {
                     <div className="flex gap-2">
                       <button
                         disabled
-                        title="Coming soon"
+                        title="Coming in Phase 1"
                         className="rounded bg-green-50 px-2 py-1 text-xs text-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Install
                       </button>
                       <button
                         disabled
-                        title="Coming soon"
+                        title="Coming in Phase 1"
                         className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Upgrade
                       </button>
                       <button
                         disabled
-                        title="Coming soon"
+                        title="Coming in Phase 1"
                         className="rounded bg-red-50 px-2 py-1 text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Uninstall

@@ -28,14 +28,14 @@ export default function SkillPage() {
       <PageHeader title="Skills">
         <button
           disabled
-          title="Coming soon"
+          title="Coming in Phase 2"
           className="rounded-lg bg-zinc-100 px-4 py-2 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Sync All
         </button>
         <button
           disabled
-          title="Coming soon"
+          title="Coming in Phase 2"
           className="rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           Install Skill
@@ -57,8 +57,8 @@ export default function SkillPage() {
                 <AppBadgeList apps={skill.enabled_apps} />
               </div>
               <div className="flex gap-2">
-                <button disabled title="Coming soon" className="rounded bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 disabled:cursor-not-allowed disabled:opacity-60">Configure</button>
-                <button disabled title="Coming soon" className="rounded bg-red-50 px-3 py-1.5 text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-60">Uninstall</button>
+                <button disabled title="Coming in Phase 2" className="rounded bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 disabled:cursor-not-allowed disabled:opacity-60">Configure</button>
+                <button disabled title="Coming in Phase 2" className="rounded bg-red-50 px-3 py-1.5 text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-60">Uninstall</button>
               </div>
             </div>
           ))}
