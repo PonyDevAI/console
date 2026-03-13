@@ -5,11 +5,11 @@ Console starts with local file-based storage and introduces SQLite only when nec
 ## Current approach: file-based state under `~/.console/`
 
 Reasons:
-- Keeps Phase 0/1 lightweight.
+- Keeps Phase 1 lightweight.
 - Avoids premature schema migration burden.
 - Makes state readable and editable for local debugging.
 
-Initial layout:
+Layout:
 
 ```text
 ~/.console/
@@ -27,20 +27,20 @@ Initial layout:
 
 - `config.json`
   - User-level Console configuration.
-  - Defaults, ports, and feature toggles (as introduced).
+  - Defaults such as server bind address.
 
 - `state/workspaces.json`
-  - Registered workspace records and metadata references.
+  - Registered workspace records.
+  - Each record points to an external repository path.
 
 - `state/workers.json`
-  - Worker adapter definitions and discovered capabilities.
+  - Latest worker CLI detection snapshot.
 
 - `credentials/`
   - Local credentials/secrets required for worker CLIs.
-  - Stored separately from general config.
 
 - `logs/`
-  - Daemon and run logs.
+  - Run log files (`<run-id>.log`) when logging is enabled.
 
 - `artifacts/`
   - Run outputs/artifacts managed by Console.
@@ -55,14 +55,13 @@ Console does not relocate or mirror repositories as authoritative source.
 Repository paths remain where users keep them on disk.
 Console stores references and metadata only.
 
-
-### Current JSON shapes
+## Current JSON shapes
 
 `config.json`:
 
 ```json
 {
-  "version": "phase0",
+  "version": "phase1",
   "server": { "address": "127.0.0.1:8080" }
 }
 ```
@@ -71,18 +70,28 @@ Console stores references and metadata only.
 
 ```json
 {
-  "workspaces": []
+  "workspaces": [
+    {
+      "id": "ws_...",
+      "name": "console",
+      "repo": { "path": "/path/to/repo" },
+      "createdAt": "2026-01-01T00:00:00Z",
+      "modifiedAt": "2026-01-01T00:00:00Z"
+    }
+  ]
 }
 ```
-
-Each workspace record stores `id`, `name`, `repoPath`, `createdAt`, and `modifiedAt`.
 
 `state/workers.json`:
 
 ```json
 {
   "scannedAt": "<rfc3339>",
-  "workers": []
+  "workers": [
+    { "name": "cursor", "command": "cursor", "available": false },
+    { "name": "claude", "command": "claude", "available": false },
+    { "name": "codex", "command": "codex", "available": true, "path": "/usr/local/bin/codex" }
+  ]
 }
 ```
 
@@ -92,8 +101,3 @@ SQLite should be introduced when the product needs:
 - Efficient session/run history queries.
 - Artifact indexing and relationship queries.
 - Multi-dimensional filtering for operational views.
-
-Likely transition model:
-- Keep static config files where practical.
-- Move query-heavy state (sessions/runs/artifact metadata) to SQLite.
-- Maintain migration tooling from file-only state into DB-backed structures.

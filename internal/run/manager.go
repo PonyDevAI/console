@@ -2,7 +2,6 @@ package run
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -108,7 +107,7 @@ func (m *Manager) Create(input CreateInput) (Run, error) {
 	}
 
 	now := time.Now()
-	run := &Run{
+	r := &Run{
 		ID:        fmt.Sprintf("run_%d", now.UnixMilli()),
 		RepoPath:  absoluteRepoPath,
 		WorkerID:  workerID,
@@ -119,33 +118,33 @@ func (m *Manager) Create(input CreateInput) (Run, error) {
 	}
 
 	m.mu.Lock()
-	m.runs[run.ID] = run
+	m.runs[r.ID] = r
 	m.mu.Unlock()
 
-	m.publish(run.ID, Event{Type: "state", RunID: run.ID, Status: StatusQueued, Timestamp: time.Now().Format(time.RFC3339)})
-	go m.execute(run.ID, adapter, worker.RunRequest{RepoPath: absoluteRepoPath, Prompt: prompt})
+	m.publish(r.ID, Event{Type: "state", RunID: r.ID, Status: StatusQueued, Timestamp: time.Now().Format(time.RFC3339)})
+	go m.execute(r.ID, adapter, worker.RunRequest{RepoPath: absoluteRepoPath, Prompt: prompt})
 
-	return m.Get(run.ID)
+	return m.Get(r.ID)
 }
 
 func (m *Manager) Get(id string) (Run, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	run, ok := m.runs[id]
+	r, ok := m.runs[id]
 	if !ok {
 		return Run{}, errors.New("run not found")
 	}
-	copy := *run
-	copy.events = append([]Event{}, run.events...)
+	copy := *r
+	copy.events = append([]Event{}, r.events...)
 	return copy, nil
 }
 
 func (m *Manager) Events(id string) ([]Event, error) {
-	run, err := m.Get(id)
+	r, err := m.Get(id)
 	if err != nil {
 		return nil, err
 	}
-	return run.events, nil
+	return r.events, nil
 }
 
 func (m *Manager) Subscribe(id string) (<-chan Event, func(), error) {
@@ -176,14 +175,11 @@ func (m *Manager) Subscribe(id string) (<-chan Event, func(), error) {
 }
 
 func (m *Manager) execute(runID string, adapter worker.Adapter, request worker.RunRequest) {
-	name, args, err := adapter.BuildCommand(request)
+	cmd, err := adapter.Start(request)
 	if err != nil {
 		m.finishFailed(runID, err.Error(), nil)
 		return
 	}
-
-	cmd := exec.CommandContext(context.Background(), name, args...)
-	cmd.Dir = request.RepoPath
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -203,9 +199,9 @@ func (m *Manager) execute(runID string, adapter worker.Adapter, request worker.R
 	}
 
 	m.mu.Lock()
-	run := m.runs[runID]
-	run.Status = StatusRunning
-	run.StartedAt = time.Now().Format(time.RFC3339)
+	r := m.runs[runID]
+	r.Status = StatusRunning
+	r.StartedAt = time.Now().Format(time.RFC3339)
 	m.mu.Unlock()
 	m.publish(runID, Event{Type: "state", RunID: runID, Status: StatusRunning, Timestamp: time.Now().Format(time.RFC3339)})
 
@@ -250,29 +246,35 @@ func (m *Manager) readStream(runID string, stream string, reader io.Reader, logW
 
 func (m *Manager) finishSuccess(runID string, exitCode *int) {
 	m.mu.Lock()
-	run := m.runs[runID]
-	run.Status = StatusSuccess
-	run.FinishedAt = time.Now().Format(time.RFC3339)
-	run.ExitCode = exitCode
-	run.Error = ""
+	r := m.runs[runID]
+	r.Status = StatusSuccess
+	r.FinishedAt = time.Now().Format(time.RFC3339)
+	r.ExitCode = exitCode
+	r.Error = ""
 	m.mu.Unlock()
 	m.publish(runID, Event{Type: "state", RunID: runID, Status: StatusSuccess, ExitCode: exitCode, Timestamp: time.Now().Format(time.RFC3339)})
+	m.closeSubscribers(runID)
 }
 
 func (m *Manager) finishFailed(runID string, message string, exitCode *int) {
 	m.mu.Lock()
-	run := m.runs[runID]
-	run.Status = StatusFailed
-	run.FinishedAt = time.Now().Format(time.RFC3339)
-	run.ExitCode = exitCode
-	run.Error = message
+	r := m.runs[runID]
+	r.Status = StatusFailed
+	r.FinishedAt = time.Now().Format(time.RFC3339)
+	r.ExitCode = exitCode
+	r.Error = message
 	m.mu.Unlock()
 	m.publish(runID, Event{Type: "state", RunID: runID, Status: StatusFailed, Message: message, ExitCode: exitCode, Timestamp: time.Now().Format(time.RFC3339)})
+	m.closeSubscribers(runID)
 }
 
 func (m *Manager) publish(runID string, event Event) {
 	m.mu.Lock()
-	run := m.runs[runID]
+	run, ok := m.runs[runID]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
 	run.events = append(run.events, event)
 	listeners := m.subscribers[runID]
 	channels := make([]chan Event, 0, len(listeners))
@@ -287,6 +289,16 @@ func (m *Manager) publish(runID string, event Event) {
 		default:
 		}
 	}
+}
+
+func (m *Manager) closeSubscribers(runID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	listeners := m.subscribers[runID]
+	for ch := range listeners {
+		close(ch)
+	}
+	delete(m.subscribers, runID)
 }
 
 func (m *Manager) openLogWriter(runID string) io.WriteCloser {

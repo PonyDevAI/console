@@ -1,9 +1,6 @@
 package worker
 
-import (
-	"os/exec"
-	"time"
-)
+import "time"
 
 type Result struct {
 	Name      string `json:"name"`
@@ -17,32 +14,19 @@ type Snapshot struct {
 	Workers   []Result `json:"workers"`
 }
 
-func ScanKnownWorkers() Snapshot {
-	known := []struct {
-		name    string
-		command string
-	}{
-		{name: "cursor", command: "cursor"},
-		{name: "claude", command: "claude"},
-		{name: "codex", command: "codex"},
+func NewSnapshot(results []Result) Snapshot {
+	if results == nil {
+		results = []Result{}
 	}
-
-	results := make([]Result, 0, len(known))
-	for _, item := range known {
-		path, err := exec.LookPath(item.command)
-		result := Result{
-			Name:      item.name,
-			Command:   item.command,
-			Available: err == nil,
-		}
-		if err == nil {
-			result.Path = path
-		}
-		results = append(results, result)
-	}
-
 	return Snapshot{
 		ScannedAt: time.Now().Format(time.RFC3339),
 		Workers:   results,
 	}
+}
+
+func ScanKnownWorkers(registry *Registry) Snapshot {
+	if registry == nil {
+		registry = DefaultRegistry()
+	}
+	return registry.Snapshot()
 }

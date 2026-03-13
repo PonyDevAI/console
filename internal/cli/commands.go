@@ -11,6 +11,7 @@ import (
 	"github.com/PonyDevAI/console/internal/run"
 	"github.com/PonyDevAI/console/internal/state"
 	"github.com/PonyDevAI/console/internal/worker"
+	"github.com/PonyDevAI/console/internal/workspace"
 )
 
 func Run(args []string) error {
@@ -64,9 +65,13 @@ func runStart(paths config.Paths) error {
 	}
 
 	address := cfg.Server.Address
+	registry := worker.DefaultRegistry()
+	runManager := run.NewManager(registry, paths.Logs)
+	workspaceService := workspace.NewService(store)
+	workerService := worker.NewService(store, registry)
+
 	fmt.Printf("Console server listening on http://%s\n", address)
-	runManager := run.NewManager(worker.DefaultRegistry(), paths.Logs)
-	return api.NewServer(address, store, runManager).Start()
+	return api.NewServer(address, runManager, workspaceService, workerService).Start()
 }
 
 func runStatus(paths config.Paths) error {
@@ -129,7 +134,7 @@ func runDoctor(paths config.Paths) error {
 		fmt.Printf("  [%s] %s: %s\n", status, check.name, detail)
 	}
 
-	snapshot := worker.ScanKnownWorkers()
+	snapshot := worker.ScanKnownWorkers(worker.DefaultRegistry())
 	available := 0
 	for _, result := range snapshot.Workers {
 		state := "missing"
@@ -150,8 +155,10 @@ func runWorkerScan(paths config.Paths) error {
 		return err
 	}
 
-	snapshot := worker.ScanKnownWorkers()
-	if err := store.UpdateWorkers(snapshot); err != nil {
+	registry := worker.DefaultRegistry()
+	workerService := worker.NewService(store, registry)
+	snapshot, err := workerService.Scan()
+	if err != nil {
 		return err
 	}
 

@@ -1,12 +1,25 @@
 # Web UI (Local Execution Loop)
 
-The web UI now includes a minimal but real local execution loop.
+The web UI includes a minimal but real local execution loop.
 
 ## Stack
 
 - Vite
 - React
 - TypeScript
+- Tailwind CSS
+
+## Frontend structure
+
+The app is split by feature instead of keeping all UI/state in one file:
+
+- `web/src/app/` — page-level composition and state wiring
+- `web/src/features/workspaces/` — workspace list UI
+- `web/src/features/workers/` — worker list UI
+- `web/src/features/runs/` — run form and streaming output panel
+- `web/src/components/` — shared presentational blocks
+- `web/src/lib/api/` — API client helpers
+- `web/src/lib/types/` — shared frontend types
 
 ## Current screen sections
 

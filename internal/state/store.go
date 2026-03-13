@@ -11,43 +11,18 @@ import (
 	"time"
 
 	"github.com/PonyDevAI/console/internal/config"
-	"github.com/PonyDevAI/console/internal/worker"
 )
 
 type Store struct {
 	paths config.Paths
 }
 
-type Config struct {
-	Version string       `json:"version"`
-	Server  ConfigServer `json:"server"`
-}
-
-type ConfigServer struct {
-	Address string `json:"address"`
-}
-
-type Workspace struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	RepoPath   string `json:"repoPath"`
-	CreatedAt  string `json:"createdAt"`
-	ModifiedAt string `json:"modifiedAt"`
-}
-
-type WorkspaceCreateInput struct {
-	Name     string `json:"name"`
-	RepoPath string `json:"repoPath"`
-}
-
-type WorkspaceList struct {
-	Workspaces []Workspace `json:"workspaces"`
-}
-
-type WorkerState = worker.Snapshot
-
 func NewStore(paths config.Paths) *Store {
 	return &Store{paths: paths}
+}
+
+func (s *Store) Paths() config.Paths {
+	return s.paths
 }
 
 func (s *Store) EnsureInitialized() error {
@@ -64,7 +39,7 @@ func (s *Store) EnsureInitialized() error {
 	if err := EnsureJSONFile(s.paths.Workspaces, WorkspaceList{Workspaces: []Workspace{}}); err != nil {
 		return err
 	}
-	if err := EnsureJSONFile(s.paths.Workers, WorkerState{Workers: []worker.Result{}}); err != nil {
+	if err := EnsureJSONFile(s.paths.Workers, WorkerState{Workers: []WorkerEntry{}}); err != nil {
 		return err
 	}
 
@@ -122,7 +97,7 @@ func (s *Store) AddWorkspace(input WorkspaceCreateInput) (Workspace, error) {
 	}
 
 	for _, existing := range list.Workspaces {
-		if existing.RepoPath == absoluteRepoPath {
+		if existing.Repo.Path == absoluteRepoPath {
 			return Workspace{}, errors.New("workspace already exists for repoPath")
 		}
 	}
@@ -130,9 +105,10 @@ func (s *Store) AddWorkspace(input WorkspaceCreateInput) (Workspace, error) {
 	now := time.Now().Format(time.RFC3339)
 	id := fmt.Sprintf("ws_%d", time.Now().UnixMilli())
 	entry := Workspace{
-		ID:         id,
-		Name:       name,
-		RepoPath:   absoluteRepoPath,
+		ID:   id,
+		Name: name,
+		Repo: Repo{Path: absoluteRepoPath},
+
 		CreatedAt:  now,
 		ModifiedAt: now,
 	}
@@ -155,7 +131,7 @@ func (s *Store) ReadWorkers() (WorkerState, error) {
 		return WorkerState{}, err
 	}
 	if snapshot.Workers == nil {
-		snapshot.Workers = []worker.Result{}
+		snapshot.Workers = []WorkerEntry{}
 	}
 	return snapshot, nil
 }
@@ -165,7 +141,7 @@ func (s *Store) UpdateWorkers(snapshot WorkerState) error {
 		snapshot.ScannedAt = time.Now().Format(time.RFC3339)
 	}
 	if snapshot.Workers == nil {
-		snapshot.Workers = []worker.Result{}
+		snapshot.Workers = []WorkerEntry{}
 	}
 	return WriteJSONFile(s.paths.Workers, snapshot)
 }
@@ -183,7 +159,7 @@ func readJSONFile(path string, value any) error {
 
 func defaultConfig() Config {
 	return Config{
-		Version: "phase0",
+		Version: "phase1",
 		Server:  ConfigServer{Address: "127.0.0.1:8080"},
 	}
 }

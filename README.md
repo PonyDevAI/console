@@ -76,7 +76,7 @@ Console starts local-first by design:
 - [Web UI](docs/WEB_UI.md)
 - [Development Guide](docs/DEVELOPMENT.md)
 
-## Phase 0 quickstart
+## Phase 1 quickstart
 
 Backend:
 
@@ -93,5 +93,5 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL (default `http://127.0.0.1:5173`) to view the placeholder Console UI.
+Open the Vite URL (default `http://127.0.0.1:5173`) to use the local run loop UI (workspaces, workers, run form, SSE output).
 
