@@ -1,4 +1,4 @@
-use crate::adapters::{self, CliAdapter};
+use crate::adapters;
 
 pub async fn run() -> anyhow::Result<()> {
     println!("Console Doctor — running diagnostics\n");

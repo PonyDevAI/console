@@ -13,10 +13,12 @@ fn save(state: &PromptsState) -> Result<()> {
     storage::write_json(&paths.prompts_file(), state)
 }
 
+#[allow(dead_code)]
 pub fn list() -> Result<Vec<PromptPreset>> {
     Ok(load()?.prompts)
 }
 
+#[allow(dead_code)]
 pub fn create(mut preset: PromptPreset) -> Result<PromptPreset> {
     let mut state = load()?;
     if preset.id.is_empty() {
@@ -27,12 +29,14 @@ pub fn create(mut preset: PromptPreset) -> Result<PromptPreset> {
     Ok(preset)
 }
 
+#[allow(dead_code)]
 pub fn delete(id: &str) -> Result<()> {
     let mut state = load()?;
     state.prompts.retain(|p| p.id != id);
     save(&state)
 }
 
+#[allow(dead_code)]
 pub fn activate(id: &str) -> Result<()> {
     let mut state = load()?;
     for p in &mut state.prompts {
@@ -41,6 +45,7 @@ pub fn activate(id: &str) -> Result<()> {
     save(&state)
 }
 
+#[allow(dead_code)]
 pub fn deactivate_all() -> Result<()> {
     let mut state = load()?;
     for p in &mut state.prompts {

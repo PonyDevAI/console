@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::adapters::{self, CliAdapter};
+use crate::adapters;
 use crate::models::{CliTool, CliToolsState};
 use crate::storage::{self, ConsolePaths};
 

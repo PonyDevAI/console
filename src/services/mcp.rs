@@ -58,6 +58,7 @@ pub fn delete(id: &str) -> Result<()> {
     save(&state)
 }
 
+#[allow(dead_code)]
 pub fn enable_for_app(id: &str, app: &str) -> Result<()> {
     let mut state = load()?;
     if let Some(s) = state.servers.iter_mut().find(|s| s.id == id) {
@@ -70,6 +71,7 @@ pub fn enable_for_app(id: &str, app: &str) -> Result<()> {
     }
 }
 
+#[allow(dead_code)]
 pub fn disable_for_app(id: &str, app: &str) -> Result<()> {
     let mut state = load()?;
     if let Some(s) = state.servers.iter_mut().find(|s| s.id == id) {

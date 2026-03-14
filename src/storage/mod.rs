@@ -54,8 +54,12 @@ impl ConsolePaths {
     pub fn prompts_file(&self) -> PathBuf {
         self.state_dir().join("prompts.json")
     }
+    #[allow(dead_code)]
     pub fn workspaces_file(&self) -> PathBuf {
         self.state_dir().join("workspaces.json")
+    }
+    pub fn settings_file(&self) -> PathBuf {
+        self.root.join("settings.json")
     }
 
     /// Create all required directories.
@@ -100,6 +104,10 @@ impl ConsolePaths {
         let prompts = self.prompts_file();
         if !prompts.exists() {
             write_json(&prompts, &crate::models::PromptsState { prompts: vec![] })?;
+        }
+        let settings = self.settings_file();
+        if !settings.exists() {
+            write_json(&settings, &crate::services::settings::Settings::default())?;
         }
         Ok(())
     }

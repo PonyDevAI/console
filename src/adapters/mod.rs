@@ -33,6 +33,7 @@ pub trait CliAdapter: Send + Sync {
     /// Root config directory for this CLI (e.g. ~/.claude).
     fn config_dir(&self) -> Result<PathBuf>;
     /// Primary config file path.
+    #[allow(dead_code)]
     fn config_file(&self) -> Result<PathBuf>;
 }
 
