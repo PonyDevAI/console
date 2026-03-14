@@ -1,4 +1,6 @@
+import { CheckCircle2, Info, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { cn } from "../lib/utils";
 
 type ToastVariant = "success" | "error" | "info";
 
@@ -13,8 +15,8 @@ type Listener = (item: ToastItem) => void;
 const listeners = new Set<Listener>();
 
 export function toast(message: string, variant: ToastVariant = "info") {
-  const item: ToastItem = { id: crypto.randomUUID(), message, variant };
-  listeners.forEach((listener) => listener(item));
+  const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  listeners.forEach((listener) => listener({ id, message, variant }));
 }
 
 export function ToastContainer() {
@@ -34,22 +36,22 @@ export function ToastContainer() {
     };
   }, []);
 
-  if (items.length === 0) return null;
-
   return (
     <div className="fixed bottom-4 right-4 z-[60] space-y-2">
       {items.map((item) => (
         <div
           key={item.id}
-          className={`min-w-56 rounded-lg px-3 py-2 text-sm shadow ${
+          className={cn(
+            "flex min-w-64 items-center gap-2 rounded-[var(--radius-md)] px-3 py-2 text-sm",
             item.variant === "success"
-              ? "bg-green-100 text-green-800"
+              ? "border border-[var(--success)]/30 bg-[var(--success)]/10 text-[var(--success)]"
               : item.variant === "error"
-                ? "bg-red-100 text-red-800"
-                : "bg-blue-100 text-blue-800"
-          }`}
+                ? "border border-[var(--danger)]/30 bg-[var(--danger)]/10 text-[var(--danger)]"
+                : "border border-[var(--border)] bg-[var(--card)] text-[var(--text)]",
+          )}
         >
-          {item.message}
+          {item.variant === "success" ? <CheckCircle2 className="h-4 w-4" /> : item.variant === "error" ? <XCircle className="h-4 w-4" /> : <Info className="h-4 w-4" />}
+          <span>{item.message}</span>
         </div>
       ))}
     </div>

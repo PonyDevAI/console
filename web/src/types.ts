@@ -59,3 +59,33 @@ export type Skill = {
   enabled_apps: string[];
   installed_at: string | null;
 };
+
+// ── Settings ──
+export type Settings = {
+  storage_path: string;
+  default_worker: string;
+  theme: "dark" | "light" | "system";
+  log_level: "debug" | "info" | "warn" | "error";
+  auto_check_updates: boolean;
+  sync_on_change: boolean;
+};
+
+// ── Logs ──
+export type LogEntry = {
+  id: string;
+  timestamp: string;
+  level: "debug" | "info" | "warn" | "error";
+  source: string;
+  message: string;
+};
+
+// ── Config Sync ──
+export type ConfigSyncEntry = {
+  id: string;
+  app: string;
+  config_type: "providers" | "mcp_servers" | "skills" | "rules";
+  status: "synced" | "pending" | "conflict" | "error";
+  last_synced: string | null;
+  local_hash: string;
+  remote_hash: string;
+};

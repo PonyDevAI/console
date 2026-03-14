@@ -1,4 +1,5 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { cn } from "../lib/utils";
 
 type FieldWrapperProps = {
   label: string;
@@ -9,25 +10,25 @@ type FieldWrapperProps = {
 function FieldWrapper({ label, error, children }: FieldWrapperProps) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-zinc-700">{label}</span>
+      <span className="mb-1.5 block text-xs font-medium text-[var(--muted)]">{label}</span>
       {children}
-      {error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}
+      {error ? <span className="mt-1 block text-xs text-[var(--danger)]">{error}</span> : null}
     </label>
   );
 }
+
+const fieldClass =
+  "w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--text)] shadow-[inset_0_1px_0_var(--card-highlight)] placeholder:text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/30";
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   error?: string;
 };
 
-export function Input({ label, error, className = "", ...props }: InputProps) {
+export function Input({ label, error, className, ...props }: InputProps) {
   return (
     <FieldWrapper label={label} error={error}>
-      <input
-        {...props}
-        className={`w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-0 focus:border-zinc-500 ${className}`}
-      />
+      <input {...props} className={cn(fieldClass, className)} />
     </FieldWrapper>
   );
 }
@@ -37,13 +38,10 @@ type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   error?: string;
 };
 
-export function Select({ label, error, className = "", children, ...props }: SelectProps) {
+export function Select({ label, error, className, children, ...props }: SelectProps) {
   return (
     <FieldWrapper label={label} error={error}>
-      <select
-        {...props}
-        className={`w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-0 focus:border-zinc-500 ${className}`}
-      >
+      <select {...props} className={cn(fieldClass, className)}>
         {children}
       </select>
     </FieldWrapper>
@@ -55,13 +53,10 @@ type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   error?: string;
 };
 
-export function Textarea({ label, error, className = "", ...props }: TextareaProps) {
+export function Textarea({ label, error, className, ...props }: TextareaProps) {
   return (
     <FieldWrapper label={label} error={error}>
-      <textarea
-        {...props}
-        className={`w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none ring-0 focus:border-zinc-500 ${className}`}
-      />
+      <textarea {...props} className={cn(fieldClass, className)} />
     </FieldWrapper>
   );
 }

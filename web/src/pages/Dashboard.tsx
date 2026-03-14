@@ -1,40 +1,40 @@
+import { Activity, ArrowUpCircle, Cpu, Server } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { getHealth, getMcpServers, getProviders } from "../api";
+import { Link } from "react-router-dom";
+import { getHealth, getLogs, getMcpServers, getProviders } from "../api";
+import Button from "../components/Button";
+import Callout from "../components/Callout";
 import Card from "../components/Card";
 import EmptyState from "../components/EmptyState";
-import PageHeader from "../components/PageHeader";
 import Spinner from "../components/Spinner";
+import PageHeader from "../components/PageHeader";
+import StatGrid from "../components/StatGrid";
 import StatusBadge from "../components/StatusBadge";
+import type { LogEntry } from "../types";
 import useCliTools from "../hooks/useCliTools";
 
 export default function Dashboard() {
-  const [status, setStatus] = useState<"loading" | "online" | "offline">("loading");
-  const [providersCount, setProvidersCount] = useState(0);
-  const [activeProviderName, setActiveProviderName] = useState<string>("None");
-  const [mcpCount, setMcpCount] = useState(0);
-  const [metaError, setMetaError] = useState<string | null>(null);
-  const [metaLoading, setMetaLoading] = useState(true);
-
   const { tools, loading, scanning, error, scan } = useCliTools();
+  const [providersCount, setProvidersCount] = useState(0);
+  const [mcpCount, setMcpCount] = useState(0);
+  const [connected, setConnected] = useState(true);
+  const [recentLogs, setRecentLogs] = useState<LogEntry[]>([]);
+  const [metaLoading, setMetaLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
-    getHealth()
-      .then(() => mounted && setStatus("online"))
-      .catch(() => mounted && setStatus("offline"));
-
-    Promise.all([getProviders(), getMcpServers()])
-      .then(([providersData, mcpData]) => {
+    Promise.all([getHealth(), getProviders(), getMcpServers(), getLogs({ limit: 5 })])
+      .then(([_, providersData, mcpData, logData]) => {
         if (!mounted) return;
-        const providers = providersData.providers ?? [];
-        setProvidersCount(providers.length);
-        setActiveProviderName(providers.find((provider) => provider.active)?.name ?? "None");
-        setMcpCount((mcpData.servers ?? []).length);
+        setConnected(true);
+        setProvidersCount(providersData.providers?.length ?? 0);
+        setMcpCount(mcpData.servers?.length ?? 0);
+        setRecentLogs(logData.logs ?? []);
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (!mounted) return;
-        setMetaError(err instanceof Error ? err.message : "Failed to load dashboard stats");
+        setConnected(false);
       })
       .finally(() => {
         if (!mounted) return;
@@ -46,92 +46,140 @@ export default function Dashboard() {
     };
   }, []);
 
-  const installedCount = useMemo(() => tools.filter((tool) => tool.installed).length, [tools]);
+  const installedTools = useMemo(() => tools.filter((tool) => tool.installed).length, [tools]);
 
-  if (loading || metaLoading) {
-    return <Spinner />;
-  }
+  const stats = [
+    {
+      label: "Health",
+      value: connected ? "1" : "0",
+      icon: Activity,
+      color: "text-[var(--success)]",
+    },
+    {
+      label: "CLI Tools",
+      value: `${installedTools}/${tools.length}`,
+      icon: ArrowUpCircle,
+      color: "text-[var(--accent)]",
+      href: "/versions",
+    },
+    {
+      label: "Providers",
+      value: `${providersCount}`,
+      icon: Cpu,
+      color: "text-[var(--info)]",
+      href: "/providers",
+    },
+    {
+      label: "MCP Servers",
+      value: `${mcpCount}`,
+      icon: Server,
+      color: "text-[var(--warning)]",
+      href: "/mcp",
+    },
+  ];
+
+  const updateNeeded = tools.filter(
+    (tool) =>
+      tool.installed &&
+      tool.local_version &&
+      tool.remote_version &&
+      tool.local_version !== tool.remote_version,
+  );
+  const mcpFailures = recentLogs.filter((entry) => entry.level === "error" && entry.source === "mcp");
+
+  if (loading || metaLoading) return <Spinner />;
 
   return (
-    <div>
-      <PageHeader title="Dashboard">
-        <StatusBadge
-          label={status}
-          variant={status === "online" ? "success" : status === "offline" ? "danger" : "warning"}
-        />
-        <button
-          onClick={scan}
-          disabled={scanning}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700 disabled:opacity-50"
-        >
-          {scanning ? "Scanning..." : "Scan CLI Tools"}
-        </button>
-      </PageHeader>
+    <div className="space-y-4">
+      <PageHeader title="概览" description="系统状态、入口点和快速操作。" />
+      {error ? (
+        <div className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-subtle)] px-3 py-2 text-sm text-[var(--danger)]">
+          {error}
+        </div>
+      ) : null}
 
-      {error ? <div className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
-      {metaError ? <div className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{metaError}</div> : null}
+      <StatGrid stats={stats} />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <div className="text-sm text-zinc-500">CLI Tools</div>
-          <div className="mt-1 text-2xl font-semibold">
-            {installedCount}/{tools.length}
+      <div className="space-y-2">
+        {updateNeeded.length > 0 ? (
+          <Callout variant="warning" title="Attention">
+            {updateNeeded.length} tool(s) have updates available: {updateNeeded.map((tool) => tool.display_name).join(", ")}.
+          </Callout>
+        ) : null}
+        {mcpFailures.length > 0 ? (
+          <Callout variant="danger" title="Attention">
+            {mcpFailures[0].message}
+          </Callout>
+        ) : null}
+      </div>
+
+      <Card header="Recent Activity">
+        {recentLogs.length === 0 ? (
+          <EmptyState message="No recent activity." />
+        ) : (
+          <div className="space-y-2">
+            {recentLogs.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] px-3 py-2"
+              >
+                <div className="min-w-0 flex-1 text-sm text-[var(--text)]">
+                  <span className="mr-2 text-xs text-[var(--muted)]">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                  <span className="truncate">{entry.message}</span>
+                </div>
+                <StatusBadge
+                  label={entry.level.toUpperCase()}
+                  variant={entry.level === "error" ? "danger" : entry.level === "warn" ? "warning" : "info"}
+                />
+              </div>
+            ))}
           </div>
-          <div className="text-xs text-zinc-400">Installed / Total</div>
+        )}
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card header="CLI Tools">
+          {tools.length === 0 ? (
+            <EmptyState message="No CLI tools detected." />
+          ) : (
+            <div className="space-y-2">
+              {tools.map((tool) => (
+                <div
+                  key={tool.name}
+                  className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] px-3 py-2"
+                >
+                  <div>
+                    <div className="text-sm text-[var(--text-strong)]">{tool.display_name}</div>
+                    <div className="text-xs text-[var(--muted)]">v{tool.local_version ?? "-"}</div>
+                  </div>
+                  <StatusBadge
+                    label={tool.installed ? "Installed" : "Missing"}
+                    variant={tool.installed ? "success" : "muted"}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
 
-        <Card>
-          <div className="text-sm text-zinc-500">Providers</div>
-          <div className="mt-1 text-2xl font-semibold">{providersCount}</div>
-          <div className="truncate text-xs text-zinc-400" title={activeProviderName}>
-            Active: {activeProviderName}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="text-sm text-zinc-500">MCP Servers</div>
-          <div className="mt-1 text-2xl font-semibold">{mcpCount}</div>
-          <div className="text-xs text-zinc-400">Configured servers</div>
-        </Card>
-
-        <Card>
-          <div className="text-sm text-zinc-500">Service Health</div>
-          <div className="mt-2">
-            <StatusBadge
-              label={status === "online" ? "Healthy" : status === "offline" ? "Unavailable" : "Checking"}
-              variant={status === "online" ? "success" : status === "offline" ? "danger" : "warning"}
-            />
+        <Card header="Quick Actions">
+          <div className="space-y-2">
+            <Button onClick={scan} disabled={scanning} className="w-full justify-start">
+              {scanning ? "Scanning..." : "Scan Tools"}
+            </Button>
+            <Link to="/providers" className="block">
+              <Button variant="secondary" className="w-full justify-start">
+                View Providers
+              </Button>
+            </Link>
+            <Link to="/mcp" className="block">
+              <Button variant="secondary" className="w-full justify-start">
+                View MCP Servers
+              </Button>
+            </Link>
           </div>
         </Card>
       </div>
-
-      <Card>
-        <div className="mb-3 text-sm font-medium text-zinc-700">Quick Actions</div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={scan}
-            className="rounded bg-zinc-900 px-3 py-1.5 text-xs text-white hover:bg-zinc-700"
-          >
-            Scan CLI Tools
-          </button>
-          <button
-            disabled
-            title="Coming in Phase 1"
-            className="rounded bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Add Provider
-          </button>
-          <button
-            disabled
-            title="Coming in Phase 1"
-            className="rounded bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Add MCP Server
-          </button>
-        </div>
-      </Card>
-
-      {tools.length === 0 ? <EmptyState message="No CLI tools detected." /> : null}
     </div>
   );
 }

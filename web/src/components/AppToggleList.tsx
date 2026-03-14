@@ -1,3 +1,5 @@
+import { cn } from "../lib/utils";
+
 const APPS = ["claude", "codex", "gemini", "cursor"] as const;
 
 type AppToggleListProps = {
@@ -23,7 +25,10 @@ export default function AppToggleList({ selected, onChange }: AppToggleListProps
             key={app}
             type="button"
             onClick={() => toggle(app)}
-            className={`rounded px-2 py-1 text-xs ${active ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-500"}`}
+            className={cn(
+              "rounded-full px-2.5 py-1 text-xs",
+              active ? "bg-[var(--accent-subtle)] text-[var(--accent)]" : "bg-[var(--bg-hover)] text-[var(--muted)]",
+            )}
           >
             {app}
           </button>

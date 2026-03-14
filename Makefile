@@ -1,4 +1,4 @@
-.PHONY: init run dev web build check clean doctor scan help
+.PHONY: init run dev server web build check clean doctor scan help
 
 # ── Default ──────────────────────────────────────────────
 
@@ -21,11 +21,17 @@ init: ## Install deps, build backend, init ~/.console/
 	@cargo build
 	@echo "==> Initializing ~/.console/..."
 	@cargo run --quiet -- init
-	@echo "==> Done. Run 'make dev' to start developing."
+	@echo "==> Done."
 
-# ── Run ──────────────────────────────────────────────────
+# ── Run (separate or together) ───────────────────────────
 
-run: ## Start backend + frontend (no hot-reload)
+server: ## Start backend only
+	@cargo run -- start
+
+web: ## Start frontend dev server only
+	@cd web && pnpm dev
+
+run: ## Start backend + frontend together
 	@trap 'kill 0' INT TERM; \
 	cargo run -- start & \
 	cd web && pnpm dev & \
@@ -39,9 +45,6 @@ dev: ## Start with hot-reload (cargo-watch + vite HMR)
 	cargo watch -w src -x 'run -- start' & \
 	cd web && pnpm dev & \
 	wait
-
-web: ## Start frontend dev server only
-	@cd web && pnpm dev
 
 # ── Build ────────────────────────────────────────────────
 

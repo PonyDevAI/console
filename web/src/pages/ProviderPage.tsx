@@ -1,18 +1,23 @@
+import { ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   activateProvider,
   createProvider,
   deleteProvider,
   getProviders,
+  testProvider,
   updateProvider,
 } from "../api";
-import AppBadgeList from "../components/AppBadgeList";
 import AppToggleList from "../components/AppToggleList";
+import Button from "../components/Button";
 import Card from "../components/Card";
+import ChipRow from "../components/ChipRow";
+import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import { Input } from "../components/FormFields";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import SecretField from "../components/SecretField";
 import Spinner from "../components/Spinner";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toast";
@@ -25,17 +30,25 @@ const emptyForm: CreateProviderInput = {
   apps: [],
 };
 
+const providerModels: Record<string, string[]> = {
+  OpenAI: ["gpt-4o", "gpt-4.1", "o3-mini"],
+  Anthropic: ["claude-3.5-sonnet", "claude-3.7-sonnet", "claude-3-haiku"],
+  OpenRouter: ["openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash"],
+};
+
 export default function ProviderPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   const [openForm, setOpenForm] = useState(false);
-  const [openDelete, setOpenDelete] = useState(false);
   const [editing, setEditing] = useState<Provider | null>(null);
   const [deleting, setDeleting] = useState<Provider | null>(null);
   const [form, setForm] = useState<CreateProviderInput>(emptyForm);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [testResult, setTestResult] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +67,8 @@ export default function ProviderPage() {
     void load();
   }, [load]);
 
+  const activeCount = useMemo(() => providers.filter((provider) => provider.active).length, [providers]);
+
   const openCreateModal = () => {
     setEditing(null);
     setForm(emptyForm);
@@ -70,11 +85,6 @@ export default function ProviderPage() {
     });
     setOpenForm(true);
   };
-
-  const activeProviderName = useMemo(
-    () => providers.find((provider) => provider.active)?.name ?? "None",
-    [providers],
-  );
 
   const submitForm = async (event: FormEvent) => {
     event.preventDefault();
@@ -112,7 +122,6 @@ export default function ProviderPage() {
     try {
       await deleteProvider(deleting.id);
       toast("Provider deleted", "success");
-      setOpenDelete(false);
       setDeleting(null);
       await load();
     } catch (err: unknown) {
@@ -122,67 +131,117 @@ export default function ProviderPage() {
     }
   };
 
+  const onTestProvider = async (provider: Provider) => {
+    setTestingId(provider.id);
+    try {
+      const result = await testProvider(provider.id);
+      const text = result.ok ? `Connected (${result.latency_ms}ms)` : "Failed";
+      setTestResult((prev) => ({ ...prev, [provider.id]: text }));
+      toast(result.ok ? `${provider.name} test passed` : `${provider.name} test failed`, result.ok ? "success" : "error");
+    } catch (err: unknown) {
+      setTestResult((prev) => ({ ...prev, [provider.id]: "Failed" }));
+      toast(err instanceof Error ? err.message : "Failed to test provider", "error");
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div>
-      <PageHeader title="Provider Management">
-        <button
-          onClick={openCreateModal}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700"
-        >
-          Add Provider
-        </button>
+      <PageHeader title="供应商" description="模型供应商和端点配置">
+        <Button onClick={openCreateModal}>Add Provider</Button>
       </PageHeader>
 
-      <div className="mb-4 text-sm text-zinc-500">Active Provider: {activeProviderName}</div>
-
       {loading ? <Spinner /> : null}
-      {!loading && error ? <div className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div> : null}
+      {!loading && error ? (
+        <div className="mb-4 rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-subtle)] px-3 py-2 text-sm text-[var(--danger)]">
+          {error}
+        </div>
+      ) : null}
 
       {!loading && !error && providers.length === 0 ? <EmptyState message="No providers configured." /> : null}
 
       {!loading && !error && providers.length > 0 ? (
         <div className="space-y-3">
-          {providers.map((provider) => (
-            <Card key={provider.id} className="flex items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{provider.name}</span>
-                  <StatusBadge
-                    label={provider.active ? "Active" : "Inactive"}
-                    variant={provider.active ? "success" : "muted"}
-                  />
-                </div>
-                <p className="mt-1 text-sm text-zinc-500">{provider.api_endpoint}</p>
-                <AppBadgeList apps={provider.apps} />
-              </div>
+          {providers.map((provider) => {
+            const expanded = expandedIds.has(provider.id);
+            const models = providerModels[provider.name] ?? ["default-model"];
 
-              <div className="flex gap-2">
-                {!provider.active ? (
-                  <button
-                    onClick={() => void onActivate(provider.id)}
-                    className="rounded bg-blue-50 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-100"
-                  >
-                    Activate
-                  </button>
-                ) : null}
-                <button
-                  onClick={() => openEditModal(provider)}
-                  className="rounded bg-zinc-100 px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-200"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    setDeleting(provider);
-                    setOpenDelete(true);
-                  }}
-                  className="rounded bg-red-50 px-3 py-1.5 text-xs text-red-700 hover:bg-red-100"
-                >
-                  Delete
-                </button>
-              </div>
-            </Card>
-          ))}
+            return (
+              <Card key={provider.id}>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-[var(--text-strong)]">{provider.name}</span>
+                        <StatusBadge
+                          label={provider.active ? "Active" : "Inactive"}
+                          variant={provider.active ? "success" : "muted"}
+                        />
+                      </div>
+                      <p className="mt-1 font-mono text-xs text-[var(--muted)]">{provider.api_endpoint}</p>
+                      <ChipRow items={provider.apps} variant="accent" />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {!provider.active ? (
+                        <Button size="sm" onClick={() => void onActivate(provider.id)}>
+                          Activate
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void onTestProvider(provider)}
+                        disabled={testingId === provider.id}
+                      >
+                        <FlaskConical className="h-4 w-4" />
+                        {testingId === provider.id ? "Testing..." : "Test Connection"}
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => openEditModal(provider)}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => toggleExpand(provider.id)}>
+                        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        Details
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => setDeleting(provider)}>
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+
+                  {testResult[provider.id] ? (
+                    <div className="text-xs text-[var(--muted)]">Connection Test: {testResult[provider.id]}</div>
+                  ) : null}
+
+                  {expanded ? (
+                    <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] p-3">
+                      <div>
+                        <div className="text-xs font-medium text-[var(--muted)]">API Key</div>
+                        <div className="mt-1 max-w-sm">
+                          <SecretField value={provider.api_key_ref} readOnly />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-medium text-[var(--muted)]">Models</div>
+                        <ChipRow items={models} />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       ) : null}
 
@@ -190,8 +249,18 @@ export default function ProviderPage() {
         open={openForm}
         onClose={() => !saving && setOpenForm(false)}
         title={editing ? "Edit Provider" : "Add Provider"}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setOpenForm(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="provider-form" disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        }
       >
-        <form className="space-y-4" onSubmit={(event) => void submitForm(event)}>
+        <form id="provider-form" className="space-y-4" onSubmit={(event) => void submitForm(event)}>
           <Input
             label="Name"
             required
@@ -204,64 +273,29 @@ export default function ProviderPage() {
             value={form.api_endpoint}
             onChange={(event) => setForm((prev) => ({ ...prev, api_endpoint: event.target.value }))}
           />
-          <Input
+          <SecretField
             label="API Key Ref"
             required
             value={form.api_key_ref}
             onChange={(event) => setForm((prev) => ({ ...prev, api_key_ref: event.target.value }))}
           />
           <div>
-            <div className="mb-1 text-sm font-medium text-zinc-700">Enabled Apps</div>
+            <div className="mb-1 text-xs font-medium text-[var(--muted)]">Enabled Apps</div>
             <AppToggleList selected={form.apps} onChange={(apps) => setForm((prev) => ({ ...prev, apps }))} />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setOpenForm(false)}
-              className="rounded bg-zinc-100 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
           </div>
         </form>
       </Modal>
 
-      <Modal
-        open={openDelete}
-        onClose={() => !saving && setOpenDelete(false)}
+      <ConfirmDialog
+        open={Boolean(deleting)}
         title="Delete Provider"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-zinc-600">
-            Confirm delete <span className="font-semibold text-zinc-900">{deleting?.name}</span>?
-          </p>
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setOpenDelete(false)}
-              className="rounded bg-zinc-100 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => void onDelete()}
-              disabled={saving}
-              className="rounded bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50"
-            >
-              {saving ? "Deleting..." : "Delete"}
-            </button>
-          </div>
-        </div>
-      </Modal>
+        message={`Confirm delete ${deleting?.name ?? "this provider"}?`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={saving}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => void onDelete()}
+      />
     </div>
   );
 }
