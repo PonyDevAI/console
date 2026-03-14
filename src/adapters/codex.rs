@@ -64,4 +64,71 @@ impl CliAdapter for CodexAdapter {
     fn config_file(&self) -> Result<PathBuf> {
         Ok(self.config_dir()?.join("config.toml"))
     }
+
+    fn mcp_config_path(&self) -> Result<PathBuf> {
+        Ok(self.config_dir()?.join("mcp.json"))
+    }
+
+    fn write_mcp_config(&self, servers: &[crate::models::McpServer]) -> Result<()> {
+        let mut mcp_servers = serde_json::Map::new();
+        for server in servers {
+            let mut entry = serde_json::Map::new();
+            if let Some(cmd) = &server.command {
+                entry.insert("command".to_string(), serde_json::json!(cmd));
+            }
+            if !server.args.is_empty() {
+                entry.insert("args".to_string(), serde_json::json!(server.args));
+            }
+            if let Some(url) = &server.url {
+                entry.insert("url".to_string(), serde_json::json!(url));
+            }
+            if !server.env.is_empty() {
+                entry.insert("env".to_string(), serde_json::json!(server.env));
+            }
+            mcp_servers.insert(server.name.clone(), serde_json::Value::Object(entry));
+        }
+
+        let config = serde_json::json!({ "mcpServers": mcp_servers });
+        let path = self.mcp_config_path()?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, serde_json::to_string_pretty(&config)?)?;
+        tracing::info!("Wrote Codex MCP config: {}", path.display());
+        Ok(())
+    }
+
+    fn supports_provider_sync(&self) -> bool {
+        true
+    }
+
+    fn write_provider_config(&self, provider: &crate::models::Provider) -> Result<()> {
+        let config = serde_json::json!({
+            "provider": provider.name.to_lowercase(),
+            "apiKey": provider.api_key_ref,
+        });
+        let path = self.config_dir()?.join("config.json");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let mut existing: serde_json::Value = if path.exists() {
+            let content = std::fs::read_to_string(&path)?;
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+
+        if !existing.is_object() {
+            existing = serde_json::json!({});
+        }
+        if let Some(obj) = existing.as_object_mut() {
+            obj.insert("provider".to_string(), config["provider"].clone());
+            obj.insert("apiKey".to_string(), config["apiKey"].clone());
+        }
+
+        std::fs::write(&path, serde_json::to_string_pretty(&existing)?)?;
+        tracing::info!("Wrote Codex provider config: {}", path.display());
+        Ok(())
+    }
 }

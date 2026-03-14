@@ -22,6 +22,12 @@ pub enum Command {
     Doctor,
     /// Scan for installed CLI tools
     Scan,
+    /// Sync Console config to CLI native config files
+    Sync {
+        /// Only sync a specific config type
+        #[arg(long)]
+        only: Option<String>,
+    },
 }
 
 pub async fn execute(cmd: Command) -> anyhow::Result<()> {
@@ -34,5 +40,18 @@ pub async fn execute(cmd: Command) -> anyhow::Result<()> {
         }
         Command::Doctor => doctor::run().await,
         Command::Scan => scan::run().await,
+        Command::Sync { only: _ } => {
+            let report = crate::sync::sync_all()?;
+            println!("Sync completed:");
+            println!("  Providers synced: {}", report.providers_synced);
+            println!("  MCP servers synced: {}", report.mcp_servers_synced);
+            if !report.errors.is_empty() {
+                println!("  Errors:");
+                for err in &report.errors {
+                    println!("    - {err}");
+                }
+            }
+            Ok(())
+        }
     }
 }

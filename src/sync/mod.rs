@@ -34,20 +34,28 @@ fn sync_providers() -> Result<u32> {
 
     if let Some(provider) = active {
         for adapter in registry.adapters() {
-            if provider.apps.contains(&adapter.name().to_string()) {
-                if let Ok(config_dir) = adapter.config_dir() {
-                    let config = serde_json::json!({
-                        "provider": provider.name,
-                        "api_endpoint": provider.api_endpoint,
-                        "api_key_ref": provider.api_key_ref,
-                    });
-                    let target = config_dir.join("console_provider.json");
-                    if let Some(parent) = target.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    std::fs::write(&target, serde_json::to_string_pretty(&config)?)?;
+            if !adapter.supports_provider_sync() {
+                continue;
+            }
+            if !provider.apps.contains(&adapter.name().to_string()) {
+                continue;
+            }
+
+            match adapter.write_provider_config(&provider) {
+                Ok(()) => {
                     count += 1;
-                    tracing::info!("Synced provider to {}", target.display());
+                    services::logs::push(
+                        "info",
+                        "sync",
+                        &format!("Synced provider '{}' to {}", provider.name, adapter.display_name()),
+                    );
+                }
+                Err(e) => {
+                    services::logs::push(
+                        "error",
+                        "sync",
+                        &format!("Failed to sync provider to {}: {e}", adapter.display_name()),
+                    );
                 }
             }
         }
@@ -66,40 +74,29 @@ fn sync_mcp_servers() -> Result<u32> {
         let enabled: Vec<_> = servers
             .iter()
             .filter(|s| s.enabled_apps.contains(&app_name))
+            .cloned()
             .collect();
 
         if enabled.is_empty() {
             continue;
         }
 
-        if let Ok(config_dir) = adapter.config_dir() {
-            let mut mcp_config = serde_json::Map::new();
-            for server in &enabled {
-                let mut entry = serde_json::Map::new();
-                entry.insert("transport".to_string(), serde_json::json!(server.transport));
-                if let Some(cmd) = &server.command {
-                    entry.insert("command".to_string(), serde_json::json!(cmd));
-                }
-                if !server.args.is_empty() {
-                    entry.insert("args".to_string(), serde_json::json!(server.args));
-                }
-                if let Some(url) = &server.url {
-                    entry.insert("url".to_string(), serde_json::json!(url));
-                }
-                if !server.env.is_empty() {
-                    entry.insert("env".to_string(), serde_json::json!(server.env));
-                }
-                mcp_config.insert(server.name.clone(), serde_json::Value::Object(entry));
+        match adapter.write_mcp_config(&enabled) {
+            Ok(()) => {
+                count += 1;
+                services::logs::push(
+                    "info",
+                    "sync",
+                    &format!("Synced {} MCP servers to {}", enabled.len(), adapter.display_name()),
+                );
             }
-
-            let target = config_dir.join(".mcp.json");
-            let wrapper = serde_json::json!({ "mcpServers": mcp_config });
-            if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent)?;
+            Err(e) => {
+                services::logs::push(
+                    "error",
+                    "sync",
+                    &format!("Failed to sync MCP to {}: {e}", adapter.display_name()),
+                );
             }
-            std::fs::write(&target, serde_json::to_string_pretty(&wrapper)?)?;
-            count += 1;
-            tracing::info!("Synced {} MCP servers to {}", enabled.len(), target.display());
         }
     }
 

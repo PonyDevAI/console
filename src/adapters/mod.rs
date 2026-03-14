@@ -35,6 +35,36 @@ pub trait CliAdapter: Send + Sync {
     /// Primary config file path.
     #[allow(dead_code)]
     fn config_file(&self) -> Result<PathBuf>;
+
+    // ── Config sync ──
+
+    /// Path to the MCP config file for this CLI.
+    fn mcp_config_path(&self) -> Result<PathBuf>;
+
+    /// Write MCP servers config in this CLI's native format.
+    fn write_mcp_config(&self, servers: &[crate::models::McpServer]) -> Result<()>;
+
+    /// Whether this CLI supports custom provider config.
+    fn supports_provider_sync(&self) -> bool {
+        false
+    }
+
+    /// Write provider config in this CLI's native format.
+    fn write_provider_config(&self, _provider: &crate::models::Provider) -> Result<()> {
+        Ok(())
+    }
+
+    /// Read current MCP config from this CLI's native file.
+    #[allow(dead_code)]
+    fn read_mcp_config(&self) -> Result<serde_json::Value> {
+        let path = self.mcp_config_path()?;
+        if path.exists() {
+            let content = std::fs::read_to_string(&path)?;
+            Ok(serde_json::from_str(&content)?)
+        } else {
+            Ok(serde_json::json!({ "mcpServers": {} }))
+        }
+    }
 }
 
 /// Registry holding all known adapters.
