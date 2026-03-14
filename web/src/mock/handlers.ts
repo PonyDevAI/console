@@ -156,6 +156,11 @@ export const mockApi = {
   uninstallSkill: async (id: string) => {
     await delay(1000);
     skills = skills.map((skill) => (skill.id === id ? { ...skill, installed_at: null } : skill));
+    return { ok: true as const };
+  },
+  updateSkill: async (id: string, input: { apps: string[] }) => {
+    await delay();
+    skills = skills.map((skill) => (skill.id === id ? { ...skill, apps: input.apps } : skill));
     return skills.find((skill) => skill.id === id) as Skill;
   },
 

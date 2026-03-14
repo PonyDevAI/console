@@ -54,10 +54,12 @@ export type CreateMcpServerInput = {
 export type Skill = {
   id: string;
   name: string;
-  description: string | null;
-  source: string | null;
-  enabled_apps: string[];
+  description: string;
+  source: string;
+  source_url: string | null;
+  apps: string[];
   installed_at: string | null;
+  version: string | null;
 };
 
 // ── Settings ──

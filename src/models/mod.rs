@@ -34,6 +34,16 @@ pub struct Provider {
     pub modified_at: DateTime<Utc>,
 }
 
+/// Provider switching mode per CLI tool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SwitchMode {
+    /// Only one provider active at a time.
+    Switch,
+    /// All providers coexist in config.
+    Additive,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidersState {
     pub providers: Vec<Provider>,
@@ -90,11 +100,19 @@ pub struct CreateMcpServerRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Skill {
     pub id: String,
+    #[serde(default, deserialize_with = "null_string_as_default")]
     pub name: String,
-    pub description: Option<String>,
-    pub source: Option<String>,
-    pub enabled_apps: Vec<String>,
+    #[serde(default, deserialize_with = "null_string_as_default")]
+    pub description: String,
+    #[serde(default, deserialize_with = "null_string_as_default")]
+    pub source: String,
+    #[serde(default)]
+    pub source_url: Option<String>,
+    #[serde(default, alias = "enabled_apps")]
+    pub apps: Vec<String>,
     pub installed_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,4 +168,12 @@ impl Default for ConsoleConfig {
 pub struct InstalledInfo {
     pub version: String,
     pub path: PathBuf,
+}
+
+fn null_string_as_default<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value.unwrap_or_default())
 }

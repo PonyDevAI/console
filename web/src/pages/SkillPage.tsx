@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronDown, ChevronUp, Search, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { getSkills, installSkill, uninstallSkill } from "../api";
+import { getSkills, installSkill, syncSkill, uninstallSkill, updateSkill } from "../api";
 import AppToggleList from "../components/AppToggleList";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -23,6 +23,8 @@ export default function SkillPage() {
   const [submitting, setSubmitting] = useState(false);
   const [pending, setPending] = useState<PendingAction>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [savingAppsId, setSavingAppsId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -55,8 +57,8 @@ export default function SkillPage() {
     const k = keyword.toLowerCase();
     return (
       skill.name.toLowerCase().includes(k) ||
-      (skill.description ?? "").toLowerCase().includes(k) ||
-      (skill.source ?? "").toLowerCase().includes(k)
+      skill.description.toLowerCase().includes(k) ||
+      skill.source.toLowerCase().includes(k)
     );
   });
 
@@ -69,8 +71,29 @@ export default function SkillPage() {
     });
   };
 
-  const updateEnabledApps = (id: string, enabled_apps: string[]) => {
-    setSkills((prev) => prev.map((skill) => (skill.id === id ? { ...skill, enabled_apps } : skill)));
+  const updateApps = async (id: string, apps: string[]) => {
+    setSavingAppsId(id);
+    try {
+      const updated = await updateSkill(id, { apps });
+      setSkills((prev) => prev.map((skill) => (skill.id === id ? updated : skill)));
+      toast("Skill apps updated", "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to update skill apps", "error");
+    } finally {
+      setSavingAppsId(null);
+    }
+  };
+
+  const onSyncSkill = async (skill: Skill) => {
+    setSyncingId(skill.id);
+    try {
+      const result = await syncSkill(skill.id);
+      toast(`${skill.name} synced to ${result.synced_count} app(s)`, "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "Failed to sync skill", "error");
+    } finally {
+      setSyncingId(null);
+    }
   };
 
   const onConfirmAction = async () => {
@@ -141,7 +164,7 @@ export default function SkillPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-[var(--text-strong)]">{skill.name}</div>
-                      <div className="text-xs text-[var(--muted)]">{skill.source ?? "local"}</div>
+                      <div className="text-xs text-[var(--muted)]">{skill.source || "local"}</div>
                     </div>
                     {isInstalled ? (
                       <CheckCircle2 className="h-5 w-5 text-[var(--success)]" />
@@ -150,7 +173,10 @@ export default function SkillPage() {
                     )}
                   </div>
 
-                  <p className="min-h-10 text-sm text-[var(--muted)]">{skill.description ?? "No description."}</p>
+                  <p className="min-h-10 text-sm text-[var(--muted)]">{skill.description || "No description."}</p>
+                  <div className="text-xs text-[var(--muted)]">
+                    Apps: {skill.apps.length > 0 ? skill.apps.join(", ") : "None"}
+                  </div>
 
                   <div className="flex flex-wrap gap-2">
                     {isInstalled ? (
@@ -166,20 +192,37 @@ export default function SkillPage() {
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       Details
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void onSyncSkill(skill)}
+                      disabled={syncingId === skill.id}
+                    >
+                      {syncingId === skill.id ? "Syncing..." : "Sync"}
+                    </Button>
                   </div>
 
                   {isExpanded ? (
                     <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] p-3">
-                      <div className="text-xs text-[var(--muted)]">Source: {skill.source ?? "N/A"}</div>
+                      <div className="text-xs text-[var(--muted)]">Source: {skill.source || "N/A"}</div>
+                      {skill.source_url ? (
+                        <div className="break-all text-xs text-[var(--muted)]">Source URL: {skill.source_url}</div>
+                      ) : null}
                       <div className="text-xs text-[var(--muted)]">
                         Installed At: {skill.installed_at ? new Date(skill.installed_at).toLocaleString() : "Not installed"}
                       </div>
+                      {skill.version ? (
+                        <div className="text-xs text-[var(--muted)]">Version: {skill.version}</div>
+                      ) : null}
                       <div>
                         <div className="mb-1 text-xs font-medium text-[var(--muted)]">Enabled Apps</div>
                         <AppToggleList
-                          selected={skill.enabled_apps}
-                          onChange={(enabled_apps) => updateEnabledApps(skill.id, enabled_apps)}
+                          selected={skill.apps}
+                          onChange={(apps) => void updateApps(skill.id, apps)}
                         />
+                        {savingAppsId === skill.id ? (
+                          <div className="mt-1 text-xs text-[var(--muted)]">Saving apps...</div>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}

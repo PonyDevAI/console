@@ -191,6 +191,18 @@ export async function uninstallSkill(id: string) {
   return post<{ ok: boolean }>(`/skills/${id}/uninstall`);
 }
 
+export async function updateSkill(id: string, payload: { apps: string[] }) {
+  await ensureReady();
+  if (useMock) return mockApi.updateSkill(id, payload);
+  return put<Skill>(`/skills/${id}`, payload);
+}
+
+export async function syncSkill(id: string) {
+  await ensureReady();
+  if (useMock) return { ok: true, synced_count: 0 };
+  return post<{ ok: boolean; synced_count: number }>(`/skills/${id}/sync`);
+}
+
 export async function getSettings() {
   await ensureReady();
   if (useMock) return mockApi.getSettings();

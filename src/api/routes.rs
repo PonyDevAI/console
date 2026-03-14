@@ -10,6 +10,11 @@ use std::collections::HashMap;
 use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, Provider};
 use crate::services;
 
+#[derive(serde::Deserialize)]
+struct UpdateSkillRequest {
+    apps: Vec<String>,
+}
+
 pub fn api_routes() -> Router {
     Router::new()
         .route("/health", get(health))
@@ -31,8 +36,10 @@ pub fn api_routes() -> Router {
         .route("/mcp-servers/{id}", delete(delete_mcp_server))
         .route("/mcp-servers/{id}/ping", post(ping_mcp_server))
         .route("/skills", get(list_skills))
+        .route("/skills/{id}", put(update_skill))
         .route("/skills/{id}/install", post(install_skill))
         .route("/skills/{id}/uninstall", post(uninstall_skill))
+        .route("/skills/{id}/sync", post(sync_skill))
         .route("/settings", get(get_settings))
         .route("/settings", put(update_settings))
         .route("/logs", get(get_logs))
@@ -268,9 +275,25 @@ async fn install_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCode
     Ok(Json(serde_json::to_value(skill).unwrap()))
 }
 
+async fn update_skill(
+    Path(id): Path<String>,
+    Json(req): Json<UpdateSkillRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let updated = services::skill::update_apps(&id, req.apps).map_err(map_not_found)?;
+    Ok(Json(serde_json::to_value(updated).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?))
+}
+
 async fn uninstall_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     services::skill::uninstall_by_id(&id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "ok": true })))
+}
+
+async fn sync_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let skills = services::skill::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let skill = skills.into_iter().find(|s| s.id == id).ok_or(StatusCode::NOT_FOUND)?;
+    let count = services::skill_sync::sync_skill_to_apps(&skill).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::logs::push("info", "skill", &format!("Synced skill '{}' to {} apps", skill.name, count));
+    Ok(Json(json!({ "ok": true, "synced_count": count })))
 }
 
 async fn get_settings() -> Result<Json<Value>, StatusCode> {

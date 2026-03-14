@@ -59,46 +59,58 @@ pub fn mark_installed(id: &str) -> Result<Skill> {
 
 /// Mark a skill as installed by ID and persist.
 pub fn install_by_id(id: &str) -> Result<()> {
-    let paths = ConsolePaths::default();
-    let file = paths.skills_file();
-    let mut skills: Vec<Skill> = if file.exists() {
-        storage::read_json(&file)?
-    } else {
-        vec![]
-    };
-    if let Some(skill) = skills.iter_mut().find(|s| s.id == id) {
+    let mut state = load()?;
+    let to_sync = if let Some(skill) = state.skills.iter_mut().find(|s| s.id == id) {
         skill.installed_at = Some(chrono::Utc::now());
+        Some(skill.clone())
+    } else {
+        None
+    };
+    save(&state)?;
+    if let Some(skill) = to_sync {
+        crate::services::skill_sync::sync_skill_to_apps(&skill)?;
     } else {
         anyhow::bail!("skill not found: {id}");
     }
-    storage::write_json(&file, &skills)?;
     Ok(())
 }
 
 /// Mark a skill as uninstalled by ID and persist.
 pub fn uninstall_by_id(id: &str) -> Result<()> {
-    let paths = ConsolePaths::default();
-    let file = paths.skills_file();
-    let mut skills: Vec<Skill> = if file.exists() {
-        storage::read_json(&file)?
-    } else {
-        vec![]
-    };
-    if let Some(skill) = skills.iter_mut().find(|s| s.id == id) {
+    let mut state = load()?;
+    let to_remove = if let Some(skill) = state.skills.iter_mut().find(|s| s.id == id) {
         skill.installed_at = None;
+        Some(skill.clone())
+    } else {
+        None
+    };
+    save(&state)?;
+    if let Some(skill) = to_remove {
+        crate::services::skill_sync::remove_skill_from_apps(&skill)?;
     } else {
         anyhow::bail!("skill not found: {id}");
     }
-    storage::write_json(&file, &skills)?;
     Ok(())
+}
+
+pub fn update_apps(id: &str, apps: Vec<String>) -> Result<Skill> {
+    let mut state = load()?;
+    if let Some(skill) = state.skills.iter_mut().find(|s| s.id == id) {
+        skill.apps = apps;
+        let updated = skill.clone();
+        save(&state)?;
+        Ok(updated)
+    } else {
+        anyhow::bail!("skill not found: {id}")
+    }
 }
 
 #[allow(dead_code)]
 pub fn enable_for_app(name: &str, app: &str) -> Result<()> {
     let mut state = load()?;
     if let Some(s) = state.skills.iter_mut().find(|s| s.name == name) {
-        if !s.enabled_apps.contains(&app.to_string()) {
-            s.enabled_apps.push(app.to_string());
+        if !s.apps.contains(&app.to_string()) {
+            s.apps.push(app.to_string());
         }
         save(&state)
     } else {
@@ -110,7 +122,7 @@ pub fn enable_for_app(name: &str, app: &str) -> Result<()> {
 pub fn disable_for_app(name: &str, app: &str) -> Result<()> {
     let mut state = load()?;
     if let Some(s) = state.skills.iter_mut().find(|s| s.name == name) {
-        s.enabled_apps.retain(|a| a != app);
+        s.apps.retain(|a| a != app);
         save(&state)
     } else {
         anyhow::bail!("skill not found: {name}")

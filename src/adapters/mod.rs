@@ -2,6 +2,8 @@ pub mod claude;
 pub mod codex;
 pub mod gemini;
 pub mod cursor;
+pub mod opencode;
+pub mod openclaw;
 
 use anyhow::Result;
 use std::path::PathBuf;
@@ -54,6 +56,11 @@ pub trait CliAdapter: Send + Sync {
         Ok(())
     }
 
+    /// Whether this CLI uses switch mode (one provider) or additive mode (all providers).
+    fn switch_mode(&self) -> crate::models::SwitchMode {
+        crate::models::SwitchMode::Switch
+    }
+
     /// Read current MCP config from this CLI's native file.
     #[allow(dead_code)]
     fn read_mcp_config(&self) -> Result<serde_json::Value> {
@@ -90,6 +97,8 @@ pub fn registry() -> AdapterRegistry {
             Box::new(codex::CodexAdapter),
             Box::new(gemini::GeminiAdapter),
             Box::new(cursor::CursorAdapter),
+            Box::new(opencode::OpenCodeAdapter),
+            Box::new(openclaw::OpenClawAdapter),
         ],
     }
 }

@@ -1,6 +1,6 @@
 import { cn } from "../lib/utils";
 
-const APPS = ["claude", "codex", "gemini", "cursor"] as const;
+const APPS = ["claude", "codex", "gemini", "cursor", "opencode", "openclaw"] as const;
 
 type AppToggleListProps = {
   selected: string[];

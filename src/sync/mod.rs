@@ -28,34 +28,64 @@ pub fn sync_all() -> Result<SyncReport> {
 }
 
 fn sync_providers() -> Result<u32> {
+    let all_providers = services::provider::list()?;
     let active = services::provider::get_active()?;
     let registry = adapters::registry();
     let mut count = 0u32;
 
-    if let Some(provider) = active {
-        for adapter in registry.adapters() {
-            if !adapter.supports_provider_sync() {
-                continue;
-            }
-            if !provider.apps.contains(&adapter.name().to_string()) {
-                continue;
-            }
+    for adapter in registry.adapters() {
+        let app_name = adapter.name().to_string();
+        if !adapter.supports_provider_sync() {
+            continue;
+        }
 
-            match adapter.write_provider_config(&provider) {
-                Ok(()) => {
-                    count += 1;
-                    services::logs::push(
-                        "info",
-                        "sync",
-                        &format!("Synced provider '{}' to {}", provider.name, adapter.display_name()),
-                    );
+        match adapter.switch_mode() {
+            crate::models::SwitchMode::Switch => {
+                if let Some(ref provider) = active {
+                    if provider.apps.contains(&app_name) {
+                        match adapter.write_provider_config(provider) {
+                            Ok(()) => {
+                                count += 1;
+                                services::logs::push(
+                                    "info",
+                                    "sync",
+                                    &format!("Synced active provider '{}' to {}", provider.name, adapter.display_name()),
+                                );
+                            }
+                            Err(e) => {
+                                services::logs::push(
+                                    "error",
+                                    "sync",
+                                    &format!("Failed to sync provider to {}: {e}", adapter.display_name()),
+                                );
+                            }
+                        }
+                    }
                 }
-                Err(e) => {
-                    services::logs::push(
-                        "error",
-                        "sync",
-                        &format!("Failed to sync provider to {}: {e}", adapter.display_name()),
-                    );
+            }
+            crate::models::SwitchMode::Additive => {
+                let targeted: Vec<_> = all_providers
+                    .iter()
+                    .filter(|p| p.apps.contains(&app_name))
+                    .collect();
+                for provider in targeted {
+                    match adapter.write_provider_config(provider) {
+                        Ok(()) => {
+                            count += 1;
+                            services::logs::push(
+                                "info",
+                                "sync",
+                                &format!("Synced provider '{}' to {} (additive)", provider.name, adapter.display_name()),
+                            );
+                        }
+                        Err(e) => {
+                            services::logs::push(
+                                "error",
+                                "sync",
+                                &format!("Failed to sync provider to {}: {e}", adapter.display_name()),
+                            );
+                        }
+                    }
                 }
             }
         }
