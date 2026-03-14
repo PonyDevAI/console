@@ -98,7 +98,7 @@ export async function upgradeTool(name: string) {
 export async function uninstallTool(name: string) {
   await ensureReady();
   if (useMock) return mockApi.uninstallTool(name);
-  return del<{ ok: boolean }>(`/cli-tools/${name}`);
+  return post<{ ok: boolean }>(`/cli-tools/${name}/uninstall`);
 }
 
 export async function checkUpdates() {
@@ -188,7 +188,7 @@ export async function installSkill(id: string) {
 export async function uninstallSkill(id: string) {
   await ensureReady();
   if (useMock) return mockApi.uninstallSkill(id);
-  return del<{ ok: boolean }>(`/skills/${id}/install`);
+  return post<{ ok: boolean }>(`/skills/${id}/uninstall`);
 }
 
 export async function getSettings() {
