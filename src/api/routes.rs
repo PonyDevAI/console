@@ -18,6 +18,8 @@ struct UpdateSkillRequest {
 pub fn api_routes() -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/system/version", get(system_version))
+        .route("/system/check-update", get(system_check_update))
         .route("/cli-tools", get(list_cli_tools))
         .route("/cli-tools/scan", post(scan_cli_tools))
         .route("/cli-tools/check-updates", post(check_updates))
@@ -50,6 +52,27 @@ pub fn api_routes() -> Router {
 
 async fn health() -> Json<Value> {
     Json(json!({ "status": "ok" }))
+}
+
+async fn system_version() -> Json<Value> {
+    Json(json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "name": env!("CARGO_PKG_NAME"),
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+    }))
+}
+
+async fn system_check_update() -> Result<Json<Value>, StatusCode> {
+    let current = crate::services::self_update::current_version();
+    let latest = crate::services::self_update::check_latest()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({
+        "current": current,
+        "latest": latest,
+        "update_available": crate::services::self_update::update_available(current, &latest),
+    })))
 }
 
 async fn list_cli_tools() -> Result<Json<Value>, StatusCode> {

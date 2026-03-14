@@ -6,3 +6,4 @@ pub mod skill_sync;
 pub mod prompt;
 pub mod settings;
 pub mod logs;
+pub mod self_update;

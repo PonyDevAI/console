@@ -9,7 +9,7 @@ mod models;
 use clap::Parser;
 
 #[derive(Parser)]
-#[command(name = "console", about = "Local AI CLI unified management platform")]
+#[command(name = "console", about = "Local AI CLI unified management platform", version)]
 struct Cli {
     #[command(subcommand)]
     command: cli::Command,

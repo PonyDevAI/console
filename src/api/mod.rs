@@ -2,12 +2,23 @@ mod routes;
 
 use anyhow::Result;
 use axum::Router;
+use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
 pub async fn serve(addr: &str) -> Result<()> {
-    let spa_fallback = ServeFile::new("web/dist/index.html");
-    let static_files = ServeDir::new("web/dist").fallback(spa_fallback);
+    let paths = crate::storage::ConsolePaths::default();
+    let web_dir = paths.root.join("web");
+    let dist_dir = if web_dir.join("dist").exists() {
+        web_dir.join("dist")
+    } else {
+        PathBuf::from("web/dist")
+    };
+
+    tracing::info!("Serving web from {}", dist_dir.display());
+
+    let spa_fallback = ServeFile::new(dist_dir.join("index.html"));
+    let static_files = ServeDir::new(&dist_dir).fallback(spa_fallback);
 
     let app = Router::new()
         .nest("/api", routes::api_routes())

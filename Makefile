@@ -1,4 +1,4 @@
-.PHONY: init run dev server web build check clean doctor scan help
+.PHONY: init run dev server web build check clean doctor scan install uninstall help
 
 # ── Default ──────────────────────────────────────────────
 
@@ -54,6 +54,17 @@ build: ## Build production release
 	@echo "==> Building frontend..."
 	@cd web && pnpm build
 	@echo "==> Build complete."
+
+install: build ## Install to ~/.console/bin/
+	@mkdir -p ~/.console/bin ~/.console/web
+	@cp target/release/console ~/.console/bin/console
+	@cp -r web/dist/ ~/.console/web/
+	@echo "Installed to ~/.console/bin/console"
+	@echo "Add to PATH: export PATH=\"\$$HOME/.console/bin:\$$PATH\""
+
+uninstall: ## Remove ~/.console/bin/ and ~/.console/web/
+	@rm -rf ~/.console/bin ~/.console/web
+	@echo "Uninstalled. Config preserved at ~/.console/"
 
 # ── Check ────────────────────────────────────────────────
 

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: cargo check
+        run: cargo check
+
+      - name: cargo test
+        run: cargo test
+
+      - name: cargo clippy
+        run: cargo clippy -- -D warnings
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Type check web
+        run: |
+          cd web
+          pnpm install --frozen-lockfile
+          pnpm exec tsc --noEmit

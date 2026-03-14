@@ -2,6 +2,8 @@ mod init;
 mod start;
 mod doctor;
 mod scan;
+mod upgrade;
+mod uninstall;
 
 use clap::Subcommand;
 
@@ -28,6 +30,24 @@ pub enum Command {
         #[arg(long)]
         only: Option<String>,
     },
+    /// Self-upgrade Console to the latest version
+    Upgrade {
+        /// Target version (default: latest)
+        #[arg(long)]
+        version: Option<String>,
+        /// Only check, don't actually upgrade
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Uninstall Console
+    Uninstall {
+        /// Remove all data including config (default: keep config)
+        #[arg(long)]
+        purge: bool,
+        /// Skip confirmation prompt
+        #[arg(long, short)]
+        yes: bool,
+    },
 }
 
 pub async fn execute(cmd: Command) -> anyhow::Result<()> {
@@ -53,5 +73,7 @@ pub async fn execute(cmd: Command) -> anyhow::Result<()> {
             }
             Ok(())
         }
+        Command::Upgrade { version, dry_run } => upgrade::run(version, dry_run).await,
+        Command::Uninstall { purge, yes } => uninstall::run(purge, yes).await,
     }
 }
