@@ -1,6 +1,6 @@
-import { CheckCircle2, ChevronDown, ChevronUp, Search, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { addSkillRepo, getSkillRepos, getSkills, installSkill, removeSkillRepo, syncSkill, toggleSkillRepo, uninstallSkill, updateSkill } from "../api";
+import { CheckCircle2, ChevronDown, ChevronUp, Download, Search, XCircle } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { addSkillRepo, fetchSkillRepo, getSkillRepoCache, getSkillRepos, getSkills, importSkillsFromApp, installSkill, installSkillFromUrl, installSkillFromZip, removeSkillRepo, syncSkill, toggleSkillRepo, uninstallSkill, updateSkill } from "../api";
 import AppToggleList from "../components/AppToggleList";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -11,9 +11,9 @@ import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
 import Spinner from "../components/Spinner";
 import { toast } from "../components/Toast";
-import type { Skill, SkillRepo } from "../types";
+import type { Skill, SkillManifest, SkillRepo } from "../types";
 
-type FilterType = "all" | "ready" | "missing";
+type FilterType = "all" | "ready" | "missing" | "discover";
 type PendingAction = { type: "install" | "uninstall"; skill: Skill } | null;
 type PendingRepoDelete = SkillRepo | null;
 
@@ -33,6 +33,14 @@ export default function SkillPage() {
   const [repoName, setRepoName] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
   const [pendingRepoDelete, setPendingRepoDelete] = useState<PendingRepoDelete>(null);
+  const [fetchingRepoId, setFetchingRepoId] = useState<string | null>(null);
+  const [installingZip, setInstallingZip] = useState(false);
+  const [installingFromUrl, setInstallingFromUrl] = useState<string | null>(null);
+  const [discoverSkills, setDiscoverSkills] = useState<SkillManifest[]>([]);
+  const [loadingDiscover, setLoadingDiscover] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importApp, setImportApp] = useState("claude");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -53,6 +61,33 @@ export default function SkillPage() {
     void load();
   }, []);
 
+  const loadDiscover = async () => {
+    setLoadingDiscover(true);
+    try {
+      const enabledRepos = repos.filter((r) => r.enabled);
+      const allSkills: SkillManifest[] = [];
+      for (const repo of enabledRepos) {
+        try {
+          const result = await getSkillRepoCache(repo.id);
+          allSkills.push(...(result.skills ?? []));
+        } catch {
+          // ignore errors for individual repos
+        }
+      }
+      setDiscoverSkills(allSkills);
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "加载发现内容失败", "error");
+    } finally {
+      setLoadingDiscover(false);
+    }
+  };
+
+  useEffect(() => {
+    if (filter === "discover") {
+      void loadDiscover();
+    }
+  }, [filter, repos]);
+
   const withReady = useMemo(
     () => skills.map((skill) => ({ ...skill, ready: Boolean(skill.installed_at) })),
     [skills],
@@ -60,17 +95,32 @@ export default function SkillPage() {
 
   const readyCount = withReady.filter((skill) => skill.ready).length;
 
-  const filtered = withReady.filter((skill) => {
-    if (filter === "ready" && !skill.ready) return false;
-    if (filter === "missing" && skill.ready) return false;
-    if (!keyword.trim()) return true;
+  const filteredSkills = useMemo(() => {
+    if (filter === "discover") return [];
+    return withReady.filter((skill) => {
+      if (filter === "ready" && !skill.ready) return false;
+      if (filter === "missing" && skill.ready) return false;
+      if (!keyword.trim()) return true;
+      const k = keyword.toLowerCase();
+      return (
+        skill.name.toLowerCase().includes(k) ||
+        skill.description.toLowerCase().includes(k) ||
+        skill.source.toLowerCase().includes(k)
+      );
+    });
+  }, [withReady, filter, keyword]);
+
+  const filteredManifests = useMemo(() => {
+    if (filter !== "discover") return [];
+    if (!keyword.trim()) return discoverSkills;
     const k = keyword.toLowerCase();
-    return (
-      skill.name.toLowerCase().includes(k) ||
-      skill.description.toLowerCase().includes(k) ||
-      skill.source.toLowerCase().includes(k)
+    return discoverSkills.filter(
+      (s) =>
+        s.name.toLowerCase().includes(k) ||
+        s.description.toLowerCase().includes(k) ||
+        s.tags.some((t) => t.toLowerCase().includes(k)),
     );
-  });
+  }, [discoverSkills, keyword, filter]);
 
   const toggleExpanded = (id: string) => {
     setExpanded((prev) => {
@@ -152,6 +202,62 @@ export default function SkillPage() {
     }
   };
 
+  const onFetchRepo = async (repo: SkillRepo) => {
+    setFetchingRepoId(repo.id);
+    try {
+      await fetchSkillRepo(repo.id);
+      toast(`${repo.name} 索引已同步`, "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "同步仓库索引失败", "error");
+    } finally {
+      setFetchingRepoId(null);
+    }
+  };
+
+  const handleZipFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setInstallingZip(true);
+    try {
+      await installSkillFromZip(file);
+      toast("技能安装成功", "success");
+      await load();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "安装失败", "error");
+    } finally {
+      setInstallingZip(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleInstallFromDiscover = async (manifest: SkillManifest) => {
+    setInstallingFromUrl(manifest.name);
+    try {
+      await installSkillFromUrl(manifest.name, manifest.source_url, ["claude", "codex", "gemini", "cursor"]);
+      toast(`${manifest.name} 已安装`, "success");
+      await load();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "安装失败", "error");
+    } finally {
+      setInstallingFromUrl(null);
+    }
+  };
+
+  const onImportFromApp = async () => {
+    setImporting(true);
+    try {
+      await importSkillsFromApp(importApp);
+      toast("技能导入成功", "success");
+      await load();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "导入失败", "error");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const onDeleteRepo = async () => {
     if (!pendingRepoDelete) return;
     try {
@@ -169,9 +275,41 @@ export default function SkillPage() {
   return (
     <div className="space-y-4">
       <PageHeader title="技能" description="技能库存与就绪状态">
-        <Button variant="secondary" onClick={() => void load()}>
-          刷新
-        </Button>
+        <div className="flex items-center gap-2">
+          <select
+            value={importApp}
+            onChange={(event) => setImportApp(event.target.value)}
+            className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2 py-1.5 text-sm text-[var(--text-strong)]"
+          >
+            <option value="cursor">cursor</option>
+            <option value="claude">claude</option>
+            <option value="codex">codex</option>
+            <option value="gemini">gemini</option>
+            <option value="opencode">opencode</option>
+            <option value="openclaw">openclaw</option>
+          </select>
+          <Button variant="secondary" onClick={() => void onImportFromApp()} disabled={importing}>
+            {importing ? "导入中..." : "从应用导入"}
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".zip"
+            className="hidden"
+            onChange={handleZipFile}
+          />
+          <Button
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={installingZip}
+          >
+            <Download className="h-4 w-4" />
+            {installingZip ? "安装中..." : "从 ZIP 安装"}
+          </Button>
+          <Button variant="secondary" onClick={() => void load()}>
+            刷新
+          </Button>
+        </div>
       </PageHeader>
 
       {error ? (
@@ -197,6 +335,14 @@ export default function SkillPage() {
                     <div className="text-xs text-[var(--muted)]">{repo.url}</div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void onFetchRepo(repo)}
+                      disabled={fetchingRepoId === repo.id}
+                    >
+                      {fetchingRepoId === repo.id ? "同步中..." : "同步"}
+                    </Button>
                     <Button
                       size="sm"
                       variant={repo.enabled ? "default" : "secondary"}
@@ -228,14 +374,62 @@ export default function SkillPage() {
           <Button size="sm" variant={filter === "all" ? "default" : "secondary"} onClick={() => setFilter("all")}>全部</Button>
           <Button size="sm" variant={filter === "ready" ? "default" : "secondary"} onClick={() => setFilter("ready")}>就绪</Button>
           <Button size="sm" variant={filter === "missing" ? "default" : "secondary"} onClick={() => setFilter("missing")}>缺失</Button>
+          <Button size="sm" variant={filter === "discover" ? "default" : "secondary"} onClick={() => setFilter("discover")}>发现</Button>
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {filter === "discover" ? (
+        loadingDiscover ? (
+          <Spinner />
+        ) : discoverSkills.length === 0 ? (
+          <EmptyState message="暂无可用技能。请先同步仓库索引。" />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {discoverSkills.map((manifest) => {
+              const isInstalling = installingFromUrl === manifest.name;
+              return (
+                <Card key={manifest.source_url}>
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-[var(--text-strong)]">{manifest.name}</div>
+                        <div className="text-xs text-[var(--muted)]">
+                          版本：{manifest.version ?? "未知"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="min-h-10 text-sm text-[var(--muted)]">{manifest.description || "暂无描述。"}</p>
+                    {manifest.tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {manifest.tags.map((tag) => (
+                          <span key={tag} className="rounded bg-[var(--bg-accent)] px-2 py-0.5 text-xs text-[var(--muted)]">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => void handleInstallFromDiscover(manifest)}
+                        disabled={isInstalling}
+                      >
+                        {isInstalling ? "安装中..." : "安装"}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )
+      ) : filteredSkills.length === 0 ? (
         <EmptyState message="未找到技能。" />
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {filtered.map((skill) => {
+          {filteredSkills.map((skill) => {
             const isInstalled = Boolean(skill.installed_at);
             const isExpanded = expanded.has(skill.id);
 

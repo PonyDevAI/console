@@ -11,6 +11,7 @@ import type {
   SkillRepo,
   Skill,
   SwitchMode,
+  SkillManifest,
 } from "./types";
 
 const BASE = "/api";
@@ -257,6 +258,39 @@ export async function toggleSkillRepo(id: string, enabled: boolean) {
   await ensureReady();
   if (useMock) return mockApi.toggleSkillRepo(id, enabled);
   return post<{ ok: boolean }>(`/skill-repos/${id}/toggle`, { enabled });
+}
+
+export async function fetchSkillRepo(id: string) {
+  await ensureReady();
+  if (useMock) return mockApi.fetchSkillRepo(id);
+  return post<{ skills: SkillManifest[] }>(`/skill-repos/${id}/fetch`);
+}
+
+export async function getSkillRepoCache(id: string) {
+  await ensureReady();
+  if (useMock) return mockApi.getSkillRepoCache(id);
+  return get<{ skills: SkillManifest[] }>(`/skill-repos/${id}/cache`);
+}
+
+export async function installSkillFromUrl(name: string, source_url: string, apps: string[]) {
+  await ensureReady();
+  if (useMock) return mockApi.installSkillFromUrl(name, source_url, apps);
+  return post<Skill>("/skills/install-url", { name, source_url, apps });
+}
+
+export async function installSkillFromZip(file: File) {
+  await ensureReady();
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(BASE + '/skills/install-zip', { method: 'POST', body: formData });
+  if (!res.ok) throw new Error('上传失败');
+  return res.json() as Promise<{ installed: Skill[] }>;
+}
+
+export async function importSkillsFromApp(app: string) {
+  await ensureReady();
+  if (useMock) return mockApi.importSkillsFromApp(app);
+  return post<{ imported: Skill[] }>(`/skills/import-from/${app}`);
 }
 
 export async function getSettings() {

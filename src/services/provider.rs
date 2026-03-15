@@ -94,11 +94,6 @@ pub fn get_active() -> Result<Option<Provider>> {
     Ok(state.providers.into_iter().find(|p| p.active))
 }
 
-pub fn export_all() -> Result<String> {
-    let state = load()?;
-    Ok(serde_json::to_string_pretty(&state)?)
-}
-
 pub fn export_state() -> Result<serde_json::Value> {
     let state = load()?;
     Ok(serde_json::to_value(&state)?)
@@ -110,7 +105,11 @@ pub fn import_all(json_str: &str) -> Result<Vec<Provider>> {
     let mut added = Vec::new();
 
     for provider in imported.providers {
-        if !state.providers.iter().any(|existing| existing.name == provider.name) {
+        if !state
+            .providers
+            .iter()
+            .any(|existing| existing.name == provider.name)
+        {
             state.providers.push(provider.clone());
             added.push(provider);
         }

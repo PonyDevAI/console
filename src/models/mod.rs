@@ -140,6 +140,20 @@ pub struct SkillReposState {
     pub repos: Vec<SkillRepo>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillManifest {
+    pub name: String,
+    pub description: String,
+    pub source_url: String,
+    pub version: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillRepoIndex {
+    pub skills: Vec<SkillManifest>,
+}
+
 // ── Prompt ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

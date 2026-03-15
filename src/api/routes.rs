@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query},
+    extract::{Multipart, Path, Query},
     http::StatusCode,
     routing::{delete, get, post, put},
     Json, Router,
@@ -34,6 +34,13 @@ struct AddSkillRepoRequest {
 #[derive(serde::Deserialize)]
 struct ToggleSkillRepoRequest {
     enabled: bool,
+}
+
+#[derive(serde::Deserialize)]
+struct InstallFromUrlRequest {
+    name: String,
+    source_url: String,
+    apps: Vec<String>,
 }
 
 pub fn api_routes() -> Router {
@@ -72,6 +79,11 @@ pub fn api_routes() -> Router {
         .route("/skills/{id}/install", post(install_skill))
         .route("/skills/{id}/uninstall", post(uninstall_skill))
         .route("/skills/{id}/sync", post(sync_skill))
+        .route("/skills/install-url", post(install_skill_from_url))
+        .route("/skills/install-zip", post(install_skill_from_zip))
+        .route("/skills/import-from/{app}", post(import_skills_from_app))
+        .route("/skill-repos/{id}/fetch", post(fetch_skill_repo))
+        .route("/skill-repos/{id}/cache", get(get_skill_repo_cache))
         .route("/settings", get(get_settings))
         .route("/settings", put(update_settings))
         .route("/logs", get(get_logs))
@@ -392,6 +404,62 @@ async fn sync_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     let count = services::skill_sync::sync_skill_to_apps(&skill).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     services::logs::push("info", "skill", &format!("Synced skill '{}' to {} apps", skill.name, count));
     Ok(Json(json!({ "ok": true, "synced_count": count })))
+}
+
+async fn fetch_skill_repo(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let skills = services::skill::fetch_repo(&id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "skills": skills })))
+}
+
+async fn get_skill_repo_cache(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let skills = services::skill::get_repo_cache(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "skills": skills })))
+}
+
+async fn install_skill_from_url(
+    Json(req): Json<InstallFromUrlRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let skill = services::skill::install_from_url(&req.name, &req.source_url, req.apps)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::logs::push("info", "skill", &format!("Installed skill '{}' from URL", skill.name));
+    Ok(Json(serde_json::to_value(skill).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?))
+}
+
+async fn install_skill_from_zip(
+    mut multipart: Multipart,
+) -> Result<Json<Value>, StatusCode> {
+    let mut zip_data = Vec::new();
+    while let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? {
+        if field.name() == Some("file") {
+            zip_data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?.to_vec();
+            break;
+        }
+    }
+
+    if zip_data.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if zip_data.len() > 50 * 1024 * 1024 {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    let installed = services::skill::install_from_zip(&zip_data)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    services::logs::push("info", "skill", &format!("Installed {} skills from ZIP", installed.len()));
+    Ok(Json(json!({ "installed": installed })))
+}
+
+async fn import_skills_from_app(Path(app): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let imported = services::skill::import_from_app(&app)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::logs::push("info", "skill", &format!("Imported {} skills from {}", imported.len(), app));
+    Ok(Json(json!({ "imported": imported })))
 }
 
 async fn get_settings() -> Result<Json<Value>, StatusCode> {

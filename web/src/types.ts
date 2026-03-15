@@ -72,6 +72,14 @@ export type SkillRepo = {
   last_synced: string | null;
 };
 
+export type SkillManifest = {
+  name: string;
+  description: string;
+  source_url: string;
+  version: string | null;
+  tags: string[];
+};
+
 // ── Settings ──
 export type Settings = {
   storage_path: string;

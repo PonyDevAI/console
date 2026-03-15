@@ -1,4 +1,4 @@
-import type { CliTool, CreateMcpServerInput, CreateProviderInput, McpServer, Provider, Skill, SkillRepo, SwitchMode } from "../types";
+import type { CliTool, CreateMcpServerInput, CreateProviderInput, McpServer, Provider, Skill, SkillRepo, SwitchMode, SkillManifest } from "../types";
 import { mockConfigSync, mockLogs, mockMcpServers, mockProviders, mockSettings, mockSkillRepos, mockSkills, mockSwitchModes, mockTools } from "./data";
 import type { ConfigSyncEntry, LogEntry, Settings } from "./data";
 
@@ -230,6 +230,100 @@ export const mockApi = {
     await delay();
     skillRepos = skillRepos.map((repo) => (repo.id === id ? { ...repo, enabled } : repo));
     return { ok: true as const };
+  },
+  fetchSkillRepo: async (id: string) => {
+    await delay(800);
+    const mockSkills: SkillManifest[] = [
+      {
+        name: "代码审查助手",
+        description: "自动进行代码审查并提供改进建议",
+        source_url: "https://github.com/example/skills/blob/main/code-review/SKILL.md",
+        version: "1.0.0",
+        tags: ["代码质量", "审查"],
+      },
+      {
+        name: "测试生成器",
+        description: "根据代码自动生成单元测试",
+        source_url: "https://github.com/example/skills/blob/main/test-gen/SKILL.md",
+        version: "2.1.0",
+        tags: ["测试", "自动化"],
+      },
+      {
+        name: "文档编写助手",
+        description: "帮助编写和维护项目文档",
+        source_url: "https://github.com/example/skills/blob/main/doc-writer/SKILL.md",
+        version: "1.5.0",
+        tags: ["文档", "写作"],
+      },
+    ];
+    return { skills: mockSkills };
+  },
+  getSkillRepoCache: async (id: string) => {
+    await delay(200);
+    const mockSkills: SkillManifest[] = [
+      {
+        name: "代码审查助手",
+        description: "自动进行代码审查并提供改进建议",
+        source_url: "https://github.com/example/skills/blob/main/code-review/SKILL.md",
+        version: "1.0.0",
+        tags: ["代码质量", "审查"],
+      },
+      {
+        name: "测试生成器",
+        description: "根据代码自动生成单元测试",
+        source_url: "https://github.com/example/skills/blob/main/test-gen/SKILL.md",
+        version: "2.1.0",
+        tags: ["测试", "自动化"],
+      },
+    ];
+    return { skills: mockSkills };
+  },
+  installSkillFromUrl: async (name: string, source_url: string, apps: string[]) => {
+    await delay(1500);
+    const skill: Skill = {
+      id: `s${Date.now()}`,
+      name,
+      description: "从 URL 安装的 skill",
+      source: "github",
+      source_url,
+      apps,
+      installed_at: new Date().toISOString(),
+      version: null,
+    };
+    skills.push(skill);
+    return skill;
+  },
+  installSkillFromZip: async (_file: File) => {
+    await delay(2000);
+    const installed: Skill[] = [
+      {
+        id: `s${Date.now()}`,
+        name: "zip-installed-skill",
+        description: "从 ZIP 安装的 skill",
+        source: "zip",
+        source_url: null,
+        apps: [],
+        installed_at: new Date().toISOString(),
+        version: null,
+      },
+    ];
+    skills.push(...installed);
+    return { installed };
+  },
+  importSkillsFromApp: async (app: string) => {
+    await delay(600);
+    const imported: Skill[] = [{
+      id: `s${Date.now()}`,
+      name: `${app}-imported-skill`,
+      description: `从 ${app} 导入的技能`,
+      source: "local",
+      source_url: null,
+      apps: [app],
+      installed_at: new Date().toISOString(),
+      version: null,
+    }];
+    skills.push(...imported);
+    return { imported };
   },
 
   getSettings: async () => {
