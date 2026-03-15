@@ -10,15 +10,15 @@ import { toast } from "../components/Toast";
 import type { ConfigSyncEntry } from "../types";
 
 function relativeTime(input: string | null): string {
-  if (!input) return "Never";
+  if (!input) return "从未";
   const diffMs = Date.now() - new Date(input).getTime();
-  if (diffMs < 60_000) return "just now";
+  if (diffMs < 60_000) return "刚刚";
   const mins = Math.floor(diffMs / 60_000);
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60) return `${mins}分钟前`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours}小时前`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${days}天前`;
 }
 
 const statusVariant: Record<ConfigSyncEntry["status"], "success" | "warning" | "danger"> = {
@@ -41,7 +41,7 @@ export default function ConfigSyncPage() {
       const data = await getConfigSync();
       setEntries(data.entries ?? []);
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to load config sync", "error");
+      toast(err instanceof Error ? err.message : "加载配置同步失败", "error");
     } finally {
       setLoading(false);
     }
@@ -57,9 +57,9 @@ export default function ConfigSyncPage() {
       await syncConfig(id);
       const data = await getConfigSync();
       setEntries(data.entries ?? []);
-      toast("Config synced", "success");
+      toast("配置已同步", "success");
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to sync config", "error");
+      toast(err instanceof Error ? err.message : "同步配置失败", "error");
     } finally {
       setSyncingId(null);
     }
@@ -70,9 +70,9 @@ export default function ConfigSyncPage() {
     try {
       const data = await syncAll();
       setEntries(data.entries ?? []);
-      toast("All configurations synced", "success");
+      toast("所有配置已同步", "success");
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to sync all", "error");
+      toast(err instanceof Error ? err.message : "全部同步失败", "error");
     } finally {
       setSyncingAll(false);
     }
@@ -82,31 +82,31 @@ export default function ConfigSyncPage() {
     () => [
       {
         key: "app",
-        header: "App",
+        header: "应用",
         sortable: true,
       },
       {
         key: "config_type",
-        header: "Config Type",
+        header: "配置类型",
         sortable: true,
         render: (row) => row.config_type,
       },
       {
         key: "status",
-        header: "Status",
+        header: "状态",
         sortable: true,
         render: (row) => <StatusBadge label={row.status} variant={statusVariant[row.status]} />,
       },
       {
         key: "last_synced",
-        header: "Last Synced",
+        header: "上次同步",
         sortable: true,
         accessor: (row) => row.last_synced ?? "",
         render: (row) => <span className="text-xs text-[var(--muted)]">{relativeTime(row.last_synced)}</span>,
       },
       {
         key: "id",
-        header: "Actions",
+        header: "操作",
         render: (row) => (
           <Button
             size="sm"
@@ -116,7 +116,7 @@ export default function ConfigSyncPage() {
             }}
             disabled={syncingId === row.id || syncingAll}
           >
-            {syncingId === row.id ? "Syncing..." : "Sync"}
+            {syncingId === row.id ? "同步中..." : "同步"}
           </Button>
         ),
       },
@@ -128,16 +128,16 @@ export default function ConfigSyncPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="配置同步" description="跨 CLI 工具同步配置">
+      <PageHeader title="配置同步" description="跨工具同步配置">
         <Button onClick={() => void onSyncAll()} disabled={syncingAll}>
-          {syncingAll ? "Syncing..." : "Sync All"}
+          {syncingAll ? "同步中..." : "全部同步"}
         </Button>
       </PageHeader>
 
       <DataTable
         columns={columns}
         data={entries}
-        emptyText="No sync entries."
+        emptyText="暂无同步条目。"
         onRowClick={(row) => {
           setExpandedIds((prev) => {
             const next = new Set(prev);
@@ -151,8 +151,8 @@ export default function ConfigSyncPage() {
           <DiffViewer
             left={row.local_hash}
             right={row.remote_hash}
-            leftLabel="Local Hash"
-            rightLabel="Remote Hash"
+            leftLabel="本地哈希"
+            rightLabel="远程哈希"
           />
         )}
       />

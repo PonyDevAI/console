@@ -54,6 +54,9 @@ impl ConsolePaths {
     pub fn prompts_file(&self) -> PathBuf {
         self.state_dir().join("prompts.json")
     }
+    pub fn skill_repos_file(&self) -> PathBuf {
+        self.state_dir().join("skill_repos.json")
+    }
     #[allow(dead_code)]
     pub fn workspaces_file(&self) -> PathBuf {
         self.state_dir().join("workspaces.json")
@@ -91,7 +94,10 @@ impl ConsolePaths {
         }
         let providers = self.providers_file();
         if !providers.exists() {
-            write_json(&providers, &crate::models::ProvidersState { providers: vec![] })?;
+            write_json(&providers, &crate::models::ProvidersState {
+                providers: vec![],
+                switch_modes: std::collections::HashMap::new(),
+            })?;
         }
         let mcp = self.mcp_servers_file();
         if !mcp.exists() {
@@ -104,6 +110,10 @@ impl ConsolePaths {
         let prompts = self.prompts_file();
         if !prompts.exists() {
             write_json(&prompts, &crate::models::PromptsState { prompts: vec![] })?;
+        }
+        let skill_repos = self.skill_repos_file();
+        if !skill_repos.exists() {
+            write_json(&skill_repos, &crate::models::SkillReposState { repos: vec![] })?;
         }
         let settings = self.settings_file();
         if !settings.exists() {

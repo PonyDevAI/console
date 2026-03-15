@@ -30,6 +30,7 @@ pub fn sync_all() -> Result<SyncReport> {
 fn sync_providers() -> Result<u32> {
     let all_providers = services::provider::list()?;
     let active = services::provider::get_active()?;
+    let switch_modes = services::provider::get_switch_modes()?;
     let registry = adapters::registry();
     let mut count = 0u32;
 
@@ -39,7 +40,12 @@ fn sync_providers() -> Result<u32> {
             continue;
         }
 
-        match adapter.switch_mode() {
+        let mode = switch_modes
+            .get(&app_name)
+            .copied()
+            .unwrap_or_else(|| adapter.switch_mode());
+
+        match mode {
             crate::models::SwitchMode::Switch => {
                 if let Some(ref provider) = active {
                     if provider.apps.contains(&app_name) {

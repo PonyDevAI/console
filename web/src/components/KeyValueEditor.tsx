@@ -47,19 +47,19 @@ export default function KeyValueEditor({ value, onChange }: KeyValueEditorProps)
     <div className="space-y-2">
       {entries.length === 0 ? (
         <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--border)] px-3 py-2 text-xs text-[var(--muted)]">
-          No entries.
+          暂无条目
         </div>
       ) : null}
       {entries.map((entry, index) => (
         <div key={`${index}-${entry.key}`} className="grid grid-cols-[1fr_1fr_auto] gap-2">
           <input
-            placeholder="KEY"
+            placeholder="键"
             value={entry.key}
             onChange={(event) => updateAt(index, { key: event.target.value })}
             className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
           />
           <input
-            placeholder="value"
+            placeholder="值"
             value={entry.value}
             onChange={(event) => updateAt(index, { value: event.target.value })}
             className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"

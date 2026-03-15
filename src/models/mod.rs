@@ -47,6 +47,12 @@ pub enum SwitchMode {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidersState {
     pub providers: Vec<Provider>,
+    #[serde(default = "default_switch_modes")]
+    pub switch_modes: std::collections::HashMap<String, SwitchMode>,
+}
+
+fn default_switch_modes() -> std::collections::HashMap<String, SwitchMode> {
+    std::collections::HashMap::new()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -118,6 +124,20 @@ pub struct Skill {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillsState {
     pub skills: Vec<Skill>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillRepo {
+    pub id: String,
+    pub name: String,
+    pub url: String,
+    pub enabled: bool,
+    pub last_synced: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SkillReposState {
+    pub repos: Vec<SkillRepo>,
 }
 
 // ── Prompt ──

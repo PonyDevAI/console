@@ -38,7 +38,7 @@ export default function VersionPage() {
       const data = await getCliTools();
       setTools(data.tools ?? []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load CLI tools");
+      setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
     } finally {
       setLoading(false);
     }
@@ -54,9 +54,9 @@ export default function VersionPage() {
     try {
       const data = await scanCliTools();
       setTools(data.tools ?? []);
-      toast("Tool scan completed", "success");
+      toast("工具扫描完成", "success");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to scan tools");
+      setError(err instanceof Error ? err.message : "扫描工具失败");
     } finally {
       setRefreshing(false);
     }
@@ -68,9 +68,9 @@ export default function VersionPage() {
     try {
       const data = await checkUpdates();
       setTools(data.tools ?? []);
-      toast("Update check completed", "success");
+      toast("更新检查完成", "success");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to check updates");
+      setError(err instanceof Error ? err.message : "检查更新失败");
     } finally {
       setChecking(false);
     }
@@ -84,36 +84,36 @@ export default function VersionPage() {
     try {
       if (pending.type === "install") {
         await installTool(pending.tool.name);
-        toast(`${pending.tool.display_name} installed`, "success");
+        toast(`${pending.tool.display_name} 已安装`, "success");
       }
       if (pending.type === "upgrade") {
         await upgradeTool(pending.tool.name);
-        toast(`${pending.tool.display_name} upgraded`, "success");
+        toast(`${pending.tool.display_name} 已升级`, "success");
       }
       if (pending.type === "uninstall") {
         await uninstallTool(pending.tool.name);
-        toast(`${pending.tool.display_name} uninstalled`, "success");
+        toast(`${pending.tool.display_name} 已卸载`, "success");
       }
       const latest = await getCliTools();
       setTools(latest.tools ?? []);
       setPending(null);
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Operation failed", "error");
+      toast(err instanceof Error ? err.message : "操作失败", "error");
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <div className="text-sm text-[var(--muted)]">Loading...</div>;
+  if (loading) return <div className="text-sm text-[var(--muted)]">加载中...</div>;
 
   return (
     <div className="space-y-4">
-      <PageHeader title="实例" description="CLI 工具版本和安装状态">
+      <PageHeader title="版本管理" description="CLI 工具版本和安装状态">
         <Button variant="secondary" onClick={() => void onRefresh()} disabled={refreshing}>
-          {refreshing ? "Scanning..." : "Refresh"}
+          {refreshing ? "扫描中..." : "刷新"}
         </Button>
         <Button onClick={() => void onCheckUpdates()} disabled={checking}>
-          {checking ? "Checking..." : "Check Updates"}
+          {checking ? "检查中..." : "检查更新"}
         </Button>
       </PageHeader>
 
@@ -124,18 +124,18 @@ export default function VersionPage() {
       ) : null}
 
       {tools.length === 0 ? (
-        <EmptyState message="No CLI tools detected." />
+        <EmptyState message="未检测到 CLI 工具。" />
       ) : (
         <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
           <table className="w-full text-sm">
             <thead className="bg-[var(--bg-accent)] text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">
               <tr>
-                <th className="px-4 py-3 text-left">Tool</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left">Installed</th>
-                <th className="px-4 py-3 text-left">Latest</th>
-                <th className="px-4 py-3 text-left">Path</th>
-                <th className="px-4 py-3 text-left">Actions</th>
+                <th className="px-4 py-3 text-left">工具</th>
+                <th className="px-4 py-3 text-left">状态</th>
+                <th className="px-4 py-3 text-left">已安装版本</th>
+                <th className="px-4 py-3 text-left">最新版本</th>
+                <th className="px-4 py-3 text-left">路径</th>
+                <th className="px-4 py-3 text-left">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -151,7 +151,7 @@ export default function VersionPage() {
                     <td className="px-4 py-3 text-sm text-[var(--text)]">{tool.display_name}</td>
                     <td className="px-4 py-3">
                       <StatusBadge
-                        label={tool.installed ? "Installed" : "Missing"}
+                        label={tool.installed ? "已安装" : "未安装"}
                         variant={tool.installed ? "success" : "muted"}
                       />
                     </td>
@@ -168,17 +168,17 @@ export default function VersionPage() {
                       <div className="flex gap-2">
                         {!tool.installed ? (
                           <Button size="sm" onClick={() => setPending({ type: "install", tool })}>
-                            Install
+                            安装
                           </Button>
                         ) : null}
                         {tool.installed && hasUpdate ? (
                           <Button size="sm" onClick={() => setPending({ type: "upgrade", tool })}>
-                            Upgrade
+                            升级
                           </Button>
                         ) : null}
                         {tool.installed ? (
                           <Button size="sm" variant="ghost" onClick={() => setPending({ type: "uninstall", tool })}>
-                            Uninstall
+                            卸载
                           </Button>
                         ) : null}
                       </div>
@@ -193,9 +193,9 @@ export default function VersionPage() {
 
       <ConfirmDialog
         open={Boolean(pending)}
-        title={`${pending?.type[0]?.toUpperCase() ?? ""}${pending?.type.slice(1) ?? ""} ${pending?.tool.display_name ?? ""}`}
-        message={`Please confirm ${pending?.type ?? "operation"} for ${pending?.tool.display_name ?? "this tool"}.`}
-        confirmLabel={pending?.type ? pending.type[0].toUpperCase() + pending.type.slice(1) : "Confirm"}
+        title={`${pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "操作"} ${pending?.tool.display_name ?? ""}`}
+        message={`请确认对 ${pending?.tool.display_name ?? "此工具"} 执行${pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "操作"}。`}
+        confirmLabel={pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "确认"}
         variant={pending?.type === "uninstall" ? "danger" : "default"}
         loading={submitting}
         onCancel={() => setPending(null)}

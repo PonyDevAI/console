@@ -43,14 +43,14 @@ const navGroups: NavGroup[] = [
   {
     title: "控制",
     items: [
-      { to: "/", label: "概览", icon: LayoutDashboard },
-      { to: "/versions", label: "实例", icon: ArrowUpCircle },
+      { to: "/", label: "仪表盘", icon: LayoutDashboard },
+      { to: "/versions", label: "版本管理", icon: ArrowUpCircle },
     ],
   },
   {
     title: "代理",
     items: [
-      { to: "/providers", label: "供应商", icon: Cpu },
+      { to: "/providers", label: "模型供应商", icon: Cpu },
       { to: "/mcp", label: "MCP 服务器", icon: Server },
       { to: "/skills", label: "技能", icon: Zap },
     ],
@@ -107,7 +107,7 @@ export default function App() {
             <div className="leading-tight overflow-hidden">
               <div className="text-[14px] font-bold tracking-[0.02em] text-[var(--text-strong)]">CONSOLE</div>
               <div className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted)]">
-                AI CLI DASHBOARD
+                AI CLI 仪表盘
               </div>
             </div>
           )}

@@ -50,27 +50,27 @@ export default function Dashboard() {
 
   const stats = [
     {
-      label: "Health",
+      label: "健康状态",
       value: connected ? "1" : "0",
       icon: Activity,
       color: "text-[var(--success)]",
     },
     {
-      label: "CLI Tools",
+      label: "CLI 工具",
       value: `${installedTools}/${tools.length}`,
       icon: ArrowUpCircle,
       color: "text-[var(--accent)]",
       href: "/versions",
     },
     {
-      label: "Providers",
+      label: "供应商",
       value: `${providersCount}`,
       icon: Cpu,
       color: "text-[var(--info)]",
       href: "/providers",
     },
     {
-      label: "MCP Servers",
+      label: "MCP 服务器",
       value: `${mcpCount}`,
       icon: Server,
       color: "text-[var(--warning)]",
@@ -91,7 +91,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="概览" description="系统状态、入口点和快速操作。" />
+      <PageHeader title="仪表盘" description="AI 编程工具总览" />
       {error ? (
         <div className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-subtle)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
@@ -102,20 +102,20 @@ export default function Dashboard() {
 
       <div className="space-y-2">
         {updateNeeded.length > 0 ? (
-          <Callout variant="warning" title="Attention">
-            {updateNeeded.length} tool(s) have updates available: {updateNeeded.map((tool) => tool.display_name).join(", ")}.
+          <Callout variant="warning" title="注意">
+            {updateNeeded.length} 个工具有可用更新：{updateNeeded.map((tool) => tool.display_name).join(", ")}。
           </Callout>
         ) : null}
         {mcpFailures.length > 0 ? (
-          <Callout variant="danger" title="Attention">
+          <Callout variant="danger" title="注意">
             {mcpFailures[0].message}
           </Callout>
         ) : null}
       </div>
 
-      <Card header="Recent Activity">
+      <Card header="最近活动">
         {recentLogs.length === 0 ? (
-          <EmptyState message="No recent activity." />
+          <EmptyState message="暂无最近活动。" />
         ) : (
           <div className="space-y-2">
             {recentLogs.map((entry) => (
@@ -138,9 +138,9 @@ export default function Dashboard() {
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card header="CLI Tools">
+        <Card header="CLI 工具">
           {tools.length === 0 ? (
-            <EmptyState message="No CLI tools detected." />
+            <EmptyState message="未检测到 CLI 工具。" />
           ) : (
             <div className="space-y-2">
               {tools.map((tool) => (
@@ -153,7 +153,7 @@ export default function Dashboard() {
                     <div className="text-xs text-[var(--muted)]">v{tool.local_version ?? "-"}</div>
                   </div>
                   <StatusBadge
-                    label={tool.installed ? "Installed" : "Missing"}
+                    label={tool.installed ? "已安装" : "未安装"}
                     variant={tool.installed ? "success" : "muted"}
                   />
                 </div>
@@ -162,19 +162,19 @@ export default function Dashboard() {
           )}
         </Card>
 
-        <Card header="Quick Actions">
+        <Card header="快捷操作">
           <div className="space-y-2">
             <Button onClick={scan} disabled={scanning} className="w-full justify-start">
-              {scanning ? "Scanning..." : "Scan Tools"}
+              {scanning ? "扫描中..." : "扫描工具"}
             </Button>
             <Link to="/providers" className="block">
               <Button variant="secondary" className="w-full justify-start">
-                View Providers
+                管理供应商
               </Button>
             </Link>
             <Link to="/mcp" className="block">
               <Button variant="secondary" className="w-full justify-start">
-                View MCP Servers
+                管理 MCP 服务器
               </Button>
             </Link>
           </div>

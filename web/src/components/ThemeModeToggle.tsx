@@ -8,9 +8,9 @@ type ThemeModeToggleProps = {
 };
 
 const options: { id: ThemeMode; icon: typeof Monitor; label: string }[] = [
-  { id: "system", icon: Monitor, label: "System" },
-  { id: "light", icon: Sun, label: "Light" },
-  { id: "dark", icon: Moon, label: "Dark" },
+  { id: "system", icon: Monitor, label: "跟随系统" },
+  { id: "light", icon: Sun, label: "浅色" },
+  { id: "dark", icon: Moon, label: "深色" },
 ];
 
 export default function ThemeModeToggle({ mode, onChange }: ThemeModeToggleProps) {

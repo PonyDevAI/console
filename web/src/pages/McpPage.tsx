@@ -1,6 +1,6 @@
 import { Eye, Radio } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { createMcpServer, deleteMcpServer, getMcpServers, pingMcpServer, updateMcpServer } from "../api";
+import { createMcpServer, deleteMcpServer, getMcpServers, importMcpFromApp, pingMcpServer, updateMcpServer } from "../api";
 import AppToggleList from "../components/AppToggleList";
 import Button from "../components/Button";
 import Card from "../components/Card";
@@ -49,6 +49,8 @@ export default function McpPage() {
   const [viewing, setViewing] = useState<McpServer | null>(null);
   const [form, setForm] = useState<McpFormState>(emptyForm);
   const [pingResult, setPingResult] = useState<Record<string, string>>({});
+  const [importApp, setImportApp] = useState("cursor");
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,7 +59,7 @@ export default function McpPage() {
       const data = await getMcpServers();
       setServers(data.servers ?? []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load MCP servers");
+      setError(err instanceof Error ? err.message : "加载 MCP 服务器失败");
     } finally {
       setLoading(false);
     }
@@ -121,15 +123,15 @@ export default function McpPage() {
           enabled_apps: payload.enabled_apps,
         };
         await updateMcpServer(editing.id, updatePayload);
-        toast("MCP server updated", "success");
+        toast("MCP 服务器已更新", "success");
       } else {
         await createMcpServer(payload);
-        toast("MCP server created", "success");
+        toast("MCP 服务器已创建", "success");
       }
       setOpenForm(false);
       await load();
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to save MCP server", "error");
+      toast(err instanceof Error ? err.message : "保存 MCP 服务器失败", "error");
     } finally {
       setSaving(false);
     }
@@ -140,11 +142,11 @@ export default function McpPage() {
     setSaving(true);
     try {
       await deleteMcpServer(deleting.id);
-      toast("MCP server deleted", "success");
+      toast("MCP 服务器已删除", "success");
       setDeleting(null);
       await load();
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to delete MCP server", "error");
+      toast(err instanceof Error ? err.message : "删除 MCP 服务器失败", "error");
     } finally {
       setSaving(false);
     }
@@ -154,21 +156,51 @@ export default function McpPage() {
     setPingingId(server.id);
     try {
       const result = await pingMcpServer(server.id);
-      const text = result.ok ? `${result.latency_ms}ms` : "Failed";
+      const text = result.ok ? `${result.latency_ms}ms` : "失败";
       setPingResult((prev) => ({ ...prev, [server.id]: text }));
-      toast(result.ok ? `${server.name} is reachable` : `${server.name} ping failed`, result.ok ? "success" : "error");
+      toast(result.ok ? `${server.name} 可达` : `${server.name} Ping 失败`, result.ok ? "success" : "error");
     } catch (err: unknown) {
-      setPingResult((prev) => ({ ...prev, [server.id]: "Failed" }));
-      toast(err instanceof Error ? err.message : "Failed to ping MCP server", "error");
+      setPingResult((prev) => ({ ...prev, [server.id]: "失败" }));
+      toast(err instanceof Error ? err.message : "Ping MCP 服务器失败", "error");
     } finally {
       setPingingId(null);
     }
   };
 
+  const onImportFromApp = async () => {
+    setImporting(true);
+    try {
+      const result = await importMcpFromApp(importApp);
+      toast(`已从 ${importApp} 导入 ${result.imported.length} 个服务器`, "success");
+      await load();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "导入 MCP 服务器失败", "error");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div>
-      <PageHeader title="MCP 服务器" description="托管上下文协议服务器注册表">
-        <Button onClick={openCreateModal}>Add Server</Button>
+      <PageHeader title="MCP 服务器" description="管理模型上下文协议服务器">
+        <div className="flex gap-2">
+          <select
+            value={importApp}
+            onChange={(event) => setImportApp(event.target.value)}
+            className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-sm text-[var(--text)]"
+          >
+            <option value="cursor">cursor</option>
+            <option value="claude">claude</option>
+            <option value="codex">codex</option>
+            <option value="gemini">gemini</option>
+            <option value="opencode">opencode</option>
+            <option value="openclaw">openclaw</option>
+          </select>
+          <Button variant="secondary" onClick={() => void onImportFromApp()} disabled={importing}>
+            {importing ? "导入中..." : "从应用导入"}
+          </Button>
+          <Button onClick={openCreateModal}>添加服务器</Button>
+        </div>
       </PageHeader>
 
       {loading ? <Spinner /> : null}
@@ -178,7 +210,7 @@ export default function McpPage() {
         </div>
       ) : null}
 
-      {!loading && !error && servers.length === 0 ? <EmptyState message="No MCP servers configured." /> : null}
+      {!loading && !error && servers.length === 0 ? <EmptyState message="暂无 MCP 服务器配置。" /> : null}
 
       {!loading && !error && servers.length > 0 ? (
         <div className="space-y-3">
@@ -210,17 +242,17 @@ export default function McpPage() {
                     disabled={pingingId === server.id}
                   >
                     <Radio className="h-4 w-4" />
-                    {pingingId === server.id ? "Pinging..." : "Ping"}
+                    {pingingId === server.id ? "Ping 中..." : "Ping"}
                   </Button>
                   <Button size="sm" variant="secondary" onClick={() => setViewing(server)}>
                     <Eye className="h-4 w-4" />
-                    View Config
+                    查看配置
                   </Button>
                   <Button size="sm" variant="secondary" onClick={() => openEditModal(server)}>
-                    Edit
+                    编辑
                   </Button>
                   <Button size="sm" variant="destructive" onClick={() => setDeleting(server)}>
-                    Delete
+                    删除
                   </Button>
                 </div>
               </div>
@@ -232,27 +264,27 @@ export default function McpPage() {
       <Modal
         open={openForm}
         onClose={() => !saving && setOpenForm(false)}
-        title={editing ? "Edit MCP Server" : "Add MCP Server"}
+        title={editing ? "编辑 MCP 服务器" : "添加 MCP 服务器"}
         footer={
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setOpenForm(false)}>
-              Cancel
+              取消
             </Button>
             <Button type="submit" form="mcp-form" disabled={saving}>
-              {saving ? "Saving..." : "Save"}
+              {saving ? "保存中..." : "保存"}
             </Button>
           </div>
         }
       >
         <form id="mcp-form" className="space-y-4" onSubmit={(event) => void submitForm(event)}>
           <Input
-            label="Name"
+            label="名称"
             required
             value={form.name}
             onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
           />
           <Select
-            label="Transport"
+            label="传输方式"
             value={form.transport}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, transport: event.target.value as "stdio" | "http" | "sse" }))
@@ -264,13 +296,13 @@ export default function McpPage() {
           </Select>
           {form.transport === "stdio" ? (
             <Input
-              label="Command"
+              label="命令"
               value={form.command}
               onChange={(event) => setForm((prev) => ({ ...prev, command: event.target.value }))}
             />
           ) : null}
           <Input
-            label="Args (comma separated)"
+            label="参数（逗号分隔）"
             value={form.argsText}
             onChange={(event) => setForm((prev) => ({ ...prev, argsText: event.target.value }))}
           />
@@ -282,11 +314,11 @@ export default function McpPage() {
             />
           ) : null}
           <div>
-            <div className="mb-1 text-xs font-medium text-[var(--muted)]">Env Variables</div>
+            <div className="mb-1 text-xs font-medium text-[var(--muted)]">环境变量</div>
             <KeyValueEditor value={form.env} onChange={(env) => setForm((prev) => ({ ...prev, env }))} />
           </div>
           <div>
-            <div className="mb-1 text-xs font-medium text-[var(--muted)]">Enabled Apps</div>
+            <div className="mb-1 text-xs font-medium text-[var(--muted)]">启用的应用</div>
             <AppToggleList
               selected={form.enabled_apps}
               onChange={(enabled_apps) => setForm((prev) => ({ ...prev, enabled_apps }))}
@@ -298,7 +330,7 @@ export default function McpPage() {
       <Modal
         open={Boolean(viewing)}
         onClose={() => setViewing(null)}
-        title={`MCP Config: ${viewing?.name ?? ""}`}
+        title={`MCP 配置: ${viewing?.name ?? ""}`}
       >
         <pre className="overflow-auto rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] p-3">
           <code className="font-mono text-xs text-[var(--text)]">{JSON.stringify(viewing, null, 2)}</code>
@@ -307,9 +339,9 @@ export default function McpPage() {
 
       <ConfirmDialog
         open={Boolean(deleting)}
-        title="Delete MCP Server"
-        message={`Confirm delete ${deleting?.name ?? "this server"}?`}
-        confirmLabel="Delete"
+        title="删除 MCP 服务器"
+        message={`确定要删除 ${deleting?.name ?? "此服务器"} 吗？`}
+        confirmLabel="删除"
         variant="danger"
         loading={saving}
         onCancel={() => setDeleting(null)}

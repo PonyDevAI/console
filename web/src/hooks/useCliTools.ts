@@ -18,7 +18,7 @@ export default function useCliTools() {
       })
       .catch((err: unknown) => {
         if (!mounted) return;
-        setError(err instanceof Error ? err.message : "Failed to load CLI tools");
+        setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
       })
       .finally(() => {
         if (!mounted) return;
@@ -37,7 +37,7 @@ export default function useCliTools() {
       const data = await scanCliTools();
       setTools(data.tools ?? []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to scan CLI tools");
+      setError(err instanceof Error ? err.message : "扫描 CLI 工具失败");
     } finally {
       setScanning(false);
     }

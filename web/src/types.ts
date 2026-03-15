@@ -28,6 +28,8 @@ export type CreateProviderInput = {
   apps: string[];
 };
 
+export type SwitchMode = "switch" | "additive";
+
 // ── MCP Server ──
 export type McpServer = {
   id: string;
@@ -60,6 +62,14 @@ export type Skill = {
   apps: string[];
   installed_at: string | null;
   version: string | null;
+};
+
+export type SkillRepo = {
+  id: string;
+  name: string;
+  url: string;
+  enabled: boolean;
+  last_synced: string | null;
 };
 
 // ── Settings ──

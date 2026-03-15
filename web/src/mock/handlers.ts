@@ -1,13 +1,15 @@
-import type { CliTool, CreateMcpServerInput, CreateProviderInput, McpServer, Provider, Skill } from "../types";
-import { mockConfigSync, mockLogs, mockMcpServers, mockProviders, mockSettings, mockSkills, mockTools } from "./data";
+import type { CliTool, CreateMcpServerInput, CreateProviderInput, McpServer, Provider, Skill, SkillRepo, SwitchMode } from "../types";
+import { mockConfigSync, mockLogs, mockMcpServers, mockProviders, mockSettings, mockSkillRepos, mockSkills, mockSwitchModes, mockTools } from "./data";
 import type { ConfigSyncEntry, LogEntry, Settings } from "./data";
 
 const delay = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let tools = [...mockTools];
 let providers = [...mockProviders];
+let switchModes = { ...mockSwitchModes };
 let mcpServers = [...mockMcpServers];
 let skills = [...mockSkills];
+let skillRepos = [...mockSkillRepos];
 let settings = { ...mockSettings };
 let logs = [...mockLogs];
 let configSync = [...mockConfigSync];
@@ -58,6 +60,32 @@ export const mockApi = {
   getProviders: async () => {
     await delay();
     return { providers: [...providers] };
+  },
+  getSwitchModes: async () => {
+    await delay();
+    return { modes: { ...switchModes } };
+  },
+  setSwitchMode: async (app: string, mode: SwitchMode) => {
+    await delay();
+    switchModes = { ...switchModes, [app]: mode };
+    return { ok: true as const };
+  },
+  exportProviders: async () => {
+    await delay();
+    return { providers, switch_modes: switchModes } as Record<string, unknown>;
+  },
+  importProviders: async (data: string) => {
+    await delay();
+    const parsed = JSON.parse(data) as { providers?: Provider[] };
+    const incoming = parsed.providers ?? [];
+    const imported: Provider[] = [];
+    for (const p of incoming) {
+      if (!providers.some((existing) => existing.name === p.name)) {
+        providers.push(p);
+        imported.push(p);
+      }
+    }
+    return { imported };
   },
   createProvider: async (input: CreateProviderInput) => {
     await delay();
@@ -141,6 +169,21 @@ export const mockApi = {
       latency_ms: Math.floor(Math.random() * 300) + 20,
     };
   },
+  importMcpFromApp: async (app: string) => {
+    await delay(600);
+    const imported: McpServer[] = [{
+      id: `m${Date.now()}`,
+      name: `${app}-imported`,
+      transport: "stdio",
+      command: "npx",
+      args: ["-y", "@modelcontextprotocol/server-filesystem"],
+      url: null,
+      env: {},
+      enabled_apps: [app],
+    }];
+    mcpServers = [...mcpServers, ...imported];
+    return { imported };
+  },
 
   getSkills: async () => {
     await delay();
@@ -162,6 +205,32 @@ export const mockApi = {
     await delay();
     skills = skills.map((skill) => (skill.id === id ? { ...skill, apps: input.apps } : skill));
     return skills.find((skill) => skill.id === id) as Skill;
+  },
+  getSkillRepos: async () => {
+    await delay();
+    return { repos: [...skillRepos] };
+  },
+  addSkillRepo: async (name: string, url: string) => {
+    await delay();
+    const repo: SkillRepo = {
+      id: `r${Date.now()}`,
+      name,
+      url,
+      enabled: true,
+      last_synced: null,
+    };
+    skillRepos = [...skillRepos, repo];
+    return repo;
+  },
+  removeSkillRepo: async (id: string) => {
+    await delay();
+    skillRepos = skillRepos.filter((repo) => repo.id !== id);
+    return { ok: true as const };
+  },
+  toggleSkillRepo: async (id: string, enabled: boolean) => {
+    await delay();
+    skillRepos = skillRepos.map((repo) => (repo.id === id ? { ...repo, enabled } : repo));
+    return { ok: true as const };
   },
 
   getSettings: async () => {

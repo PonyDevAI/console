@@ -23,7 +23,7 @@ export default function LogsPage() {
     })
       .then((data) => setLogs(data.logs ?? []))
       .catch((err: unknown) => {
-        toast(err instanceof Error ? err.message : "Failed to fetch logs", "error");
+        toast(err instanceof Error ? err.message : "获取日志失败", "error");
       })
       .finally(() => setLoading(false));
   }, [level, source]);
@@ -36,15 +36,15 @@ export default function LogsPage() {
 
       <Card>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_220px_auto]">
-          <Select label="Level" value={level} onChange={(event) => setLevel(event.target.value)}>
-            <option value="all">All</option>
+          <Select label="级别" value={level} onChange={(event) => setLevel(event.target.value)}>
+            <option value="all">全部</option>
             <option value="debug">Debug</option>
             <option value="info">Info</option>
             <option value="warn">Warn</option>
             <option value="error">Error</option>
           </Select>
-          <Select label="Source" value={source} onChange={(event) => setSource(event.target.value)}>
-            <option value="all">All</option>
+          <Select label="来源" value={source} onChange={(event) => setSource(event.target.value)}>
+            <option value="all">全部</option>
             <option value="daemon">daemon</option>
             <option value="scanner">scanner</option>
             <option value="version">version</option>
@@ -61,7 +61,7 @@ export default function LogsPage() {
                 setSource("all");
               }}
             >
-              Clear Filters
+              清除筛选
             </Button>
           </div>
         </div>
@@ -69,7 +69,7 @@ export default function LogsPage() {
 
       {loading ? <Spinner /> : <LogViewer logs={logs} autoScroll />}
 
-      <div className="text-xs text-[var(--muted)]">Total logs: {count}</div>
+      <div className="text-xs text-[var(--muted)]">日志总数：{count}</div>
     </div>
   );
 }

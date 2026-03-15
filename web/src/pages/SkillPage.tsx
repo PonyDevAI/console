@@ -1,21 +1,25 @@
 import { CheckCircle2, ChevronDown, ChevronUp, Search, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { getSkills, installSkill, syncSkill, uninstallSkill, updateSkill } from "../api";
+import { addSkillRepo, getSkillRepos, getSkills, installSkill, removeSkillRepo, syncSkill, toggleSkillRepo, uninstallSkill, updateSkill } from "../api";
 import AppToggleList from "../components/AppToggleList";
 import Button from "../components/Button";
 import Card from "../components/Card";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
+import { Input } from "../components/FormFields";
+import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
 import Spinner from "../components/Spinner";
 import { toast } from "../components/Toast";
-import type { Skill } from "../types";
+import type { Skill, SkillRepo } from "../types";
 
 type FilterType = "all" | "ready" | "missing";
 type PendingAction = { type: "install" | "uninstall"; skill: Skill } | null;
+type PendingRepoDelete = SkillRepo | null;
 
 export default function SkillPage() {
   const [skills, setSkills] = useState<Skill[]>([]);
+  const [repos, setRepos] = useState<SkillRepo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [keyword, setKeyword] = useState("");
@@ -25,6 +29,10 @@ export default function SkillPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [savingAppsId, setSavingAppsId] = useState<string | null>(null);
+  const [repoModalOpen, setRepoModalOpen] = useState(false);
+  const [repoName, setRepoName] = useState("");
+  const [repoUrl, setRepoUrl] = useState("");
+  const [pendingRepoDelete, setPendingRepoDelete] = useState<PendingRepoDelete>(null);
 
   const load = async () => {
     setLoading(true);
@@ -32,8 +40,10 @@ export default function SkillPage() {
     try {
       const data = await getSkills();
       setSkills(data.skills ?? []);
+      const repoData = await getSkillRepos();
+      setRepos(repoData.repos ?? []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load skills");
+      setError(err instanceof Error ? err.message : "加载技能失败");
     } finally {
       setLoading(false);
     }
@@ -76,9 +86,9 @@ export default function SkillPage() {
     try {
       const updated = await updateSkill(id, { apps });
       setSkills((prev) => prev.map((skill) => (skill.id === id ? updated : skill)));
-      toast("Skill apps updated", "success");
+      toast("技能应用已更新", "success");
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to update skill apps", "error");
+      toast(err instanceof Error ? err.message : "更新技能应用失败", "error");
     } finally {
       setSavingAppsId(null);
     }
@@ -88,9 +98,9 @@ export default function SkillPage() {
     setSyncingId(skill.id);
     try {
       const result = await syncSkill(skill.id);
-      toast(`${skill.name} synced to ${result.synced_count} app(s)`, "success");
+      toast(`${skill.name} 已同步到 ${result.synced_count} 个应用`, "success");
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to sync skill", "error");
+      toast(err instanceof Error ? err.message : "同步技能失败", "error");
     } finally {
       setSyncingId(null);
     }
@@ -102,17 +112,55 @@ export default function SkillPage() {
     try {
       if (pending.type === "install") {
         await installSkill(pending.skill.id);
-        toast(`${pending.skill.name} installed`, "success");
+        toast(`${pending.skill.name} 已安装`, "success");
       } else {
         await uninstallSkill(pending.skill.id);
-        toast(`${pending.skill.name} uninstalled`, "success");
+        toast(`${pending.skill.name} 已卸载`, "success");
       }
       setPending(null);
       await load();
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Operation failed", "error");
+      toast(err instanceof Error ? err.message : "操作失败", "error");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onAddRepo = async () => {
+    if (!repoName.trim() || !repoUrl.trim()) {
+      toast("名称和 URL 不能为空", "error");
+      return;
+    }
+    try {
+      await addSkillRepo(repoName.trim(), repoUrl.trim());
+      setRepoModalOpen(false);
+      setRepoName("");
+      setRepoUrl("");
+      toast("仓库已添加", "success");
+      await load();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "添加仓库失败", "error");
+    }
+  };
+
+  const onToggleRepo = async (repo: SkillRepo, enabled: boolean) => {
+    try {
+      await toggleSkillRepo(repo.id, enabled);
+      setRepos((prev) => prev.map((r) => (r.id === repo.id ? { ...r, enabled } : r)));
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "切换仓库状态失败", "error");
+    }
+  };
+
+  const onDeleteRepo = async () => {
+    if (!pendingRepoDelete) return;
+    try {
+      await removeSkillRepo(pendingRepoDelete.id);
+      toast("仓库已删除", "success");
+      setPendingRepoDelete(null);
+      await load();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "删除仓库失败", "error");
     }
   };
 
@@ -122,7 +170,7 @@ export default function SkillPage() {
     <div className="space-y-4">
       <PageHeader title="技能" description="技能库存与就绪状态">
         <Button variant="secondary" onClick={() => void load()}>
-          Refresh
+          刷新
         </Button>
       </PageHeader>
 
@@ -132,26 +180,59 @@ export default function SkillPage() {
         </div>
       ) : null}
 
+      <Card>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium text-[var(--text-strong)]">仓库</div>
+            <Button size="sm" onClick={() => setRepoModalOpen(true)}>添加仓库</Button>
+          </div>
+          {repos.length === 0 ? (
+            <div className="text-xs text-[var(--muted)]">暂无已配置的仓库。</div>
+          ) : (
+            <div className="space-y-2">
+              {repos.map((repo) => (
+                <div key={repo.id} className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] p-2">
+                  <div>
+                    <div className="text-xs font-medium text-[var(--text-strong)]">{repo.name}</div>
+                    <div className="text-xs text-[var(--muted)]">{repo.url}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={repo.enabled ? "default" : "secondary"}
+                      onClick={() => void onToggleRepo(repo, !repo.enabled)}
+                    >
+                      {repo.enabled ? "已启用" : "已禁用"}
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => setPendingRepoDelete(repo)}>删除</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="Search skills"
+            placeholder="搜索技能"
             className="w-full rounded-full border border-[var(--border)] bg-transparent py-2 pl-9 pr-3 text-sm text-[var(--text-strong)] placeholder:text-[var(--muted)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/50"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" variant={filter === "all" ? "default" : "secondary"} onClick={() => setFilter("all")}>All</Button>
-          <Button size="sm" variant={filter === "ready" ? "default" : "secondary"} onClick={() => setFilter("ready")}>Ready</Button>
-          <Button size="sm" variant={filter === "missing" ? "default" : "secondary"} onClick={() => setFilter("missing")}>Missing</Button>
+          <Button size="sm" variant={filter === "all" ? "default" : "secondary"} onClick={() => setFilter("all")}>全部</Button>
+          <Button size="sm" variant={filter === "ready" ? "default" : "secondary"} onClick={() => setFilter("ready")}>就绪</Button>
+          <Button size="sm" variant={filter === "missing" ? "default" : "secondary"} onClick={() => setFilter("missing")}>缺失</Button>
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState message="No skills found." />
+        <EmptyState message="未找到技能。" />
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {filtered.map((skill) => {
@@ -164,7 +245,7 @@ export default function SkillPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-[var(--text-strong)]">{skill.name}</div>
-                      <div className="text-xs text-[var(--muted)]">{skill.source || "local"}</div>
+                      <div className="text-xs text-[var(--muted)]">{skill.source || "本地"}</div>
                     </div>
                     {isInstalled ? (
                       <CheckCircle2 className="h-5 w-5 text-[var(--success)]" />
@@ -173,24 +254,24 @@ export default function SkillPage() {
                     )}
                   </div>
 
-                  <p className="min-h-10 text-sm text-[var(--muted)]">{skill.description || "No description."}</p>
+                  <p className="min-h-10 text-sm text-[var(--muted)]">{skill.description || "暂无描述。"}</p>
                   <div className="text-xs text-[var(--muted)]">
-                    Apps: {skill.apps.length > 0 ? skill.apps.join(", ") : "None"}
+                    应用: {skill.apps.length > 0 ? skill.apps.join(", ") : "无"}
                   </div>
 
                   <div className="flex flex-wrap gap-2">
                     {isInstalled ? (
                       <Button size="sm" variant="ghost" onClick={() => setPending({ type: "uninstall", skill })}>
-                        Uninstall
+                        卸载
                       </Button>
                     ) : (
                       <Button size="sm" onClick={() => setPending({ type: "install", skill })}>
-                        Install
+                        安装
                       </Button>
                     )}
                     <Button size="sm" variant="secondary" onClick={() => toggleExpanded(skill.id)}>
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                      Details
+                      详情
                     </Button>
                     <Button
                       size="sm"
@@ -198,30 +279,30 @@ export default function SkillPage() {
                       onClick={() => void onSyncSkill(skill)}
                       disabled={syncingId === skill.id}
                     >
-                      {syncingId === skill.id ? "Syncing..." : "Sync"}
+                      {syncingId === skill.id ? "同步中..." : "同步"}
                     </Button>
                   </div>
 
                   {isExpanded ? (
                     <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] p-3">
-                      <div className="text-xs text-[var(--muted)]">Source: {skill.source || "N/A"}</div>
+                      <div className="text-xs text-[var(--muted)]">来源: {skill.source || "N/A"}</div>
                       {skill.source_url ? (
-                        <div className="break-all text-xs text-[var(--muted)]">Source URL: {skill.source_url}</div>
+                        <div className="break-all text-xs text-[var(--muted)]">来源 URL: {skill.source_url}</div>
                       ) : null}
                       <div className="text-xs text-[var(--muted)]">
-                        Installed At: {skill.installed_at ? new Date(skill.installed_at).toLocaleString() : "Not installed"}
+                        安装时间: {skill.installed_at ? new Date(skill.installed_at).toLocaleString() : "未安装"}
                       </div>
                       {skill.version ? (
-                        <div className="text-xs text-[var(--muted)]">Version: {skill.version}</div>
+                        <div className="text-xs text-[var(--muted)]">版本: {skill.version}</div>
                       ) : null}
                       <div>
-                        <div className="mb-1 text-xs font-medium text-[var(--muted)]">Enabled Apps</div>
+                        <div className="mb-1 text-xs font-medium text-[var(--muted)]">已启用应用</div>
                         <AppToggleList
                           selected={skill.apps}
                           onChange={(apps) => void updateApps(skill.id, apps)}
                         />
                         {savingAppsId === skill.id ? (
-                          <div className="mt-1 text-xs text-[var(--muted)]">Saving apps...</div>
+                          <div className="mt-1 text-xs text-[var(--muted)]">保存应用中...</div>
                         ) : null}
                       </div>
                     </div>
@@ -235,14 +316,40 @@ export default function SkillPage() {
 
       <ConfirmDialog
         open={Boolean(pending)}
-        title={`${pending?.type === "install" ? "Install" : "Uninstall"} Skill`}
-        message={`Confirm ${pending?.type ?? "update"} for ${pending?.skill.name ?? "this skill"}?`}
-        confirmLabel={pending?.type === "install" ? "Install" : "Uninstall"}
+        title={`${pending?.type === "install" ? "安装" : "卸载"}技能`}
+        message={`确定要${pending?.type === "install" ? "安装" : pending?.type === "uninstall" ? "卸载" : "更新"} ${pending?.skill.name ?? "此技能"} 吗？`}
+        confirmLabel={pending?.type === "install" ? "安装" : "卸载"}
         variant={pending?.type === "uninstall" ? "danger" : "default"}
         loading={submitting}
         onCancel={() => setPending(null)}
         onConfirm={() => void onConfirmAction()}
       />
+      <ConfirmDialog
+        open={Boolean(pendingRepoDelete)}
+        title="删除仓库"
+        message={`确定要删除 ${pendingRepoDelete?.name ?? "此仓库"} 吗？`}
+        confirmLabel="删除"
+        variant="danger"
+        loading={false}
+        onCancel={() => setPendingRepoDelete(null)}
+        onConfirm={() => void onDeleteRepo()}
+      />
+      <Modal
+        open={repoModalOpen}
+        onClose={() => setRepoModalOpen(false)}
+        title="添加仓库"
+        footer={(
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setRepoModalOpen(false)}>取消</Button>
+            <Button type="button" onClick={() => void onAddRepo()}>添加</Button>
+          </div>
+        )}
+      >
+        <div className="space-y-3">
+          <Input label="名称" value={repoName} onChange={(event) => setRepoName(event.target.value)} />
+          <Input label="URL" value={repoUrl} onChange={(event) => setRepoUrl(event.target.value)} />
+        </div>
+      </Modal>
     </div>
   );
 }

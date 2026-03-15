@@ -1,4 +1,4 @@
-import type { CliTool, ConfigSyncEntry, LogEntry, McpServer, Provider, Settings, Skill } from "../types";
+import type { CliTool, ConfigSyncEntry, LogEntry, McpServer, Provider, Settings, Skill, SkillRepo, SwitchMode } from "../types";
 export type { ConfigSyncEntry, LogEntry, Settings } from "../types";
 
 export const mockTools: CliTool[] = [
@@ -90,6 +90,15 @@ export const mockProviders: Provider[] = [
     modified_at: "2025-02-20T08:00:00Z",
   },
 ];
+
+export const mockSwitchModes: Record<string, SwitchMode> = {
+  claude: "switch",
+  codex: "switch",
+  gemini: "switch",
+  cursor: "switch",
+  opencode: "additive",
+  openclaw: "additive",
+};
 
 export const mockMcpServers: McpServer[] = [
   {
@@ -194,6 +203,23 @@ export const mockSkills: Skill[] = [
     apps: [],
     installed_at: null,
     version: null,
+  },
+];
+
+export const mockSkillRepos: SkillRepo[] = [
+  {
+    id: "r1",
+    name: "Official Skills",
+    url: "https://github.com/example/skills-official",
+    enabled: true,
+    last_synced: "2025-03-13T10:00:00Z",
+  },
+  {
+    id: "r2",
+    name: "Team Private Skills",
+    url: "https://github.com/example/skills-private",
+    enabled: false,
+    last_synced: null,
   },
 ];
 

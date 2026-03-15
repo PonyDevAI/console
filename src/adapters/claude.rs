@@ -100,13 +100,22 @@ impl CliAdapter for ClaudeAdapter {
     }
 
     fn read_mcp_config(&self) -> Result<serde_json::Value> {
+        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+        let desktop_path = home.join(".claude").join("claude_desktop_config.json");
+        if desktop_path.exists() {
+            let content = std::fs::read_to_string(&desktop_path)?;
+            let parsed: serde_json::Value = serde_json::from_str(&content)?;
+            if let Some(mcp) = parsed.get("mcpServers") {
+                return Ok(serde_json::json!({ "mcpServers": mcp }));
+            }
+        }
+
         let path = self.mcp_config_path()?;
         if path.exists() {
             let content = std::fs::read_to_string(&path)?;
             return Ok(serde_json::from_str(&content)?);
         }
 
-        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
         let legacy_path = home.join(".claude.json");
         if legacy_path.exists() {
             let content = std::fs::read_to_string(&legacy_path)?;

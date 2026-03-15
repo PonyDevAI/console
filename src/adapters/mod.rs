@@ -64,13 +64,7 @@ pub trait CliAdapter: Send + Sync {
     /// Read current MCP config from this CLI's native file.
     #[allow(dead_code)]
     fn read_mcp_config(&self) -> Result<serde_json::Value> {
-        let path = self.mcp_config_path()?;
-        if path.exists() {
-            let content = std::fs::read_to_string(&path)?;
-            Ok(serde_json::from_str(&content)?)
-        } else {
-            Ok(serde_json::json!({ "mcpServers": {} }))
-        }
+        Ok(serde_json::json!({}))
     }
 }
 

@@ -29,7 +29,7 @@ type DataTableProps<T extends { id?: string }> = {
 export default function DataTable<T extends { id?: string }>({
   columns,
   data,
-  emptyText = "No data.",
+  emptyText = "暂无数据",
   onRowClick,
   rowClassName,
   expandedRowRender,

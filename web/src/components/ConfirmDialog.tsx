@@ -16,7 +16,7 @@ export default function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = "Confirm",
+  confirmLabel = "确认",
   variant = "default",
   loading = false,
   onConfirm,
@@ -32,7 +32,7 @@ export default function ConfirmDialog({
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onCancel} disabled={loading}>
-            Cancel
+            取消
           </Button>
           <Button
             type="button"
@@ -40,7 +40,7 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? "Processing..." : confirmLabel}
+            {loading ? "处理中..." : confirmLabel}
           </Button>
         </div>
       }

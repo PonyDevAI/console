@@ -11,8 +11,8 @@ type DiffViewerProps = {
 export default function DiffViewer({
   left,
   right,
-  leftLabel = "Local",
-  rightLabel = "Remote",
+  leftLabel = "本地",
+  rightLabel = "远程",
 }: DiffViewerProps) {
   const rows = useMemo(() => {
     const leftLines = left.split("\n");

@@ -12,9 +12,9 @@ import { toast } from "../components/Toast";
 import type { Settings } from "../types";
 
 const tabs = [
-  { id: "general", label: "General", icon: SlidersHorizontal },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "about", label: "About", icon: CircleHelp },
+  { id: "general", label: "通用", icon: SlidersHorizontal },
+  { id: "appearance", label: "外观", icon: Palette },
+  { id: "about", label: "关于", icon: CircleHelp },
 ];
 
 export default function SettingsPage() {
@@ -36,7 +36,7 @@ export default function SettingsPage() {
         setDraft(settings);
       })
       .catch((err: unknown) => {
-        toast(err instanceof Error ? err.message : "Failed to load settings", "error");
+        toast(err instanceof Error ? err.message : "加载设置失败", "error");
       })
       .finally(() => {
         if (!mounted) return;
@@ -57,9 +57,9 @@ export default function SettingsPage() {
       const next = await updateSettings(draft);
       setSaved(next);
       setDraft(next);
-      toast("Settings saved", "success");
+      toast("设置已保存", "success");
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "Failed to save settings", "error");
+      toast(err instanceof Error ? err.message : "保存设置失败", "error");
     } finally {
       setSaving(false);
     }
@@ -71,7 +71,7 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <PageHeader title="设置" description="系统和界面偏好配置" />
 
-      {dirty ? <Callout variant="warning">You have unsaved changes</Callout> : null}
+      {dirty ? <Callout variant="warning">您有未保存的更改</Callout> : null}
 
       <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
@@ -79,12 +79,12 @@ export default function SettingsPage() {
         <Card>
           <div className="space-y-4">
             <Input
-              label="Storage Path"
+              label="存储路径"
               value={draft.storage_path}
               onChange={(event) => setDraft((prev) => (prev ? { ...prev, storage_path: event.target.value } : prev))}
             />
             <Select
-              label="Default Worker"
+              label="默认工作器"
               value={draft.default_worker}
               onChange={(event) =>
                 setDraft((prev) => (prev ? { ...prev, default_worker: event.target.value } : prev))
@@ -97,7 +97,7 @@ export default function SettingsPage() {
               ))}
             </Select>
             <label className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-2 text-sm">
-              Auto Check Updates
+              自动检查更新
               <input
                 type="checkbox"
                 checked={draft.auto_check_updates}
@@ -109,7 +109,7 @@ export default function SettingsPage() {
               />
             </label>
             <label className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-2 text-sm">
-              Sync On Change
+              变更时同步
               <input
                 type="checkbox"
                 checked={draft.sync_on_change}
@@ -126,7 +126,7 @@ export default function SettingsPage() {
         <Card>
           <div className="space-y-4">
             <Select
-              label="Theme"
+              label="主题"
               value={draft.theme}
               onChange={(event) =>
                 setDraft((prev) =>
@@ -134,12 +134,12 @@ export default function SettingsPage() {
                 )
               }
             >
-              <option value="dark">dark</option>
-              <option value="light">light</option>
-              <option value="system">system</option>
+              <option value="dark">深色</option>
+              <option value="light">浅色</option>
+              <option value="system">跟随系统</option>
             </Select>
             <Select
-              label="Log Level"
+              label="日志级别"
               value={draft.log_level}
               onChange={(event) =>
                 setDraft((prev) =>
@@ -160,22 +160,22 @@ export default function SettingsPage() {
         <Card>
           <div className="space-y-2 text-sm">
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
-              <span className="text-[var(--muted)]">Version</span>
+              <span className="text-[var(--muted)]">版本</span>
               <span className="font-medium text-[var(--text)]">0.1.0</span>
             </div>
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
-              <span className="text-[var(--muted)]">Build</span>
+              <span className="text-[var(--muted)]">构建</span>
               <span className="font-medium text-[var(--text)]">dev-local</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[var(--muted)]">GitHub</span>
+              <span className="text-[var(--muted)]">源码仓库</span>
               <a
                 className="text-[var(--accent)] hover:underline"
                 href="https://github.com"
                 target="_blank"
                 rel="noreferrer"
               >
-                Repository
+                代码仓库
               </a>
             </div>
           </div>
@@ -184,7 +184,7 @@ export default function SettingsPage() {
 
       <div className="flex justify-end">
         <Button onClick={() => void onSave()} disabled={!dirty || saving}>
-          {saving ? "Saving..." : "Save"}
+          {saving ? "保存中..." : "保存"}
         </Button>
       </div>
     </div>

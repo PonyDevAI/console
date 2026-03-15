@@ -8,7 +8,9 @@ import type {
   McpServer,
   Provider,
   Settings,
+  SkillRepo,
   Skill,
+  SwitchMode,
 } from "./types";
 
 const BASE = "/api";
@@ -113,6 +115,30 @@ export async function getProviders() {
   return get<{ providers: Provider[] }>("/providers");
 }
 
+export async function getSwitchModes() {
+  await ensureReady();
+  if (useMock) return mockApi.getSwitchModes();
+  return get<{ modes: Record<string, SwitchMode> }>("/providers/switch-modes");
+}
+
+export async function setSwitchMode(app: string, mode: SwitchMode) {
+  await ensureReady();
+  if (useMock) return mockApi.setSwitchMode(app, mode);
+  return put<{ ok: boolean }>(`/providers/switch-modes/${app}`, { mode });
+}
+
+export async function exportProviders() {
+  await ensureReady();
+  if (useMock) return mockApi.exportProviders();
+  return get<Record<string, unknown>>("/providers/export");
+}
+
+export async function importProviders(data: string) {
+  await ensureReady();
+  if (useMock) return mockApi.importProviders(data);
+  return post<{ imported: Provider[] }>("/providers/import", { data });
+}
+
 export async function createProvider(payload: CreateProviderInput) {
   await ensureReady();
   if (useMock) return mockApi.createProvider(payload);
@@ -173,6 +199,12 @@ export async function pingMcpServer(id: string) {
   return post<{ ok: boolean; latency_ms: number }>(`/mcp-servers/${id}/ping`);
 }
 
+export async function importMcpFromApp(app: string) {
+  await ensureReady();
+  if (useMock) return mockApi.importMcpFromApp(app);
+  return post<{ imported: McpServer[] }>(`/mcp-servers/import-from/${app}`);
+}
+
 export async function getSkills() {
   await ensureReady();
   if (useMock) return mockApi.getSkills();
@@ -201,6 +233,30 @@ export async function syncSkill(id: string) {
   await ensureReady();
   if (useMock) return { ok: true, synced_count: 0 };
   return post<{ ok: boolean; synced_count: number }>(`/skills/${id}/sync`);
+}
+
+export async function getSkillRepos() {
+  await ensureReady();
+  if (useMock) return mockApi.getSkillRepos();
+  return get<{ repos: SkillRepo[] }>("/skill-repos");
+}
+
+export async function addSkillRepo(name: string, url: string) {
+  await ensureReady();
+  if (useMock) return mockApi.addSkillRepo(name, url);
+  return post<SkillRepo>("/skill-repos", { name, url });
+}
+
+export async function removeSkillRepo(id: string) {
+  await ensureReady();
+  if (useMock) return mockApi.removeSkillRepo(id);
+  return del<{ ok: boolean }>(`/skill-repos/${id}`);
+}
+
+export async function toggleSkillRepo(id: string, enabled: boolean) {
+  await ensureReady();
+  if (useMock) return mockApi.toggleSkillRepo(id, enabled);
+  return post<{ ok: boolean }>(`/skill-repos/${id}/toggle`, { enabled });
 }
 
 export async function getSettings() {

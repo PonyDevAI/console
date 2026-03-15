@@ -7,12 +7,33 @@ use axum::{
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, Provider};
+use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, Provider, SwitchMode};
 use crate::services;
 
 #[derive(serde::Deserialize)]
 struct UpdateSkillRequest {
     apps: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct SetSwitchModeRequest {
+    mode: SwitchMode,
+}
+
+#[derive(serde::Deserialize)]
+struct ImportProvidersRequest {
+    data: String,
+}
+
+#[derive(serde::Deserialize)]
+struct AddSkillRepoRequest {
+    name: String,
+    url: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ToggleSkillRepoRequest {
+    enabled: bool,
 }
 
 pub fn api_routes() -> Router {
@@ -28,16 +49,25 @@ pub fn api_routes() -> Router {
         .route("/cli-tools/{name}/uninstall", post(uninstall_tool))
         .route("/providers", get(list_providers))
         .route("/providers", post(create_provider))
+        .route("/providers/export", get(export_providers))
+        .route("/providers/import", post(import_providers))
+        .route("/providers/switch-modes", get(get_switch_modes))
+        .route("/providers/switch-modes/{app}", put(set_switch_mode))
         .route("/providers/{id}", put(update_provider))
         .route("/providers/{id}", delete(delete_provider))
         .route("/providers/{id}/activate", post(activate_provider))
         .route("/providers/{id}/test", post(test_provider))
         .route("/mcp-servers", get(list_mcp_servers))
         .route("/mcp-servers", post(create_mcp_server))
+        .route("/mcp-servers/import-from/{app}", post(import_mcp_from_app))
         .route("/mcp-servers/{id}", put(update_mcp_server))
         .route("/mcp-servers/{id}", delete(delete_mcp_server))
         .route("/mcp-servers/{id}/ping", post(ping_mcp_server))
         .route("/skills", get(list_skills))
+        .route("/skill-repos", get(list_skill_repos))
+        .route("/skill-repos", post(add_skill_repo))
+        .route("/skill-repos/{id}", delete(remove_skill_repo))
+        .route("/skill-repos/{id}/toggle", post(toggle_skill_repo))
         .route("/skills/{id}", put(update_skill))
         .route("/skills/{id}/install", post(install_skill))
         .route("/skills/{id}/uninstall", post(uninstall_skill))
@@ -121,28 +151,43 @@ async fn list_providers() -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "providers": providers })))
 }
 
+async fn get_switch_modes() -> Result<Json<Value>, StatusCode> {
+    let modes = services::provider::get_switch_modes().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "modes": modes })))
+}
+
+async fn set_switch_mode(
+    Path(app): Path<String>,
+    Json(req): Json<SetSwitchModeRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    services::provider::set_switch_mode(&app, req.mode).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
 async fn create_provider(Json(req): Json<CreateProviderRequest>) -> Result<Json<Value>, StatusCode> {
     let provider = services::provider::create(req.name, req.api_endpoint, req.api_key_ref, req.apps)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(provider)))
 }
 
+async fn export_providers() -> Result<Json<Value>, StatusCode> {
+    let state = services::provider::export_state().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(state))
+}
+
+async fn import_providers(
+    Json(req): Json<ImportProvidersRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let imported = services::provider::import_all(&req.data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "imported": imported })))
+}
+
 async fn update_provider(
     Path(id): Path<String>,
     Json(req): Json<CreateProviderRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let provider = Provider {
-        id: id.clone(),
-        name: req.name,
-        api_endpoint: req.api_endpoint,
-        api_key_ref: req.api_key_ref,
-        active: false,
-        apps: req.apps,
-        created_at: chrono::Utc::now(),
-        modified_at: chrono::Utc::now(),
-    };
-
-    let updated = services::provider::update(&id, provider).map_err(map_not_found)?;
+    let updated = services::provider::update_fields(&id, req.name, req.api_endpoint, req.api_key_ref, req.apps)
+        .map_err(map_not_found)?;
     Ok(Json(json!(updated)))
 }
 
@@ -219,6 +264,11 @@ async fn create_mcp_server(
     Ok(Json(json!(server)))
 }
 
+async fn import_mcp_from_app(Path(app): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let imported = services::mcp::import_from_app(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "imported": imported })))
+}
+
 async fn update_mcp_server(
     Path(id): Path<String>,
     Json(req): Json<McpServer>,
@@ -286,6 +336,31 @@ async fn ping_mcp_server(Path(id): Path<String>) -> Result<Json<Value>, StatusCo
 async fn list_skills() -> Result<Json<Value>, StatusCode> {
     let skills = services::skill::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "skills": skills })))
+}
+
+async fn list_skill_repos() -> Result<Json<Value>, StatusCode> {
+    let repos = services::skill::list_repos().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "repos": repos })))
+}
+
+async fn add_skill_repo(
+    Json(req): Json<AddSkillRepoRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let repo = services::skill::add_repo(req.name, req.url).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(repo)))
+}
+
+async fn remove_skill_repo(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    services::skill::remove_repo(&id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn toggle_skill_repo(
+    Path(id): Path<String>,
+    Json(req): Json<ToggleSkillRepoRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    services::skill::toggle_repo(&id, req.enabled).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "ok": true })))
 }
 
 async fn install_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
