@@ -7,7 +7,7 @@ use axum::{
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, Provider, SwitchMode};
+use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, SwitchMode};
 use crate::services;
 
 #[derive(serde::Deserialize)]
@@ -436,15 +436,63 @@ async fn get_config_sync() -> Result<Json<Value>, StatusCode> {
 }
 
 async fn sync_all_config() -> Result<Json<Value>, StatusCode> {
-    let report = crate::sync::sync_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    services::logs::push("info", "sync", &format!("Sync all completed: {:?}", report));
-    Ok(Json(json!({ "ok": true, "report": format!("{:?}", report) })))
+    let _ = crate::sync::sync_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::logs::push("info", "sync", "Sync all completed");
+
+    // Rebuild entries to return full ConfigSyncEntry list
+    let registry = crate::adapters::registry();
+    let mut entries = Vec::new();
+    for adapter in registry.adapters() {
+        for config_type in ["providers", "mcp_servers", "skills"] {
+            entries.push(json!({
+                "id": format!("{}_{}", adapter.name(), config_type),
+                "app": adapter.name(),
+                "config_type": config_type,
+                "status": "synced",
+                "last_synced": chrono::Utc::now(),
+                "local_hash": "",
+                "remote_hash": "",
+            }));
+        }
+    }
+    Ok(Json(json!({ "entries": entries })))
 }
 
 async fn sync_single_config(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     let _ = crate::sync::sync_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     services::logs::push("info", "sync", &format!("Sync completed for {}", id));
-    Ok(Json(json!({ "id": id, "status": "synced", "last_synced": chrono::Utc::now() })))
+
+    // Rebuild entries and find the matching one by id
+    let registry = crate::adapters::registry();
+    let mut entries = Vec::new();
+    for adapter in registry.adapters() {
+        for config_type in ["providers", "mcp_servers", "skills"] {
+            let entry_id = format!("{}_{}", adapter.name(), config_type);
+            if entry_id == id {
+                entries.push(json!({
+                    "id": entry_id,
+                    "app": adapter.name(),
+                    "config_type": config_type,
+                    "status": "synced",
+                    "last_synced": chrono::Utc::now(),
+                    "local_hash": "",
+                    "remote_hash": "",
+                }));
+            }
+        }
+    }
+
+    // Return the matching entry or a default one
+    let entry = entries.into_iter().next().unwrap_or_else(|| json!({
+        "id": id,
+        "app": "unknown",
+        "config_type": "unknown",
+        "status": "synced",
+        "last_synced": chrono::Utc::now(),
+        "local_hash": "",
+        "remote_hash": "",
+    }));
+    Ok(Json(entry))
 }
 
 fn map_not_found(err: anyhow::Error) -> StatusCode {

@@ -77,37 +77,29 @@ pub fn mark_installed(id: &str) -> Result<Skill> {
 /// Mark a skill as installed by ID and persist.
 pub fn install_by_id(id: &str) -> Result<()> {
     let mut state = load()?;
-    let to_sync = if let Some(skill) = state.skills.iter_mut().find(|s| s.id == id) {
+    if let Some(skill) = state.skills.iter_mut().find(|s| s.id == id) {
         skill.installed_at = Some(chrono::Utc::now());
-        Some(skill.clone())
-    } else {
-        None
-    };
-    save(&state)?;
-    if let Some(skill) = to_sync {
-        crate::services::skill_sync::sync_skill_to_apps(&skill)?;
+        let to_sync = skill.clone();
+        save(&state)?;
+        crate::services::skill_sync::sync_skill_to_apps(&to_sync)?;
+        Ok(())
     } else {
         anyhow::bail!("skill not found: {id}");
     }
-    Ok(())
 }
 
 /// Mark a skill as uninstalled by ID and persist.
 pub fn uninstall_by_id(id: &str) -> Result<()> {
     let mut state = load()?;
-    let to_remove = if let Some(skill) = state.skills.iter_mut().find(|s| s.id == id) {
+    if let Some(skill) = state.skills.iter_mut().find(|s| s.id == id) {
         skill.installed_at = None;
-        Some(skill.clone())
-    } else {
-        None
-    };
-    save(&state)?;
-    if let Some(skill) = to_remove {
-        crate::services::skill_sync::remove_skill_from_apps(&skill)?;
+        let to_remove = skill.clone();
+        save(&state)?;
+        crate::services::skill_sync::remove_skill_from_apps(&to_remove)?;
+        Ok(())
     } else {
         anyhow::bail!("skill not found: {id}");
     }
-    Ok(())
 }
 
 pub fn update_apps(id: &str, apps: Vec<String>) -> Result<Skill> {

@@ -156,7 +156,14 @@ export default function McpPage() {
     setPingingId(server.id);
     try {
       const result = await pingMcpServer(server.id);
-      const text = result.ok ? `${result.latency_ms}ms` : "失败";
+      let text: string;
+      if (result.ok && result.latency_ms !== undefined) {
+        text = `${result.latency_ms}ms`;
+      } else if (result.ok && result.transport === "stdio") {
+        text = "可用 (stdio)";
+      } else {
+        text = "失败" + (result.error ? `: ${result.error}` : "");
+      }
       setPingResult((prev) => ({ ...prev, [server.id]: text }));
       toast(result.ok ? `${server.name} 可达` : `${server.name} Ping 失败`, result.ok ? "success" : "error");
     } catch (err: unknown) {

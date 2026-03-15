@@ -113,21 +113,8 @@ export const mockApi = {
   },
   activateProvider: async (id: string) => {
     await delay();
-    providers = providers.map((provider) =>
-      provider.id === id
-        ? { ...provider, active: true, modified_at: new Date().toISOString() }
-        : provider,
-    );
-    return providers.find((provider) => provider.id === id) as Provider;
-  },
-  deactivateProvider: async (id: string) => {
-    await delay();
-    providers = providers.map((provider) =>
-      provider.id === id
-        ? { ...provider, active: false, modified_at: new Date().toISOString() }
-        : provider,
-    );
-    return providers.find((provider) => provider.id === id) as Provider;
+    providers = providers.map((p) => ({ ...p, active: p.id === id, modified_at: new Date().toISOString() }));
+    return { ok: true as const };
   },
   testProvider: async (_id: string) => {
     await delay(1000);
@@ -162,12 +149,20 @@ export const mockApi = {
     mcpServers = mcpServers.filter((server) => server.id !== id);
     return { ok: true as const };
   },
-  pingMcpServer: async (_id: string) => {
+  pingMcpServer: async (id: string) => {
     await delay(800);
-    return {
-      ok: Math.random() > 0.3,
-      latency_ms: Math.floor(Math.random() * 300) + 20,
-    };
+    const server = mcpServers.find((s) => s.id === id);
+    if (!server) return { ok: false as const, error: "服务器不存在" };
+    if (server.transport === "stdio") {
+      const ok = Math.random() > 0.2;
+      return ok
+        ? { ok: true as const, transport: "stdio" as const }
+        : { ok: false as const, error: "命令不存在" };
+    }
+    const ok = Math.random() > 0.3;
+    return ok
+      ? { ok: true as const, latency_ms: Math.floor(Math.random() * 300) + 20 }
+      : { ok: false as const, error: "连接超时" };
   },
   importMcpFromApp: async (app: string) => {
     await delay(600);
@@ -206,6 +201,10 @@ export const mockApi = {
     skills = skills.map((skill) => (skill.id === id ? { ...skill, apps: input.apps } : skill));
     return skills.find((skill) => skill.id === id) as Skill;
   },
+  syncSkill: async (_id: string) => {
+    await delay(500);
+    return { ok: true as const, synced_count: 2 };
+  },
   getSkillRepos: async () => {
     await delay();
     return { repos: [...skillRepos] };
@@ -237,7 +236,7 @@ export const mockApi = {
     await delay();
     return { ...settings };
   },
-  updateSettings: async (input: Partial<Settings>) => {
+  updateSettings: async (input: Settings) => {
     await delay();
     settings = { ...settings, ...input };
     return { ...settings };

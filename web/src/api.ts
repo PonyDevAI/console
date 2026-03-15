@@ -166,7 +166,7 @@ export async function activateProvider(id: string) {
 export async function testProvider(id: string) {
   await ensureReady();
   if (useMock) return mockApi.testProvider(id);
-  return post<{ ok: boolean; latency_ms: number }>(`/providers/${id}/test`);
+  return post<{ ok: boolean; latency_ms?: number; error?: string; status?: number }>(`/providers/${id}/test`);
 }
 
 export async function getMcpServers() {
@@ -196,7 +196,7 @@ export async function deleteMcpServer(id: string) {
 export async function pingMcpServer(id: string) {
   await ensureReady();
   if (useMock) return mockApi.pingMcpServer(id);
-  return post<{ ok: boolean; latency_ms: number }>(`/mcp-servers/${id}/ping`);
+  return post<{ ok: boolean; latency_ms?: number; transport?: string; error?: string }>(`/mcp-servers/${id}/ping`);
 }
 
 export async function importMcpFromApp(app: string) {
@@ -231,7 +231,7 @@ export async function updateSkill(id: string, payload: { apps: string[] }) {
 
 export async function syncSkill(id: string) {
   await ensureReady();
-  if (useMock) return { ok: true, synced_count: 0 };
+  if (useMock) return mockApi.syncSkill(id);
   return post<{ ok: boolean; synced_count: number }>(`/skills/${id}/sync`);
 }
 
@@ -265,7 +265,7 @@ export async function getSettings() {
   return get<Settings>("/settings");
 }
 
-export async function updateSettings(payload: Partial<Settings>) {
+export async function updateSettings(payload: Settings) {
   await ensureReady();
   if (useMock) return mockApi.updateSettings(payload);
   return put<Settings>("/settings", payload);
