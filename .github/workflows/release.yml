@@ -101,7 +101,12 @@ jobs:
           pattern: package-*
           merge-multiple: true
 
+      - name: Generate checksums
+        run: sha256sum console-*.tar.gz > SHA256SUMS
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: console-*.tar.gz
+          files: |
+            console-*.tar.gz
+            SHA256SUMS

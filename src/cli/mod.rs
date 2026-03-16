@@ -3,6 +3,7 @@ mod start;
 mod doctor;
 mod scan;
 mod upgrade;
+mod rollback;
 mod uninstall;
 
 use clap::Subcommand;
@@ -48,6 +49,12 @@ pub enum Command {
         #[arg(long, short)]
         yes: bool,
     },
+    /// Roll back to a previously installed version
+    Rollback {
+        /// Target version to roll back to (lists available if omitted)
+        #[arg(long)]
+        version: Option<String>,
+    },
 }
 
 pub async fn execute(cmd: Command) -> anyhow::Result<()> {
@@ -74,6 +81,7 @@ pub async fn execute(cmd: Command) -> anyhow::Result<()> {
             Ok(())
         }
         Command::Upgrade { version, dry_run } => upgrade::run(version, dry_run).await,
+        Command::Rollback { version } => rollback::run(version).await,
         Command::Uninstall { purge, yes } => uninstall::run(purge, yes).await,
     }
 }

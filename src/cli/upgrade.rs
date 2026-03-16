@@ -1,10 +1,18 @@
 use anyhow::Result;
 use reqwest::header::USER_AGENT;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
     let paths = crate::storage::ConsolePaths::default();
     let target_bin = paths.root.join("bin").join("console");
+    if target_bin.is_symlink() && !target_bin.exists() {
+        anyhow::bail!(
+            "Console symlink at {} is broken (target version may have been removed). \
+             Run `console rollback` to switch to an available version, or reinstall with install.sh.",
+            target_bin.display()
+        );
+    }
     if !target_bin.exists() {
         anyhow::bail!(
             "Console is not installed at {}. Run install.sh first.",
@@ -60,6 +68,33 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
         .await?;
     std::fs::write(&archive, &bytes)?;
 
+    let sums_url = format!(
+        "https://github.com/{repo}/releases/download/{latest}/SHA256SUMS",
+    );
+    if let Ok(sums_resp) = client
+        .get(&sums_url)
+        .header(USER_AGENT, "console-self-update")
+        .send()
+        .await
+    {
+        if let Ok(sums_text) = sums_resp.text().await {
+            if let Some(expected_line) = sums_text.lines().find(|l| l.contains(&file_name)) {
+                let expected_hash = expected_line.split_whitespace().next().unwrap_or("");
+                let actual_hash = sha256_hex(&bytes)?;
+                if expected_hash != actual_hash {
+                    let _ = std::fs::remove_dir_all(&tmp_root);
+                    anyhow::bail!(
+                        "SHA256 checksum mismatch!\n  expected: {}\n  actual:   {}",
+                        expected_hash, actual_hash
+                    );
+                }
+                println!("Checksum verified.");
+            }
+        }
+    } else {
+        println!("Warning: SHA256SUMS not available, skipping checksum verification.");
+    }
+
     let status = std::process::Command::new("tar")
         .arg("-xzf")
         .arg(&archive)
@@ -75,34 +110,42 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
     let new_bin = find_named_file(&extract_dir, "console")
         .ok_or_else(|| anyhow::anyhow!("archive does not contain console binary"))?;
 
-    let backup = target_bin.with_file_name("console.old");
-    if backup.exists() {
-        std::fs::remove_file(&backup)?;
-    }
-
-    std::fs::rename(&target_bin, &backup)?;
-    if let Err(e) = std::fs::rename(&new_bin, &target_bin) {
-        let _ = std::fs::rename(&backup, &target_bin);
-        return Err(e.into());
-    }
+    let ver_dir = paths.root.join("versions").join(&latest);
+    let ver_bin_dir = ver_dir.join("bin");
+    std::fs::create_dir_all(&ver_bin_dir)?;
+    std::fs::rename(&new_bin, ver_bin_dir.join("console"))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(&target_bin)?.permissions();
+        let mut perms = std::fs::metadata(ver_bin_dir.join("console"))?.permissions();
         perms.set_mode(0o755);
-        std::fs::set_permissions(&target_bin, perms)?;
+        std::fs::set_permissions(ver_bin_dir.join("console"), perms)?;
     }
-
-    let _ = std::fs::remove_file(&backup);
 
     if let Some(web_dir) = find_named_dir(&extract_dir, "web") {
-        let target_web = crate::storage::ConsolePaths::default().root.join("web");
-        if target_web.exists() {
-            std::fs::remove_dir_all(&target_web)?;
+        let ver_web = ver_dir.join("web");
+        if ver_web.exists() {
+            std::fs::remove_dir_all(&ver_web)?;
         }
-        copy_dir_recursive(&web_dir, &target_web)?;
+        copy_dir_recursive(&web_dir, &ver_web)?;
     }
+
+    let current_link = paths.root.join("current");
+    if current_link.exists() || current_link.is_symlink() {
+        std::fs::remove_file(&current_link)?;
+    }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&ver_dir, &current_link)?;
+
+    let bin_dir = paths.root.join("bin");
+    std::fs::create_dir_all(&bin_dir)?;
+    let bin_link = bin_dir.join("console");
+    if bin_link.exists() || bin_link.is_symlink() {
+        std::fs::remove_file(&bin_link)?;
+    }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink("../current/bin/console", &bin_link)?;
 
     let _ = std::fs::remove_dir_all(&tmp_root);
 
@@ -190,4 +233,26 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn sha256_hex(data: &[u8]) -> Result<String> {
+    let mut child = std::process::Command::new("shasum")
+        .args(["-a", "256"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .or_else(|_| {
+            std::process::Command::new("sha256sum")
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+        })
+        .map_err(|_| anyhow::anyhow!("neither shasum nor sha256sum found on this system"))?;
+    child.stdin.take().unwrap().write_all(data).unwrap();
+    let output = child.wait_with_output()?;
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .to_string())
 }

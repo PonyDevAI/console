@@ -30,12 +30,17 @@ Usage:
   install.sh [install] [--version <tag>] [-y|--yes]
   install.sh upgrade   [--version <tag>] [-y|--yes]
   install.sh uninstall [--purge] [-y|--yes]
+  install.sh rollback  [--version <tag>]
   install.sh --help
+
+Options:
+  --from-repo  Build from current repo instead of downloading release
 
 Commands:
   install    Install Console to ~/.console/bin/console (default when no command given)
   upgrade    Upgrade existing installation
   uninstall  Remove binary and web assets (keeps ~/.console state by default)
+  rollback   Roll back to a previously installed version
 EOF
 }
 
@@ -57,6 +62,12 @@ EOF
       cat <<'EOF'
 Usage: install.sh uninstall [--purge]
 Uninstall Console. --purge removes ~/.console entirely.
+EOF
+      ;;
+    rollback)
+      cat <<'EOF'
+Usage: install.sh rollback [--version <tag>]
+Roll back to a previously installed version.
 EOF
       ;;
     *)
@@ -145,7 +156,6 @@ remove_path() {
 
 download_and_install() {
   local tag="$1"
-  # Normalize: ensure tag starts with 'v'
   if [[ "$tag" != v* ]]; then
     tag="v${tag}"
   fi
@@ -163,9 +173,22 @@ download_and_install() {
     exit 1
   fi
 
+  local sums_url="https://github.com/${REPO}/releases/download/${tag}/SHA256SUMS"
+  if curl -fsSL "$sums_url" -o "${tmp}/SHA256SUMS" 2>/dev/null; then
+    info "Verifying checksum..."
+    (cd "$tmp" && grep -F "$file" SHA256SUMS | sha256sum -c --quiet 2>/dev/null) || \
+    (cd "$tmp" && grep -F "$file" SHA256SUMS | shasum -a 256 -c --quiet 2>/dev/null) || {
+      error "SHA256 checksum verification failed!"
+      rm -rf "$tmp"
+      exit 1
+    }
+    ok "Checksum verified."
+  else
+    warn "SHA256SUMS not found, skipping verification."
+  fi
+
   info "Extracting..."
   tar -xzf "${tmp}/${file}" -C "$tmp"
-  mkdir -p "$BIN_DIR"
 
   local extracted_bin
   extracted_bin="$(find "$tmp" -type f -name "$BIN_NAME" | head -n1)"
@@ -175,15 +198,28 @@ download_and_install() {
     exit 1
   fi
 
-  mv "$extracted_bin" "$BIN_PATH"
-  chmod +x "$BIN_PATH"
-
   local extracted_web
   extracted_web="$(find "$tmp" -type d -name web | head -n1 || true)"
+
+  local ver_dir="$INSTALL_ROOT/versions/${tag}"
+  mkdir -p "$ver_dir/bin"
+  mv "$extracted_bin" "$ver_dir/bin/$BIN_NAME"
+  chmod +x "$ver_dir/bin/$BIN_NAME"
+
   if [[ -n "${extracted_web}" ]]; then
-    rm -rf "$WEB_DIR"
-    mkdir -p "$INSTALL_ROOT"
-    mv "$extracted_web" "$WEB_DIR"
+    mv "$extracted_web" "$ver_dir/web"
+  fi
+
+  rm -f "$INSTALL_ROOT/current"
+  ln -sf "$ver_dir" "$INSTALL_ROOT/current"
+
+  mkdir -p "$BIN_DIR"
+  rm -f "$BIN_PATH"
+  ln -sf "../current/bin/$BIN_NAME" "$BIN_PATH"
+
+  if [[ -d "$ver_dir/web" ]]; then
+    rm -f "$WEB_DIR"
+    ln -sf "current/web" "$WEB_DIR"
   fi
 
   rm -rf "$tmp"
@@ -252,6 +288,8 @@ do_uninstall() {
 
   rm -f "$BIN_PATH"
   rm -rf "$WEB_DIR"
+  rm -f "$INSTALL_ROOT/current"
+  rm -rf "$INSTALL_ROOT/versions"
   if [[ -d "$BIN_DIR" ]] && [[ -z "$(ls -A "$BIN_DIR" 2>/dev/null)" ]]; then
     rmdir "$BIN_DIR" || true
   fi
@@ -267,6 +305,78 @@ do_uninstall() {
   fi
 }
 
+do_rollback() {
+  local target_ver="${1:-}"
+  local versions_dir="$INSTALL_ROOT/versions"
+
+  if [[ ! -d "$versions_dir" ]]; then
+    error "No versions found at $versions_dir"
+    exit 1
+  fi
+
+  if [[ -z "$target_ver" ]]; then
+    info "Available versions:"
+    ls -1 "$versions_dir" | sort -V
+    printf "Roll back to which version? "
+    read -r target_ver
+  fi
+
+  if [[ ! -d "$versions_dir/$target_ver" ]]; then
+    error "Version $target_ver not found in $versions_dir"
+    exit 1
+  fi
+
+  rm -f "$INSTALL_ROOT/current"
+  ln -sf "$versions_dir/$target_ver" "$INSTALL_ROOT/current"
+  ok "Rolled back to $target_ver"
+}
+
+do_install_from_repo() {
+  if [[ ! -f "Cargo.toml" ]] || ! grep -q 'name = "console"' Cargo.toml 2>/dev/null; then
+    error "Not in Console repo root. Run from the project directory."
+    exit 1
+  fi
+
+  info "Building from source..."
+  command -v cargo >/dev/null 2>&1 || { error "cargo not found. Install Rust: https://rustup.rs"; exit 1; }
+  cargo build --release
+
+  info "Building web assets..."
+  if [[ -d "web" ]]; then
+    command -v pnpm >/dev/null 2>&1 || { error "pnpm not found"; exit 1; }
+    (cd web && pnpm install && pnpm build)
+  fi
+
+  local ver_dir="$INSTALL_ROOT/versions/source"
+  local bin_dir="$ver_dir/bin"
+  mkdir -p "$bin_dir"
+
+  cp target/release/console "$bin_dir/console"
+  chmod +x "$bin_dir/console"
+
+  if [[ -d "web/dist" ]]; then
+    mkdir -p "$ver_dir/web"
+    cp -r web/dist "$ver_dir/web/dist"
+  fi
+
+  rm -f "$INSTALL_ROOT/current"
+  ln -sf "$ver_dir" "$INSTALL_ROOT/current"
+
+  mkdir -p "$BIN_DIR"
+  rm -f "$BIN_PATH"
+  ln -sf "../current/bin/console" "$BIN_PATH"
+
+  if [[ -d "$ver_dir/web" ]]; then
+    rm -f "$WEB_DIR"
+    ln -sf "current/web" "$WEB_DIR"
+  fi
+
+  ensure_path
+  "$BIN_PATH" init
+  ok "Installed Console from source to ${BIN_PATH}"
+  info "Run 'source' on your shell rc file or restart terminal to use 'console'."
+}
+
 main() {
   local cmd="${1:-}"
   case "$cmd" in
@@ -274,7 +384,7 @@ main() {
       usage
       exit 0
       ;;
-    install|upgrade|uninstall)
+    install|upgrade|uninstall|rollback)
       if [[ "${2:-}" == "--help" || "${2:-}" == "-h" ]]; then
         subcommand_help "$cmd"
         exit 0
@@ -293,7 +403,7 @@ main() {
   esac
 
   # Parse common + subcommand-specific flags
-  local version="" purge="false" yes="false"
+  local version="" purge="false" yes="false" from_repo="false"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --version)
@@ -308,6 +418,10 @@ main() {
         yes="true"
         shift
         ;;
+      --from-repo)
+        from_repo="true"
+        shift
+        ;;
       *)
         error "Unknown option for ${cmd}: $1"
         exit 1
@@ -317,13 +431,20 @@ main() {
 
   case "$cmd" in
     install)
-      do_install "$version"
+      if [[ "$from_repo" == "true" ]]; then
+        do_install_from_repo
+      else
+        do_install "$version"
+      fi
       ;;
     upgrade)
       do_upgrade "$version"
       ;;
     uninstall)
       do_uninstall "$purge" "$yes"
+      ;;
+    rollback)
+      do_rollback "$version"
       ;;
   esac
 }
