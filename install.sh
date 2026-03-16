@@ -298,7 +298,14 @@ do_install() {
   ensure_path
   "$BIN_PATH" init
   ok "Installed Console ${tag} to ${BIN_PATH}"
-  info "Run 'source' on your shell rc file or restart terminal to use 'console'."
+  local shell_name
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)  info "Run 'source ~/.zshrc' or restart terminal to use 'console'." ;;
+    bash) info "Run 'source ~/.bashrc' or restart terminal to use 'console'." ;;
+    fish) info "Restart terminal or run 'source ~/.config/fish/config.fish' to use 'console'." ;;
+    *)    info "Restart terminal to use 'console'." ;;
+  esac
 }
 
 do_upgrade() {
@@ -433,7 +440,14 @@ do_install_from_repo() {
   ensure_path
   "$BIN_PATH" init
   ok "Installed Console from source to ${BIN_PATH}"
-  info "Run 'source' on your shell rc file or restart terminal to use 'console'."
+  local shell_name
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)  info "Run 'source ~/.zshrc' or restart terminal to use 'console'." ;;
+    bash) info "Run 'source ~/.bashrc' or restart terminal to use 'console'." ;;
+    fish) info "Restart terminal or run 'source ~/.config/fish/config.fish' to use 'console'." ;;
+    *)    info "Restart terminal to use 'console'." ;;
+  esac
 }
 
 main() {
