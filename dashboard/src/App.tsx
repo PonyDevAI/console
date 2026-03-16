@@ -1,5 +1,5 @@
 import {
-  ArrowUpCircle,
+  Bot,
   Cpu,
   LayoutDashboard,
   Menu,
@@ -25,7 +25,7 @@ import NotFound from "./pages/NotFound";
 import ProviderPage from "./pages/ProviderPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillPage from "./pages/SkillPage";
-import VersionPage from "./pages/VersionPage";
+import AgentsPage from "./pages/AgentsPage";
 
 type NavItem = {
   to: string;
@@ -44,7 +44,7 @@ const navGroups: NavGroup[] = [
     title: "控制",
     items: [
       { to: "/", label: "仪表盘", icon: LayoutDashboard },
-      { to: "/versions", label: "版本管理", icon: ArrowUpCircle },
+      { to: "/agents", label: "Agent 管理", icon: Bot },
     ],
   },
   {
@@ -253,7 +253,7 @@ export default function App() {
         <UpdateBanner currentVersion="0.1.0" latestVersion="0.2.0" />
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/versions" element={<VersionPage />} />
+          <Route path="/agents" element={<AgentsPage />} />
           <Route path="/providers" element={<ProviderPage />} />
           <Route path="/mcp" element={<McpPage />} />
           <Route path="/skills" element={<SkillPage />} />
