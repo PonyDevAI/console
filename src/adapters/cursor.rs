@@ -1,45 +1,94 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{which, run_command_stdout, CliAdapter};
+use super::{run_command_stdout, which, CliAdapter};
 use crate::models::InstalledInfo;
 
 pub struct CursorAdapter;
 
 impl CliAdapter for CursorAdapter {
-    fn name(&self) -> &str { "cursor" }
-    fn display_name(&self) -> &str { "Cursor" }
+    fn name(&self) -> &str {
+        "cursor"
+    }
+    fn display_name(&self) -> &str {
+        "Cursor"
+    }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
-        let path = match which("cursor") {
+        let path = match which("agent") {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version = run_command_stdout("cursor", &["--version"])
-            .unwrap_or_else(|_| "unknown".into());
+        let version =
+            run_command_stdout("agent", &["--version"]).unwrap_or_else(|_| "unknown".into());
+        // Verify it's actually Cursor's agent, not some other "agent" binary
+        let version_lower = version.to_lowercase();
+        if !version_lower.contains("cursor") && !version_lower.contains("agent") {
+            return Ok(None);
+        }
         Ok(Some(InstalledInfo { version, path }))
     }
 
     fn check_remote_version(&self) -> Result<Option<String>> {
-        // Cursor doesn't have a simple npm/pip version check;
-        // would need to query GitHub releases or Cursor API.
         Ok(None)
     }
 
     fn install(&self) -> Result<()> {
-        anyhow::bail!("Cursor CLI must be installed via the Cursor application. Visit https://cursor.com")
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("curl -fsSL https://www.cursor.com/install.sh | sh")
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => Ok(()),
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                anyhow::bail!("Cursor CLI 安装失败：{}", stderr)
+            }
+            Err(_e) => {
+                anyhow::bail!("Cursor CLI 安装失败，请手动执行：curl -fsSL https://www.cursor.com/install.sh | sh")
+            }
+        }
     }
 
     fn upgrade(&self) -> Result<()> {
-        anyhow::bail!("Cursor CLI is upgraded via the Cursor application auto-updater")
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg("curl -fsSL https://www.cursor.com/install.sh | sh")
+            .output();
+
+        match output {
+            Ok(out) if out.status.success() => Ok(()),
+            Ok(out) => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                anyhow::bail!("Cursor CLI 升级失败：{}", stderr)
+            }
+            Err(_e) => {
+                anyhow::bail!("Cursor CLI 升级失败，请手动执行：curl -fsSL https://www.cursor.com/install.sh | sh")
+            }
+        }
     }
 
     fn uninstall(&self) -> Result<()> {
-        anyhow::bail!("Cursor CLI is managed by the Cursor application")
+        let home =
+            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+        let agent_path = home.join(".local/bin/agent");
+
+        if !agent_path.exists() {
+            anyhow::bail!("Cursor CLI 未安装");
+        }
+
+        std::fs::remove_file(&agent_path)?;
+        tracing::info!("Removed Cursor CLI: {}", agent_path.display());
+        Ok(())
     }
 
-    fn supports_auto_install(&self) -> bool { false }
-    fn install_url(&self) -> Option<&str> { Some("https://cursor.com") }
+    fn supports_auto_install(&self) -> bool {
+        true
+    }
+    fn install_url(&self) -> Option<&str> {
+        None
+    }
 
     fn config_dir(&self) -> Result<PathBuf> {
         dirs::home_dir()

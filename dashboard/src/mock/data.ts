@@ -8,10 +8,10 @@ export const mockTools: CliTool[] = [
     installed: true,
     local_version: "0.49.6",
     remote_version: "0.50.1",
-    path: "/usr/local/bin/cursor",
+    path: "~/.local/bin/agent",
     last_checked: new Date().toISOString(),
-    auto_install: false,
-    install_url: "https://cursor.com",
+    auto_install: true,
+    install_url: null,
   },
   {
     name: "claude",
