@@ -8,7 +8,7 @@ pub struct ClaudeAdapter;
 
 impl CliAdapter for ClaudeAdapter {
     fn name(&self) -> &str { "claude" }
-    fn display_name(&self) -> &str { "Claude CLI" }
+    fn display_name(&self) -> &str { "Claude" }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("claude") {

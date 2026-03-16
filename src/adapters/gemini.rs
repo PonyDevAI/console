@@ -8,7 +8,7 @@ pub struct GeminiAdapter;
 
 impl CliAdapter for GeminiAdapter {
     fn name(&self) -> &str { "gemini" }
-    fn display_name(&self) -> &str { "Gemini CLI" }
+    fn display_name(&self) -> &str { "Gemini" }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("gemini") {

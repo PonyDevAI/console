@@ -8,7 +8,7 @@ pub struct CursorAdapter;
 
 impl CliAdapter for CursorAdapter {
     fn name(&self) -> &str { "cursor" }
-    fn display_name(&self) -> &str { "Cursor CLI" }
+    fn display_name(&self) -> &str { "Cursor" }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("cursor") {

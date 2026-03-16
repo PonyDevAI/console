@@ -13,7 +13,7 @@ export const mockTools: CliTool[] = [
   },
   {
     name: "claude",
-    display_name: "Claude CLI",
+    display_name: "Claude",
     installed: true,
     local_version: "1.0.16",
     remote_version: "1.0.16",
@@ -22,7 +22,7 @@ export const mockTools: CliTool[] = [
   },
   {
     name: "codex",
-    display_name: "Codex CLI",
+    display_name: "Codex",
     installed: true,
     local_version: "0.1.2",
     remote_version: "0.1.5",
@@ -31,7 +31,7 @@ export const mockTools: CliTool[] = [
   },
   {
     name: "gemini",
-    display_name: "Gemini CLI",
+    display_name: "Gemini",
     installed: false,
     local_version: null,
     remote_version: "0.3.0",
@@ -41,15 +41,6 @@ export const mockTools: CliTool[] = [
   {
     name: "opencode",
     display_name: "OpenCode",
-    installed: false,
-    local_version: null,
-    remote_version: null,
-    path: null,
-    last_checked: null,
-  },
-  {
-    name: "openclaw",
-    display_name: "OpenClaw",
     installed: false,
     local_version: null,
     remote_version: null,

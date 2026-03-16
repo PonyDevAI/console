@@ -8,7 +8,7 @@ pub struct CodexAdapter;
 
 impl CliAdapter for CodexAdapter {
     fn name(&self) -> &str { "codex" }
-    fn display_name(&self) -> &str { "Codex CLI" }
+    fn display_name(&self) -> &str { "Codex" }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("codex") {
