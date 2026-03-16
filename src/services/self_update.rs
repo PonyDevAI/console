@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reqwest::header::USER_AGENT;
 
-const DEFAULT_REPO: &str = "OWNER/console";
+const DEFAULT_REPO: &str = "PonyDevAI/console";
 
 #[derive(serde::Deserialize)]
 struct GitHubRelease {

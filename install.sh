@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${CONSOLE_GITHUB_REPO:-OWNER/console}"
+REPO="${CONSOLE_GITHUB_REPO:-PonyDevAI/console}"
 BIN_NAME="console"
 INSTALL_ROOT="${CONSOLE_INSTALL_DIR:-$HOME/.console}"
 BIN_DIR="$INSTALL_ROOT/bin"
