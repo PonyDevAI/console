@@ -92,7 +92,6 @@ pub fn registry() -> AdapterRegistry {
             Box::new(gemini::GeminiAdapter),
             Box::new(cursor::CursorAdapter),
             Box::new(opencode::OpenCodeAdapter),
-            Box::new(openclaw::OpenClawAdapter),
         ],
     }
 }
