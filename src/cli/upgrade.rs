@@ -123,8 +123,8 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
         std::fs::set_permissions(ver_bin_dir.join("console"), perms)?;
     }
 
-    if let Some(web_dir) = find_named_dir(&extract_dir, "web") {
-        let ver_web = ver_dir.join("web");
+    if let Some(web_dir) = find_named_dir(&extract_dir, "dashboard") {
+        let ver_web = ver_dir.join("dashboard");
         if ver_web.exists() {
             std::fs::remove_dir_all(&ver_web)?;
         }

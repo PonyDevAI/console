@@ -56,14 +56,14 @@ build: ## Build production release
 	@echo "==> Build complete."
 
 install: build ## Install to ~/.console/bin/
-	@mkdir -p ~/.console/bin ~/.console/web
+	@mkdir -p ~/.console/bin ~/.console/dashboard
 	@cp target/release/console ~/.console/bin/console
-	@cp -r web/dist/ ~/.console/web/
+	@cp -r web/dist/ ~/.console/dashboard/
 	@echo "Installed to ~/.console/bin/console"
 	@echo "Add to PATH: export PATH=\"\$$HOME/.console/bin:\$$PATH\""
 
-uninstall: ## Remove ~/.console/bin/ and ~/.console/web/
-	@rm -rf ~/.console/bin ~/.console/web
+uninstall: ## Remove ~/.console/bin/ and ~/.console/dashboard/
+	@rm -rf ~/.console/bin ~/.console/dashboard
 	@echo "Uninstalled. Config preserved at ~/.console/"
 
 # ── Check ────────────────────────────────────────────────

@@ -29,7 +29,7 @@ pub async fn run(purge: bool, yes: bool) -> Result<()> {
         std::fs::remove_file(&installed_bin)?;
     }
 
-    let web_dir = paths.root.join("web");
+    let web_dir = paths.root.join("dashboard");
     if web_dir.exists() {
         std::fs::remove_dir_all(&web_dir)?;
     }

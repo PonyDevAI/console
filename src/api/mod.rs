@@ -8,7 +8,7 @@ use tower_http::services::{ServeDir, ServeFile};
 
 pub async fn serve(addr: &str) -> Result<()> {
     let paths = crate::storage::ConsolePaths::default();
-    let web_dir = paths.root.join("web");
+    let web_dir = paths.root.join("dashboard");
     let dist_dir = if web_dir.join("dist").exists() {
         web_dir.join("dist")
     } else {

@@ -5,7 +5,7 @@ REPO="${CONSOLE_GITHUB_REPO:-PonyDevAI/console}"
 BIN_NAME="console"
 INSTALL_ROOT="${CONSOLE_INSTALL_DIR:-$HOME/.console}"
 BIN_DIR="$INSTALL_ROOT/bin"
-WEB_DIR="$INSTALL_ROOT/web"
+WEB_DIR="$INSTALL_ROOT/dashboard"
 BIN_PATH="$BIN_DIR/$BIN_NAME"
 
 # ── Colors ──────────────────────────────────────────────
@@ -98,7 +98,7 @@ Options:
 Commands:
   install    Install Console to ~/.console/bin/console (default when no command given)
   upgrade    Upgrade existing installation
-  uninstall  Remove binary and web assets (keeps ~/.console state by default)
+  uninstall  Remove binary and dashboard assets (keeps ~/.console state by default)
   rollback   Roll back to a previously installed version
 EOF
 }
@@ -258,7 +258,7 @@ download_and_install() {
   fi
 
   local extracted_web
-  extracted_web="$(find "$tmp" -type d -name web | head -n1 || true)"
+  extracted_web="$(find "$tmp" -type d -name dashboard | head -n1 || true)"
 
   local ver_dir="$INSTALL_ROOT/versions/${tag}"
   mkdir -p "$ver_dir/bin"
@@ -266,7 +266,7 @@ download_and_install() {
   chmod +x "$ver_dir/bin/$BIN_NAME"
 
   if [[ -n "${extracted_web}" ]]; then
-    mv "$extracted_web" "$ver_dir/web"
+    mv "$extracted_web" "$ver_dir/dashboard"
   fi
 
   rm -f "$INSTALL_ROOT/current"
@@ -276,9 +276,9 @@ download_and_install() {
   rm -f "$BIN_PATH"
   ln -sf "../current/bin/$BIN_NAME" "$BIN_PATH"
 
-  if [[ -d "$ver_dir/web" ]]; then
+  if [[ -d "$ver_dir/dashboard" ]]; then
     rm -f "$WEB_DIR"
-    ln -sf "current/web" "$WEB_DIR"
+    ln -sf "current/dashboard" "$WEB_DIR"
   fi
 
   rm -rf "$tmp"
@@ -342,7 +342,7 @@ do_uninstall() {
     if [[ "$purge" == "true" ]]; then
       warn "This will remove Console and ALL data at ${INSTALL_ROOT}"
     else
-      info "This will remove Console binary and web assets. Config will be preserved."
+      info "This will remove Console binary and dashboard assets. Config will be preserved."
     fi
     printf "Continue? [y/N]: "
     read -r answer
@@ -366,7 +366,7 @@ do_uninstall() {
     rm -rf "$INSTALL_ROOT"
     ok "Uninstalled Console and purged ${INSTALL_ROOT}"
   else
-    ok "Uninstalled Console binary and web assets."
+    ok "Uninstalled Console binary and dashboard assets."
     info "Preserved data at ${INSTALL_ROOT}"
   fi
 }
@@ -421,8 +421,8 @@ do_install_from_repo() {
   chmod +x "$bin_dir/console"
 
   if [[ -d "web/dist" ]]; then
-    mkdir -p "$ver_dir/web"
-    cp -r web/dist "$ver_dir/web/dist"
+    mkdir -p "$ver_dir/dashboard"
+    cp -r web/dist "$ver_dir/dashboard/dist"
   fi
 
   rm -f "$INSTALL_ROOT/current"
@@ -432,9 +432,9 @@ do_install_from_repo() {
   rm -f "$BIN_PATH"
   ln -sf "../current/bin/console" "$BIN_PATH"
 
-  if [[ -d "$ver_dir/web" ]]; then
+  if [[ -d "$ver_dir/dashboard" ]]; then
     rm -f "$WEB_DIR"
-    ln -sf "current/web" "$WEB_DIR"
+    ln -sf "current/dashboard" "$WEB_DIR"
   fi
 
   ensure_path
