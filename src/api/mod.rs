@@ -38,19 +38,19 @@ pub async fn serve(addr: &str) -> Result<()> {
     }
 
     let stateful_routes = Router::new()
-        .route("/cli-tools/:name/install", axum::routing::post(routes::install_tool))
-        .route("/cli-tools/:name/upgrade", axum::routing::post(routes::upgrade_tool))
-        .route("/cli-tools/:name/uninstall", axum::routing::post(routes::uninstall_tool))
-        .route("/tasks", axum::routing::get(routes::list_tasks))
-        .route("/tasks/stream", axum::routing::get(sse::task_stream))
-        .route("/tasks/:id", axum::routing::get(routes::get_task))
+        .route("/api/cli-tools/:name/install", axum::routing::post(routes::install_tool))
+        .route("/api/cli-tools/:name/upgrade", axum::routing::post(routes::upgrade_tool))
+        .route("/api/cli-tools/:name/uninstall", axum::routing::post(routes::uninstall_tool))
+        .route("/api/tasks", axum::routing::get(routes::list_tasks))
+        .route("/api/tasks/stream", axum::routing::get(sse::task_stream))
+        .route("/api/tasks/:id", axum::routing::get(routes::get_task))
         .with_state(queue.clone());
 
     let stateless_routes = routes::api_routes();
 
     let app = Router::new()
         .merge(stateful_routes)
-        .merge(stateless_routes)
+        .nest("/api", stateless_routes)
         .fallback_service(static_files)
         .layer(CorsLayer::permissive());
 
