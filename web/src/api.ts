@@ -280,6 +280,7 @@ export async function installSkillFromUrl(name: string, source_url: string, apps
 
 export async function installSkillFromZip(file: File) {
   await ensureReady();
+  if (useMock) return mockApi.installSkillFromZip(file);
   const formData = new FormData();
   formData.append('file', file);
   const res = await fetch(BASE + '/skills/install-zip', { method: 'POST', body: formData });

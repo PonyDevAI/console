@@ -7,9 +7,18 @@ use std::sync::{Mutex, MutexGuard};
 pub struct LogEntry {
     pub id: String,
     pub timestamp: DateTime<Utc>,
-    pub level: String,
+    pub level: LogLevel,
     pub source: String,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    Debug,
+    Info,
+    Warn,
+    Error,
 }
 
 static LOG_BUFFER: Mutex<Option<VecDeque<LogEntry>>> = Mutex::new(None);
@@ -21,10 +30,17 @@ fn buffer() -> MutexGuard<'static, Option<VecDeque<LogEntry>>> {
 }
 
 pub fn push(level: &str, source: &str, message: &str) {
+    let log_level = match level {
+        "debug" => LogLevel::Debug,
+        "info" => LogLevel::Info,
+        "warn" => LogLevel::Warn,
+        "error" => LogLevel::Error,
+        _ => LogLevel::Info,
+    };
     let entry = LogEntry {
         id: uuid::Uuid::new_v4().to_string(),
         timestamp: Utc::now(),
-        level: level.to_string(),
+        level: log_level,
         source: source.to_string(),
         message: message.to_string(),
     };
@@ -44,9 +60,17 @@ pub fn list(level: Option<&str>, source: Option<&str>, limit: Option<usize>) -> 
         None => return vec![],
     };
 
+    let target_level = level.map(|l| match l {
+        "debug" => LogLevel::Debug,
+        "info" => LogLevel::Info,
+        "warn" => LogLevel::Warn,
+        "error" => LogLevel::Error,
+        _ => LogLevel::Info,
+    });
+
     let mut result: Vec<LogEntry> = deque
         .iter()
-        .filter(|e| level.is_none_or(|l| e.level == l))
+        .filter(|e| target_level.is_none_or(|l| e.level == l))
         .filter(|e| source.is_none_or(|s| e.source == s))
         .cloned()
         .collect();

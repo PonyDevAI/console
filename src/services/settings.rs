@@ -7,10 +7,29 @@ use crate::storage::{self, ConsolePaths};
 pub struct Settings {
     pub storage_path: String,
     pub default_worker: String,
-    pub theme: String,
-    pub log_level: String,
+    pub theme: Theme,
+    pub log_level: LogLevel,
     pub auto_check_updates: bool,
     pub sync_on_change: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    Dark,
+    Light,
+    System,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LogLevel {
+    #[default]
+    Info,
+    Debug,
+    Warn,
+    Error,
 }
 
 impl Default for Settings {
@@ -18,8 +37,8 @@ impl Default for Settings {
         Self {
             storage_path: "~/.console".to_string(),
             default_worker: "claude".to_string(),
-            theme: "dark".to_string(),
-            log_level: "info".to_string(),
+            theme: Theme::Dark,
+            log_level: LogLevel::Info,
             auto_check_updates: true,
             sync_on_change: false,
         }
