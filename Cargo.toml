@@ -18,7 +18,7 @@ tower-http = { version = "0.5", features = ["cors", "fs"] }
 toml = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 anyhow = "1"
 thiserror = "1"
 tracing = "0.1"
