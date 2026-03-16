@@ -24,6 +24,65 @@ warn()  { echo -e "${C_YELLOW}[console]${C_RESET} $*" >&2; }
 error() { echo -e "${C_RED}[console]${C_RESET} $*" >&2; }
 ok()    { echo -e "${C_GREEN}[console]${C_RESET} $*"; }
 
+# ── Environment checks ──────────────────────────────────
+preflight() {
+  # OS check
+  local os
+  os="$(uname -s)"
+  case "$os" in
+    Darwin|Linux) ;;
+    MINGW*|MSYS*|CYGWIN*)
+      error "Windows is not supported. Use WSL2 instead."
+      exit 1
+      ;;
+    *)
+      error "Unsupported OS: $os"
+      exit 1
+      ;;
+  esac
+
+  # Architecture check
+  local arch
+  arch="$(uname -m)"
+  case "$arch" in
+    x86_64|amd64|arm64|aarch64) ;;
+    *)
+      error "Unsupported architecture: $arch"
+      exit 1
+      ;;
+  esac
+
+  # Required commands
+  local missing=()
+  for cmd in curl tar; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing+=("$cmd")
+    fi
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    error "Missing required commands: ${missing[*]}"
+    error "Please install them and try again."
+    exit 1
+  fi
+
+  # Disk space check (~100MB minimum)
+  local avail_kb
+  if avail_kb="$(df -k "$HOME" 2>/dev/null | awk 'NR==2{print $4}')"; then
+    if [[ -n "$avail_kb" ]] && [[ "$avail_kb" -lt 102400 ]]; then
+      warn "Low disk space: $(( avail_kb / 1024 ))MB available (recommend >= 100MB)"
+    fi
+  fi
+
+  # Writable home directory
+  if [[ ! -w "$HOME" ]]; then
+    error "\$HOME ($HOME) is not writable"
+    exit 1
+  fi
+
+  # Print detected environment
+  info "Environment: $os $(uname -m)"
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -431,6 +490,7 @@ main() {
 
   case "$cmd" in
     install)
+      preflight
       if [[ "$from_repo" == "true" ]]; then
         do_install_from_repo
       else
@@ -438,6 +498,7 @@ main() {
       fi
       ;;
     upgrade)
+      preflight
       do_upgrade "$version"
       ;;
     uninstall)
