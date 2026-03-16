@@ -29,6 +29,11 @@ pub trait CliAdapter: Send + Sync {
     fn upgrade(&self) -> Result<()>;
     /// Uninstall the CLI tool.
     fn uninstall(&self) -> Result<()>;
+    /// Whether this tool supports automatic install/upgrade/uninstall.
+    /// Tools like Cursor that require manual installation return false.
+    fn supports_auto_install(&self) -> bool { true }
+    /// URL to visit for manual installation (when supports_auto_install is false).
+    fn install_url(&self) -> Option<&str> { None }
 
     // ── Config paths ──
 

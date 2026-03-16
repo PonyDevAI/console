@@ -55,6 +55,13 @@ export default function AgentsPage() {
     void load();
   }, [load]);
 
+  // Auto-check remote versions on first load
+  useEffect(() => {
+    if (!loading && tools.length > 0 && tools.every(t => t.remote_version === null)) {
+      void onCheckUpdates();
+    }
+  }, [loading, tools.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     tasks.forEach((task) => {
       const key = `${task.action}-${task.target}`;
@@ -225,17 +232,27 @@ export default function AgentsPage() {
                               </span>
                             ) : (
                               <>
-                                {!tool.installed ? (
+                                {!tool.installed && tool.auto_install ? (
                                   <Button size="sm" onClick={() => setPending({ type: "install", tool })}>
                                     安装
                                   </Button>
                                 ) : null}
-                                {tool.installed && hasUpdate ? (
+                                {!tool.installed && !tool.auto_install && tool.install_url ? (
+                                  <a
+                                    href={tool.install_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium bg-[var(--bg-accent)] text-[var(--fg)] hover:opacity-80 transition-opacity"
+                                  >
+                                    前往下载 ↗
+                                  </a>
+                                ) : null}
+                                {tool.installed && hasUpdate && tool.auto_install ? (
                                   <Button size="sm" onClick={() => setPending({ type: "upgrade", tool })}>
                                     升级
                                   </Button>
                                 ) : null}
-                                {tool.installed ? (
+                                {tool.installed && tool.auto_install ? (
                                   <Button size="sm" variant="ghost" onClick={() => setPending({ type: "uninstall", tool })}>
                                     卸载
                                   </Button>

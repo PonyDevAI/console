@@ -38,6 +38,9 @@ impl CliAdapter for CursorAdapter {
         anyhow::bail!("Cursor CLI is managed by the Cursor application")
     }
 
+    fn supports_auto_install(&self) -> bool { false }
+    fn install_url(&self) -> Option<&str> { Some("https://cursor.com") }
+
     fn config_dir(&self) -> Result<PathBuf> {
         dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))

@@ -25,6 +25,8 @@ pub fn scan_all() -> Result<CliToolsState> {
                 remote_version: None,
                 path: Some(info.path),
                 last_checked: Some(chrono::Utc::now()),
+                auto_install: adapter.supports_auto_install(),
+                install_url: adapter.install_url().map(|s| s.to_string()),
             },
             _ => CliTool {
                 name: adapter.name().to_string(),
@@ -34,6 +36,8 @@ pub fn scan_all() -> Result<CliToolsState> {
                 remote_version: None,
                 path: None,
                 last_checked: Some(chrono::Utc::now()),
+                auto_install: adapter.supports_auto_install(),
+                install_url: adapter.install_url().map(|s| s.to_string()),
             },
         };
         tools.push(tool);

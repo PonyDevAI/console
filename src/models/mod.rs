@@ -13,7 +13,12 @@ pub struct CliTool {
     pub remote_version: Option<String>,
     pub path: Option<PathBuf>,
     pub last_checked: Option<DateTime<Utc>>,
+    #[serde(default = "default_true")]
+    pub auto_install: bool,
+    pub install_url: Option<String>,
 }
+
+fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CliToolsState {

@@ -10,6 +10,8 @@ export const mockTools: CliTool[] = [
     remote_version: "0.50.1",
     path: "/usr/local/bin/cursor",
     last_checked: new Date().toISOString(),
+    auto_install: false,
+    install_url: "https://cursor.com",
   },
   {
     name: "claude",
@@ -19,6 +21,8 @@ export const mockTools: CliTool[] = [
     remote_version: "1.0.16",
     path: "/usr/local/bin/claude",
     last_checked: new Date().toISOString(),
+    auto_install: true,
+    install_url: null,
   },
   {
     name: "codex",
@@ -28,6 +32,8 @@ export const mockTools: CliTool[] = [
     remote_version: "0.1.5",
     path: "/usr/local/bin/codex",
     last_checked: new Date().toISOString(),
+    auto_install: true,
+    install_url: null,
   },
   {
     name: "gemini",
@@ -37,6 +43,8 @@ export const mockTools: CliTool[] = [
     remote_version: "0.3.0",
     path: null,
     last_checked: null,
+    auto_install: true,
+    install_url: null,
   },
   {
     name: "opencode",
@@ -46,6 +54,8 @@ export const mockTools: CliTool[] = [
     remote_version: null,
     path: null,
     last_checked: null,
+    auto_install: true,
+    install_url: null,
   },
 ];
 

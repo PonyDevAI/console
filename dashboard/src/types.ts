@@ -7,6 +7,8 @@ export type CliTool = {
   remote_version: string | null;
   path: string | null;
   last_checked: string | null;
+  auto_install: boolean;
+  install_url: string | null;
 };
 
 // ── Provider ──
