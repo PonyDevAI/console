@@ -46,7 +46,7 @@ If you prefer running things separately:
 cargo watch -w src -x 'run -- start'
 
 # Terminal 2 — frontend with HMR
-cd web && npm run dev
+cd dashboard && npm run dev
 ```
 
 Or without hot-reload:
@@ -56,7 +56,7 @@ Or without hot-reload:
 cargo run -- start
 
 # Terminal 2 — frontend
-cd web && npm run dev
+cd dashboard && npm run dev
 ```
 
 ## Project structure
@@ -74,7 +74,7 @@ console/
     sync/                   # Config sync engine
     storage/                # Local file read/write
     models/                 # Data structures
-  web/                      # Frontend (Vite + React + Tailwind)
+  dashboard/                      # Frontend (Vite + React + Tailwind)
   docs/                     # Documentation
 ```
 

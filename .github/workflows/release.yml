@@ -68,11 +68,11 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          cache-dependency-path: dashboard/pnpm-lock.yaml
 
       - name: Build frontend
         run: |
-          cd web
+          cd dashboard
           pnpm install --frozen-lockfile
           pnpm build
 
@@ -82,7 +82,7 @@ jobs:
           NAME="console-${TAG}-${{ matrix.os_name }}-${{ matrix.arch_name }}"
           mkdir -p package/dashboard
           cp "target/${{ matrix.target }}/release/console" package/console
-          cp -r web/dist package/dashboard/dist
+          cp -r dashboard/dist package/dashboard/dist
           tar -czf "${NAME}.tar.gz" -C package console dashboard
 
       - name: Upload artifact

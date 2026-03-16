@@ -12,10 +12,10 @@ pub async fn serve(addr: &str) -> Result<()> {
     let dist_dir = if web_dir.join("dist").exists() {
         web_dir.join("dist")
     } else {
-        PathBuf::from("web/dist")
+        PathBuf::from("dashboard/dist")
     };
 
-    tracing::info!("Serving web from {}", dist_dir.display());
+    tracing::info!("Serving dashboard from {}", dist_dir.display());
 
     let spa_fallback = ServeFile::new(dist_dir.join("index.html"));
     let static_files = ServeDir::new(&dist_dir).fallback(spa_fallback);

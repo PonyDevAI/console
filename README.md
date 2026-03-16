@@ -68,7 +68,7 @@ cargo run -- start
 Frontend:
 
 ```bash
-cd web
+cd dashboard
 npm install
 npm run dev
 ```

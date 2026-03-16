@@ -33,10 +33,10 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          cache-dependency-path: dashboard/pnpm-lock.yaml
 
-      - name: Type check web
+      - name: Type check dashboard
         run: |
-          cd web
+          cd dashboard
           pnpm install --frozen-lockfile
           pnpm exec tsc --noEmit

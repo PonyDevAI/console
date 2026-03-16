@@ -1,4 +1,4 @@
-.PHONY: init run dev server web build check clean doctor scan install uninstall help
+.PHONY: init run dev server dashboard build check clean doctor scan install uninstall help
 
 # ── Default ──────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ init: ## Install deps, build backend, init ~/.console/
 	@echo "==> Installing cargo-watch (hot-reload)..."
 	@cargo install cargo-watch --quiet 2>/dev/null || true
 	@echo "==> Installing frontend dependencies..."
-	@cd web && pnpm install --silent
+	@cd dashboard && pnpm install --silent
 	@echo "==> Building backend..."
 	@cargo build
 	@echo "==> Initializing ~/.console/..."
@@ -28,13 +28,13 @@ init: ## Install deps, build backend, init ~/.console/
 server: ## Start backend only
 	@cargo run -- start
 
-web: ## Start frontend dev server only
-	@cd web && pnpm dev
+dashboard: ## Start frontend dev server only
+	@cd dashboard && pnpm dev
 
 run: ## Start backend + frontend together
 	@trap 'kill 0' INT TERM; \
 	cargo run -- start & \
-	cd web && pnpm dev & \
+	cd dashboard && pnpm dev & \
 	wait
 
 # ── Dev (hot-reload) ─────────────────────────────────────
@@ -43,7 +43,7 @@ dev: ## Start with hot-reload (cargo-watch + vite HMR)
 	@command -v cargo-watch >/dev/null 2>&1 || { echo "cargo-watch not found. Run 'make init' first."; exit 1; }
 	@trap 'kill 0' INT TERM; \
 	cargo watch -w src -x 'run -- start' & \
-	cd web && pnpm dev & \
+	cd dashboard && pnpm dev & \
 	wait
 
 # ── Build ────────────────────────────────────────────────
@@ -52,13 +52,13 @@ build: ## Build production release
 	@echo "==> Building backend (release)..."
 	@cargo build --release
 	@echo "==> Building frontend..."
-	@cd web && pnpm build
+	@cd dashboard && pnpm build
 	@echo "==> Build complete."
 
 install: build ## Install to ~/.console/bin/
 	@mkdir -p ~/.console/bin ~/.console/dashboard
 	@cp target/release/console ~/.console/bin/console
-	@cp -r web/dist/ ~/.console/dashboard/
+	@cp -r dashboard/dist/ ~/.console/dashboard/
 	@echo "Installed to ~/.console/bin/console"
 	@echo "Add to PATH: export PATH=\"\$$HOME/.console/bin:\$$PATH\""
 
@@ -72,14 +72,14 @@ check: ## Type-check backend + frontend
 	@echo "==> cargo check..."
 	@cargo check
 	@echo "==> tsc --noEmit..."
-	@cd web && pnpm exec tsc --noEmit
+	@cd dashboard && pnpm exec tsc --noEmit
 	@echo "==> All checks passed."
 
 # ── Clean ────────────────────────────────────────────────
 
 clean: ## Remove build artifacts
 	@cargo clean
-	@rm -rf web/dist web/node_modules/.vite
+	@rm -rf dashboard/dist dashboard/node_modules/.vite
 	@echo "Cleaned."
 
 # ── Utilities ────────────────────────────────────────────
