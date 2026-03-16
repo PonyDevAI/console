@@ -109,3 +109,15 @@ export type ConfigSyncEntry = {
   local_hash: string;
   remote_hash: string;
 };
+
+// ── Task Queue ──
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type Task = {
+  id: string;
+  action: string;
+  target: string;
+  status: TaskStatus;
+  message: string | null;
+  created_at: string;
+  updated_at: string;
+};

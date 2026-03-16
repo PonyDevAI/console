@@ -6,9 +6,11 @@ use axum::{
 };
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, SwitchMode};
 use crate::services;
+use crate::services::task_queue::{TaskQueue, TaskStatus};
 
 #[derive(serde::Deserialize)]
 struct UpdateSkillRequest {
@@ -51,9 +53,6 @@ pub fn api_routes() -> Router {
         .route("/cli-tools", get(list_cli_tools))
         .route("/cli-tools/scan", post(scan_cli_tools))
         .route("/cli-tools/check-updates", post(check_updates))
-        .route("/cli-tools/:name/install", post(install_tool))
-        .route("/cli-tools/:name/upgrade", post(upgrade_tool))
-        .route("/cli-tools/:name/uninstall", post(uninstall_tool))
         .route("/providers", get(list_providers))
         .route("/providers", post(create_provider))
         .route("/providers/export", get(export_providers))
@@ -135,27 +134,73 @@ async fn check_updates() -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "tools": state.tools })))
 }
 
-async fn install_tool(Path(name): Path<String>) -> Result<Json<Value>, StatusCode> {
-    services::version::install(&name).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let state = services::version::scan_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    services::version::save(&state).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let tool = state.tools.into_iter().find(|t| t.name == name);
-    Ok(Json(json!(tool)))
+fn spawn_tool_task(
+    queue: &Arc<TaskQueue>,
+    action: &str,
+    name: String,
+    op: fn(&str) -> anyhow::Result<()>,
+) -> Json<Value> {
+    let task = queue.submit(action, &name);
+    let task_id = task.id.clone();
+    let q = queue.clone();
+    let action_label = action.to_string();
+    tokio::spawn(async move {
+        q.update_status(&task_id, TaskStatus::Running, Some(format!("{}ing {}...", action_label, name)));
+        match tokio::task::spawn_blocking(move || op(&name)).await {
+            Ok(Ok(())) => {
+                let _ = tokio::task::spawn_blocking(|| {
+                    if let Ok(state) = services::version::scan_all() {
+                        let _ = services::version::save(&state);
+                    }
+                }).await;
+                q.update_status(&task_id, TaskStatus::Completed, Some(format!("{} completed", action_label)));
+            }
+            Ok(Err(e)) => {
+                q.update_status(&task_id, TaskStatus::Failed, Some(e.to_string()));
+            }
+            Err(e) => {
+                q.update_status(&task_id, TaskStatus::Failed, Some(e.to_string()));
+            }
+        }
+    });
+    Json(json!({ "task_id": task.id, "status": "pending" }))
 }
 
-async fn upgrade_tool(Path(name): Path<String>) -> Result<Json<Value>, StatusCode> {
-    services::version::upgrade(&name).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let state = services::version::scan_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    services::version::save(&state).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let tool = state.tools.into_iter().find(|t| t.name == name);
-    Ok(Json(json!(tool)))
+pub async fn install_tool(
+    axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
+    Path(name): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    Ok(spawn_tool_task(&queue, "install", name, services::version::install))
 }
 
-async fn uninstall_tool(Path(name): Path<String>) -> Result<Json<Value>, StatusCode> {
-    services::version::uninstall(&name).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let state = services::version::scan_all().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    services::version::save(&state).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(json!({ "ok": true })))
+pub async fn upgrade_tool(
+    axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
+    Path(name): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    Ok(spawn_tool_task(&queue, "upgrade", name, services::version::upgrade))
+}
+
+pub async fn uninstall_tool(
+    axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
+    Path(name): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    Ok(spawn_tool_task(&queue, "uninstall", name, services::version::uninstall))
+}
+
+pub async fn list_tasks(
+    axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
+) -> Json<Value> {
+    Json(json!({ "tasks": queue.list() }))
+}
+
+pub async fn get_task(
+    axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    match queue.get(&id) {
+        Some(task) => Ok(Json(json!(task))),
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 async fn list_providers() -> Result<Json<Value>, StatusCode> {

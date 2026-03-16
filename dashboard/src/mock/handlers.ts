@@ -30,31 +30,31 @@ export const mockApi = {
     return { tools: [...tools] };
   },
   installTool: async (name: string) => {
-    await delay(1500);
-    tools = tools.map((tool) =>
-      tool.name === name
-        ? { ...tool, installed: true, local_version: tool.remote_version, path: `/usr/local/bin/${name}` }
-        : tool,
-    );
-    return tools.find((tool) => tool.name === name) as CliTool;
+    await delay(100);
+    const taskId = `mock-task-${Date.now()}`;
+    return { task_id: taskId, status: 'pending' };
   },
   upgradeTool: async (name: string) => {
-    await delay(1500);
-    tools = tools.map((tool) =>
-      tool.name === name ? { ...tool, local_version: tool.remote_version } : tool,
-    );
-    return tools.find((tool) => tool.name === name) as CliTool;
+    await delay(100);
+    const taskId = `mock-task-${Date.now()}`;
+    return { task_id: taskId, status: 'pending' };
   },
   uninstallTool: async (name: string) => {
-    await delay(1000);
-    tools = tools.map((tool) =>
-      tool.name === name ? { ...tool, installed: false, local_version: null, path: null } : tool,
-    );
-    return { ok: true as const };
+    await delay(100);
+    const taskId = `mock-task-${Date.now()}`;
+    return { task_id: taskId, status: 'pending' };
   },
   checkUpdates: async () => {
     await delay(1200);
     return { tools: [...tools] };
+  },
+  getTasks: async () => {
+    await delay();
+    return { tasks: [] };
+  },
+  getTask: async (id: string) => {
+    await delay();
+    return { id, action: 'install', target: 'mock', status: 'completed' as const, message: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   },
 
   getProviders: async () => {

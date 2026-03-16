@@ -7,3 +7,4 @@ pub mod prompt;
 pub mod settings;
 pub mod logs;
 pub mod self_update;
+pub mod task_queue;

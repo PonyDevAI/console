@@ -1,10 +1,13 @@
 mod routes;
+mod sse;
 
 use anyhow::Result;
 use axum::Router;
 use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
+
+use crate::services::task_queue::TaskQueue;
 
 pub async fn serve(addr: &str) -> Result<()> {
     let paths = crate::storage::ConsolePaths::default();
@@ -20,8 +23,34 @@ pub async fn serve(addr: &str) -> Result<()> {
     let spa_fallback = ServeFile::new(dist_dir.join("index.html"));
     let static_files = ServeDir::new(&dist_dir).fallback(spa_fallback);
 
+    let queue = TaskQueue::new();
+
+    // Periodic cleanup of finished tasks (every 10 minutes, remove tasks older than 1 hour)
+    {
+        let q = queue.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(600));
+            loop {
+                interval.tick().await;
+                q.cleanup(std::time::Duration::from_secs(3600));
+            }
+        });
+    }
+
+    let stateful_routes = Router::new()
+        .route("/cli-tools/:name/install", axum::routing::post(routes::install_tool))
+        .route("/cli-tools/:name/upgrade", axum::routing::post(routes::upgrade_tool))
+        .route("/cli-tools/:name/uninstall", axum::routing::post(routes::uninstall_tool))
+        .route("/tasks", axum::routing::get(routes::list_tasks))
+        .route("/tasks/stream", axum::routing::get(sse::task_stream))
+        .route("/tasks/:id", axum::routing::get(routes::get_task))
+        .with_state(queue.clone());
+
+    let stateless_routes = routes::api_routes();
+
     let app = Router::new()
-        .nest("/api", routes::api_routes())
+        .merge(stateful_routes)
+        .merge(stateless_routes)
         .fallback_service(static_files)
         .layer(CorsLayer::permissive());
 

@@ -12,6 +12,7 @@ import type {
   Skill,
   SwitchMode,
   SkillManifest,
+  Task,
 } from "./types";
 
 const BASE = "/api";
@@ -89,25 +90,37 @@ export async function scanCliTools() {
 export async function installTool(name: string) {
   await ensureReady();
   if (useMock) return mockApi.installTool(name);
-  return post<CliTool>(`/cli-tools/${name}/install`);
+  return post<{ task_id: string; status: string }>(`/cli-tools/${name}/install`);
 }
 
 export async function upgradeTool(name: string) {
   await ensureReady();
   if (useMock) return mockApi.upgradeTool(name);
-  return post<CliTool>(`/cli-tools/${name}/upgrade`);
+  return post<{ task_id: string; status: string }>(`/cli-tools/${name}/upgrade`);
 }
 
 export async function uninstallTool(name: string) {
   await ensureReady();
   if (useMock) return mockApi.uninstallTool(name);
-  return post<{ ok: boolean }>(`/cli-tools/${name}/uninstall`);
+  return post<{ task_id: string; status: string }>(`/cli-tools/${name}/uninstall`);
 }
 
 export async function checkUpdates() {
   await ensureReady();
   if (useMock) return mockApi.checkUpdates();
   return post<{ tools: CliTool[] }>("/cli-tools/check-updates");
+}
+
+export async function getTasks() {
+  await ensureReady();
+  if (useMock) return mockApi.getTasks();
+  return get<{ tasks: Task[] }>('/tasks');
+}
+
+export async function getTask(id: string) {
+  await ensureReady();
+  if (useMock) return mockApi.getTask(id);
+  return get<Task>(`/tasks/${id}`);
 }
 
 export async function getProviders() {

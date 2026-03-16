@@ -13,8 +13,9 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toast";
-import type { CliTool } from "../types";
+import type { CliTool, Task } from "../types";
 import { cn } from "../lib/utils";
+import { useTaskStream } from "../hooks/useTask";
 
 type ActionType = "install" | "upgrade" | "uninstall";
 
@@ -30,10 +31,12 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("local");
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+
+  const { tasks, getTaskForTarget } = useTaskStream();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +54,21 @@ export default function AgentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    tasks.forEach((task) => {
+      const key = `${task.action}-${task.target}`;
+      if (task.status === 'completed' && !completedTasks.has(key)) {
+        setCompletedTasks(prev => new Set(prev).add(key));
+        toast(`${formatAction(task.action)} ${task.target} 完成`, "success");
+        void load();
+      }
+      if (task.status === 'failed' && !completedTasks.has(key)) {
+        setCompletedTasks(prev => new Set(prev).add(key));
+        toast(`${formatAction(task.action)} ${task.target} 失败：${task.message ?? '未知错误'}`, "error");
+      }
+    });
+  }, [tasks, completedTasks, load]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -82,29 +100,24 @@ export default function AgentsPage() {
 
   const onConfirmAction = async () => {
     if (!pending) return;
-    setSubmitting(true);
     setError(null);
 
     try {
       if (pending.type === "install") {
         await installTool(pending.tool.name);
-        toast(`${pending.tool.display_name} 已安装`, "success");
+        toast("任务已提交，后台执行中", "success");
       }
       if (pending.type === "upgrade") {
         await upgradeTool(pending.tool.name);
-        toast(`${pending.tool.display_name} 已升级`, "success");
+        toast("任务已提交，后台执行中", "success");
       }
       if (pending.type === "uninstall") {
         await uninstallTool(pending.tool.name);
-        toast(`${pending.tool.display_name} 已卸载`, "success");
+        toast("任务已提交，后台执行中", "success");
       }
-      const latest = await getCliTools();
-      setTools(latest.tools ?? []);
       setPending(null);
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : "操作失败", "error");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -183,6 +196,8 @@ export default function AgentsPage() {
                       tool.remote_version &&
                       tool.local_version !== tool.remote_version;
 
+                    const runningTask = getTaskForTarget(tool.name);
+
                     return (
                       <tr key={tool.name} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
                         <td className="px-4 py-3 text-sm text-[var(--text)]">{tool.display_name}</td>
@@ -200,24 +215,33 @@ export default function AgentsPage() {
                           {tool.local_version ?? "-"}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.remote_version ?? "-"}</td>
-                        <td className="max-w-56 truncate px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.path ?? "-"}</td>
+                        <td className="max-w-58 truncate px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.path ?? "-"}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
-                            {!tool.installed ? (
-                              <Button size="sm" onClick={() => setPending({ type: "install", tool })}>
-                                安装
-                              </Button>
-                            ) : null}
-                            {tool.installed && hasUpdate ? (
-                              <Button size="sm" onClick={() => setPending({ type: "upgrade", tool })}>
-                                升级
-                              </Button>
-                            ) : null}
-                            {tool.installed ? (
-                              <Button size="sm" variant="ghost" onClick={() => setPending({ type: "uninstall", tool })}>
-                                卸载
-                              </Button>
-                            ) : null}
+                            {runningTask ? (
+                              <span className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                                <Spinner />
+                                {formatAction(runningTask.action)}中...
+                              </span>
+                            ) : (
+                              <>
+                                {!tool.installed ? (
+                                  <Button size="sm" onClick={() => setPending({ type: "install", tool })}>
+                                    安装
+                                  </Button>
+                                ) : null}
+                                {tool.installed && hasUpdate ? (
+                                  <Button size="sm" onClick={() => setPending({ type: "upgrade", tool })}>
+                                    升级
+                                  </Button>
+                                ) : null}
+                                {tool.installed ? (
+                                  <Button size="sm" variant="ghost" onClick={() => setPending({ type: "uninstall", tool })}>
+                                    卸载
+                                  </Button>
+                                ) : null}
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -238,10 +262,31 @@ export default function AgentsPage() {
         message={`请确认对 ${pending?.tool.display_name ?? "此工具"} 执行${pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "操作"}。`}
         confirmLabel={pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "确认"}
         variant={pending?.type === "uninstall" ? "danger" : "default"}
-        loading={submitting}
         onCancel={() => setPending(null)}
         onConfirm={() => void onConfirmAction()}
       />
     </div>
+  );
+}
+
+function formatAction(action: string): string {
+  switch (action) {
+    case 'install':
+      return '安装';
+    case 'upgrade':
+      return '升级';
+    case 'uninstall':
+      return '卸载';
+    default:
+      return action;
+  }
+}
+
+function Spinner() {
+  return (
+    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
   );
 }

@@ -25,3 +25,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dirs = "5"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+async-stream = "0.3"
+futures = "0.3"
