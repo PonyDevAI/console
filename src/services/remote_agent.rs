@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
+use std::time::Instant;
 use tokio::sync::Mutex;
 
 use crate::models::{RemoteAgent, RemoteAgentStatus, RemoteAgentsState};
@@ -56,6 +57,7 @@ pub async fn add(
         api_key: api_key.map(String::from),
         status: RemoteAgentStatus::Unknown,
         version: None,
+        latency_ms: None,
         last_ping: None,
         created_at: now,
         tags,
@@ -119,7 +121,7 @@ pub async fn list() -> Result<Vec<RemoteAgent>> {
     Ok(state.agents)
 }
 
-async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>) {
+async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>, Option<u64>) {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .danger_accept_invalid_certs(true)
@@ -127,6 +129,7 @@ async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>)
         .unwrap_or_else(|_| reqwest::Client::new());
 
     let base = agent.endpoint.trim_end_matches('/');
+    let start = Instant::now();
 
     let mut request = client.get(format!("{}/health", base));
     if let Some(ref api_key) = agent.api_key {
@@ -135,16 +138,16 @@ async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>)
 
     match request.send().await {
         Ok(response) if response.status().is_success() => {
+            // latency 只计 /health 请求，不含后续 fallback
+            let latency_ms = start.elapsed().as_millis() as u64;
             let mut version: Option<String> = None;
 
-            // 先尝试从 /health 响应提取 version
             if let Ok(json) = response.json::<serde_json::Value>().await {
                 version = json.get("version")
                     .and_then(|v| v.as_str())
                     .map(String::from);
             }
 
-            // 如果 /health 没有 version，尝试 OpenClaw 的 control-ui-config
             if version.is_none() {
                 if let Ok(resp) = client.get(format!("{}/__openclaw/control-ui-config.json", base)).send().await {
                     if let Ok(json) = resp.json::<serde_json::Value>().await {
@@ -155,9 +158,9 @@ async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>)
                 }
             }
 
-            (RemoteAgentStatus::Online, version)
+            (RemoteAgentStatus::Online, version, Some(latency_ms))
         }
-        _ => (RemoteAgentStatus::Offline, None),
+        _ => (RemoteAgentStatus::Offline, None, Some(start.elapsed().as_millis() as u64)),
     }
 }
 
@@ -167,8 +170,8 @@ pub async fn ping_all(state: &mut RemoteAgentsState) -> Result<()> {
         .map(|agent| {
             let agent_clone = agent.clone();
             tokio::spawn(async move {
-                let (status, version) = ping_single(&agent_clone).await;
-                (agent_clone.id.clone(), status, version)
+                let (status, version, latency_ms) = ping_single(&agent_clone).await;
+                (agent_clone.id.clone(), status, version, latency_ms)
             })
         })
         .collect();
@@ -176,10 +179,11 @@ pub async fn ping_all(state: &mut RemoteAgentsState) -> Result<()> {
     let now = Utc::now();
     
     for handle in handles {
-        if let Ok((id, status, version)) = handle.await {
+        if let Ok((id, status, version, latency_ms)) = handle.await {
             if let Some(agent) = state.agents.iter_mut().find(|a| a.id == id) {
                 agent.status = status;
                 agent.version = version;
+                agent.latency_ms = latency_ms;
                 agent.last_ping = Some(now);
             }
         }
@@ -197,12 +201,13 @@ pub async fn ping_by_id(id: &str) -> Result<RemoteAgent> {
         .cloned()
         .ok_or_else(|| anyhow::anyhow!("Remote agent not found"))?;
     
-    let (status, version) = ping_single(&agent).await;
+    let (status, version, latency_ms) = ping_single(&agent).await;
     
     let now = Utc::now();
     if let Some(a) = state.agents.iter_mut().find(|a| a.id == id) {
         a.status = status;
         a.version = version;
+        a.latency_ms = latency_ms;
         a.last_ping = Some(now);
     }
     

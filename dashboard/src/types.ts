@@ -133,7 +133,20 @@ export type RemoteAgent = {
   api_key?: string | null;
   status: 'online' | 'offline' | 'unknown';
   version?: string | null;
+  latency_ms?: number | null;
   last_ping?: string | null;
   created_at: string;
   tags: string[];
 };
+
+export interface OpenClawDetail {
+  assistant_name: string;
+  assistant_avatar: string;
+  assistant_agent_id: string;
+  server_version: string;
+  base_path: string;
+}
+
+export interface RemoteAgentDetail extends RemoteAgent {
+  detail: OpenClawDetail | null;
+}

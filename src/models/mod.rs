@@ -230,6 +230,7 @@ pub struct RemoteAgent {
     pub api_key: Option<String>,
     pub status: RemoteAgentStatus,
     pub version: Option<String>,
+    pub latency_ms: Option<u64>,
     pub last_ping: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub tags: Vec<String>,

@@ -8,6 +8,7 @@ import type {
   McpServer,
   Provider,
   RemoteAgent,
+  RemoteAgentDetail,
   Settings,
   SkillRepo,
   Skill,
@@ -402,4 +403,10 @@ export async function pingAllRemoteAgents() {
   await ensureReady();
   if (useMock) return { agents: [] as RemoteAgent[] };
   return post<{ agents: RemoteAgent[] }>("/remote-agents/ping-all");
+}
+
+export async function getRemoteAgentDetail(id: string) {
+  await ensureReady();
+  if (useMock) return null as RemoteAgentDetail | null;
+  return get<RemoteAgentDetail>(`/remote-agents/${id}/detail`);
 }

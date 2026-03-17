@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   checkRemoteVersion,
   getCliTools,
@@ -12,6 +12,7 @@ import {
   deleteRemoteAgent,
   pingRemoteAgent,
   pingAllRemoteAgents,
+  getRemoteAgentDetail,
 } from "../api";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -19,7 +20,7 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toast";
-import type { CliTool, RemoteAgent, Task } from "../types";
+import type { CliTool, OpenClawDetail, RemoteAgent, RemoteAgentDetail, Task } from "../types";
 import { cn } from "../lib/utils";
 import { useTaskStream } from "../hooks/useTask";
 
@@ -55,6 +56,9 @@ export default function AgentsPage() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingAgent, setEditingAgent] = useState<RemoteAgent | null>(null);
   const [pinging, setPinging] = useState<string | null>(null);
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+  const [agentDetail, setAgentDetail] = useState<RemoteAgentDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const { tasks, getTaskForTarget } = useTaskStream();
 
@@ -279,12 +283,37 @@ export default function AgentsPage() {
     }
   };
 
+  const onToggleDetail = async (agent: RemoteAgent) => {
+    if (expandedAgent === agent.id) {
+      setExpandedAgent(null);
+      setAgentDetail(null);
+      return;
+    }
+    setExpandedAgent(agent.id);
+    setDetailLoading(true);
+    try {
+      const detail = await getRemoteAgentDetail(agent.id);
+      setAgentDetail(detail);
+    } catch {
+      toast("获取详情失败", "error");
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'online': return 'bg-green-500';
       case 'offline': return 'bg-red-500';
       default: return 'bg-gray-400';
     }
+  };
+
+  const getLatencyColor = (latencyMs: number | null | undefined) => {
+    if (latencyMs == null) return 'text-[var(--muted)]';
+    if (latencyMs < 200) return 'text-green-500';
+    if (latencyMs <= 500) return 'text-yellow-500';
+    return 'text-red-500';
   };
 
   if (loading) return (
@@ -464,65 +493,172 @@ export default function AgentsPage() {
                     <th className="px-4 py-3 text-left">名称</th>
                     <th className="px-4 py-3 text-left">Endpoint</th>
                     <th className="px-4 py-3 text-left">状态</th>
+                    <th className="px-4 py-3 text-left">延迟</th>
                     <th className="px-4 py-3 text-left">版本</th>
                     <th className="px-4 py-3 text-left">最后检测</th>
                     <th className="px-4 py-3 text-left">操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {remoteAgents.map((agent) => (
-                    <tr key={agent.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
-                      <td className="px-4 py-3 text-sm text-[var(--text)]">
-                        <div className="font-medium">{agent.display_name}</div>
-                        {agent.tags.length > 0 && (
-                          <div className="flex gap-1 mt-1">
-                            {agent.tags.map((tag, i) => (
-                              <span key={i} className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-accent)] rounded text-[var(--muted)]">
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
+                  {remoteAgents.map((agent) => {
+                    const isExpanded = expandedAgent === agent.id;
+                    return (
+                      <React.Fragment key={agent.id}>
+                        <tr
+                          key={agent.id}
+                          className={cn(
+                            "border-b border-[var(--border)] hover:bg-[var(--bg-hover)] cursor-pointer",
+                            isExpanded && "bg-[var(--bg-hover)]",
+                          )}
+                          onClick={() => void onToggleDetail(agent)}
+                        >
+                          <td className="px-4 py-3 text-sm text-[var(--text)]">
+                            <div className="font-medium">{agent.display_name}</div>
+                            {agent.tags.length > 0 && (
+                              <div className="flex gap-1 mt-1">
+                                {agent.tags.map((tag, i) => (
+                                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-accent)] rounded text-[var(--muted)]">
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{agent.endpoint}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${getStatusColor(agent.status)}`} />
+                              <span className="text-[var(--muted)] capitalize">{agent.status}</span>
+                            </div>
+                          </td>
+                          <td className={`px-4 py-3 font-mono text-xs ${getLatencyColor(agent.latency_ms)}`}>
+                            {agent.latency_ms != null ? `${agent.latency_ms}ms` : '-'}
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{agent.version ?? "-"}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
+                            {agent.last_ping ? formatTimeAgo(agent.last_ping) : "-"}
+                          </td>
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={pinging === agent.id}
+                                onClick={() => void handlePingAgent(agent.id)}
+                              >
+                                {pinging === agent.id ? "检测中..." : "检测"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setEditingAgent(agent)}
+                              >
+                                编辑
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => void handleDeleteRemoteAgent(agent.id)}
+                              >
+                                删除
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-4 border-b border-[var(--border)]">
+                              {detailLoading ? (
+                                <div className="flex justify-center py-6">
+                                  <Spinner className="h-5 w-5 text-[var(--accent)]" />
+                                </div>
+                              ) : (
+                                <div className="bg-[var(--bg-accent)] rounded-md p-4 border-t border-[var(--border)]">
+                                  <div className="grid grid-cols-2 gap-6">
+                                    <div>
+                                      <h4 className="text-sm font-semibold text-[var(--text)] mb-3">基础信息</h4>
+                                      <div className="space-y-2">
+                                        <div>
+                                          <div className="text-xs text-[var(--muted)]">Endpoint</div>
+                                          <div className="text-sm text-[var(--text)] font-mono">{agentDetail?.endpoint}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-[var(--muted)]">状态</div>
+                                          <div className="text-sm text-[var(--text)] flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full ${getStatusColor(agentDetail?.status || 'unknown')}`} />
+                                            <span className="capitalize">{agentDetail?.status}</span>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-[var(--muted)]">版本</div>
+                                          <div className="text-sm text-[var(--text)] font-mono">{agentDetail?.version ?? "-"}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-[var(--muted)]">延迟</div>
+                                          <div className={`text-sm font-mono ${getLatencyColor(agentDetail?.latency_ms)}`}>
+                                            {agentDetail?.latency_ms != null ? `${agentDetail.latency_ms}ms` : '-'}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-[var(--muted)]">最后检测</div>
+                                          <div className="text-sm text-[var(--text)]">
+                                            {agentDetail?.last_ping ? formatTimeAgo(agentDetail.last_ping) : '-'}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="text-xs text-[var(--muted)]">标签</div>
+                                          <div className="text-sm text-[var(--text)] flex gap-1 mt-1">
+                                            {agentDetail?.tags && agentDetail.tags.length > 0 ? (
+                                              agentDetail.tags.map((tag, i) => (
+                                                <span key={i} className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-hover)] rounded">
+                                                  {tag}
+                                                </span>
+                                              ))
+                                            ) : (
+                                              <span className="text-[var(--muted)]">-</span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <h4 className="text-sm font-semibold text-[var(--text)] mb-3">Agent 信息</h4>
+                                      {agentDetail?.detail ? (
+                                        <div className="space-y-2">
+                                          <div>
+                                            <div className="text-xs text-[var(--muted)]">名称</div>
+                                            <div className="text-sm text-[var(--text)]">{agentDetail.detail.assistant_name}</div>
+                                          </div>
+                                          <div>
+                                            <div className="text-xs text-[var(--muted)]">头像</div>
+                                            <div className="text-sm text-[var(--text)]">{agentDetail.detail.assistant_avatar}</div>
+                                          </div>
+                                          <div>
+                                            <div className="text-xs text-[var(--muted)]">Agent ID</div>
+                                            <div className="text-sm text-[var(--text)] font-mono">{agentDetail.detail.assistant_agent_id}</div>
+                                          </div>
+                                          <div>
+                                            <div className="text-xs text-[var(--muted)]">服务端版本</div>
+                                            <div className="text-sm text-[var(--text)] font-mono">{agentDetail.detail.server_version}</div>
+                                          </div>
+                                          <div>
+                                            <div className="text-xs text-[var(--muted)]">Base Path</div>
+                                            <div className="text-sm text-[var(--text)] font-mono">{agentDetail.detail.base_path || '-'}</div>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="text-sm text-[var(--muted)]">无法获取详细信息</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{agent.endpoint}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${getStatusColor(agent.status)}`} />
-                          <span className="text-[var(--muted)] capitalize">{agent.status}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{agent.version ?? "-"}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
-                        {agent.last_ping ? formatTimeAgo(agent.last_ping) : "-"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="secondary"
-                            disabled={pinging === agent.id}
-                            onClick={() => void handlePingAgent(agent.id)}
-                          >
-                            {pinging === agent.id ? "检测中..." : "检测"}
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => setEditingAgent(agent)}
-                          >
-                            编辑
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost"
-                            onClick={() => void handleDeleteRemoteAgent(agent.id)}
-                          >
-                            删除
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

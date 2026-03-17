@@ -94,6 +94,7 @@ pub fn api_routes() -> Router {
         .route("/remote-agents", get(list_remote_agents))
         .route("/remote-agents", post(add_remote_agent))
         .route("/remote-agents/ping-all", post(ping_all_remote_agents))
+        .route("/remote-agents/:id/detail", get(get_remote_agent_detail))
         .route("/remote-agents/:id", put(update_remote_agent))
         .route("/remote-agents/:id", delete(delete_remote_agent))
         .route("/remote-agents/:id/ping", post(ping_remote_agent))
@@ -693,4 +694,54 @@ async fn ping_all_remote_agents() -> Result<Json<Value>, StatusCode> {
     services::remote_agent::ping_all(&mut state).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     services::remote_agent::save(&state).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "agents": state.agents })))
+}
+
+async fn get_remote_agent_detail(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agent = agents
+        .into_iter()
+        .find(|a| a.id == id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let base = agent.endpoint.trim_end_matches('/');
+    let detail = match client
+        .get(format!("{}/__openclaw/control-ui-config.json", base))
+        .send()
+        .await
+    {
+        Ok(resp) => resp.json::<serde_json::Value>().await.ok(),
+        Err(_) => None,
+    };
+
+    // 映射 camelCase → snake_case，匹配前端 OpenClawDetail 类型
+    let detail = match detail {
+        Some(raw) => Some(json!({
+            "assistant_name": raw.get("assistantName").and_then(|v| v.as_str()).unwrap_or(""),
+            "assistant_avatar": raw.get("assistantAvatar").and_then(|v| v.as_str()).unwrap_or(""),
+            "assistant_agent_id": raw.get("assistantAgentId").and_then(|v| v.as_str()).unwrap_or(""),
+            "server_version": raw.get("serverVersion").and_then(|v| v.as_str()).unwrap_or(""),
+            "base_path": raw.get("basePath").and_then(|v| v.as_str()).unwrap_or(""),
+        })),
+        None => None,
+    };
+
+    Ok(Json(json!({
+        "id": agent.id,
+        "name": agent.name,
+        "display_name": agent.display_name,
+        "endpoint": agent.endpoint,
+        "status": agent.status,
+        "version": agent.version,
+        "latency_ms": agent.latency_ms,
+        "last_ping": agent.last_ping,
+        "created_at": agent.created_at,
+        "tags": agent.tags,
+        "detail": detail,
+    })))
 }
