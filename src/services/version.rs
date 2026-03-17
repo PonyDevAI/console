@@ -10,38 +10,48 @@ pub fn load() -> Result<CliToolsState> {
     storage::read_json(&paths.cli_tools_file())
 }
 
-/// Scan all adapters and return current tool states.
+/// Scan all adapters and return current tool states (parallel).
 pub fn scan_all() -> Result<CliToolsState> {
     let registry = adapters::registry();
-    let mut tools = Vec::new();
+    let adapter_list = registry.adapters();
 
-    for adapter in registry.adapters() {
-        let tool = match adapter.detect_installation() {
-            Ok(Some(info)) => CliTool {
-                name: adapter.name().to_string(),
-                display_name: adapter.display_name().to_string(),
-                installed: true,
-                local_version: Some(info.version),
-                remote_version: None,
-                path: Some(info.path),
-                last_checked: Some(chrono::Utc::now()),
-                auto_install: adapter.supports_auto_install(),
-                install_url: adapter.install_url().map(|s| s.to_string()),
-            },
-            _ => CliTool {
-                name: adapter.name().to_string(),
-                display_name: adapter.display_name().to_string(),
-                installed: false,
-                local_version: None,
-                remote_version: None,
-                path: None,
-                last_checked: Some(chrono::Utc::now()),
-                auto_install: adapter.supports_auto_install(),
-                install_url: adapter.install_url().map(|s| s.to_string()),
-            },
-        };
-        tools.push(tool);
-    }
+    // 并行检测所有 adapter
+    let tools: Vec<CliTool> = std::thread::scope(|s| {
+        let handles: Vec<_> = adapter_list
+            .iter()
+            .map(|adapter| {
+                s.spawn(|| -> CliTool {
+                    let now = chrono::Utc::now();
+                    match adapter.detect_installation() {
+                        Ok(Some(info)) => CliTool {
+                            name: adapter.name().to_string(),
+                            display_name: adapter.display_name().to_string(),
+                            installed: true,
+                            local_version: Some(info.version),
+                            remote_version: None,
+                            path: Some(info.path),
+                            last_checked: Some(now),
+                            auto_install: adapter.supports_auto_install(),
+                            install_url: adapter.install_url().map(|u| u.to_string()),
+                        },
+                        _ => CliTool {
+                            name: adapter.name().to_string(),
+                            display_name: adapter.display_name().to_string(),
+                            installed: false,
+                            local_version: None,
+                            remote_version: None,
+                            path: None,
+                            last_checked: Some(now),
+                            auto_install: adapter.supports_auto_install(),
+                            install_url: adapter.install_url().map(|u| u.to_string()),
+                        },
+                    }
+                })
+            })
+            .collect();
+
+        handles.into_iter().map(|h| h.join().unwrap()).collect()
+    });
 
     Ok(CliToolsState { tools })
 }

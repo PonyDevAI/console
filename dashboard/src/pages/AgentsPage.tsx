@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   checkRemoteVersion,
+  getCliTools,
   installTool,
   scanCliTools,
   uninstallTool,
@@ -54,17 +55,32 @@ export default function AgentsPage() {
     }
   }, []);
 
-  // 首次加载：先 scan 本地（快），再逐个查远程版本
+  // 首次加载：先用缓存（瞬间显示），再后台 scan 刷新 + 查远程
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await scanCliTools();
-      const toolList = data.tools ?? [];
-      setTools(toolList);
-      setLoading(false);
-      // 后台逐个查远程版本
-      void checkRemoteVersions(toolList);
+      // 1. 先读缓存，瞬间显示列表
+      const cached = await getCliTools();
+      const cachedTools = cached.tools ?? [];
+      if (cachedTools.length > 0) {
+        setTools(cachedTools);
+        setLoading(false);
+        // 2. 后台 scan 刷新本地状态
+        scanCliTools().then(data => {
+          const freshTools = data.tools ?? [];
+          if (freshTools.length > 0) setTools(freshTools);
+          // 3. 逐个查远程版本
+          void checkRemoteVersions(freshTools);
+        }).catch(() => {});
+      } else {
+        // 无缓存，等 scan 完成
+        const data = await scanCliTools();
+        const toolList = data.tools ?? [];
+        setTools(toolList);
+        setLoading(false);
+        void checkRemoteVersions(toolList);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
       setLoading(false);
