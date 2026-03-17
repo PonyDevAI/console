@@ -59,8 +59,17 @@ pub fn scan_all() -> Result<CliToolsState> {
         handles.into_iter().map(|h| h.join().unwrap()).collect()
     });
 
-    let state = CliToolsState { tools };
-    // 保存 scan 结果（包含保留的 remote_version）
+    let mut state = CliToolsState { tools };
+    // save 之前重新读一次磁盘，合并最新的 remote_version（避免覆盖并发的 check-remote 结果）
+    if let Ok(latest) = load() {
+        for tool in &mut state.tools {
+            if tool.remote_version.is_none() {
+                if let Some(lt) = latest.tools.iter().find(|t| t.name == tool.name) {
+                    tool.remote_version = lt.remote_version.clone();
+                }
+            }
+        }
+    }
     let _ = save(&state);
     Ok(state)
 }
