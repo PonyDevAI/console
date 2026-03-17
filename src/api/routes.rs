@@ -53,6 +53,7 @@ pub fn api_routes() -> Router {
         .route("/cli-tools", get(list_cli_tools))
         .route("/cli-tools/scan", post(scan_cli_tools))
         .route("/cli-tools/check-updates", post(check_updates))
+        .route("/cli-tools/:name/check-remote", get(check_remote_version))
         .route("/providers", get(list_providers))
         .route("/providers", post(create_provider))
         .route("/providers/export", get(export_providers))
@@ -132,6 +133,14 @@ async fn check_updates() -> Result<Json<Value>, StatusCode> {
     services::version::check_updates(&mut state);
     services::version::save(&state).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "tools": state.tools })))
+}
+
+/// 查询单个工具的远程最新版本
+async fn check_remote_version(Path(name): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let registry = crate::adapters::registry();
+    let adapter = registry.find(&name).ok_or(StatusCode::NOT_FOUND)?;
+    let remote = adapter.check_remote_version().unwrap_or(None);
+    Ok(Json(json!({ "name": name, "remote_version": remote })))
 }
 
 fn spawn_tool_task(

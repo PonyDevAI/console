@@ -123,6 +123,12 @@ export async function checkUpdates() {
   return post<{ tools: CliTool[] }>("/cli-tools/check-updates");
 }
 
+export async function checkRemoteVersion(name: string) {
+  await ensureReady();
+  if (useMock) return { name, remote_version: null as string | null };
+  return get<{ name: string; remote_version: string | null }>(`/cli-tools/${name}/check-remote`);
+}
+
 export async function getTasks() {
   await ensureReady();
   if (useMock) return mockApi.getTasks();

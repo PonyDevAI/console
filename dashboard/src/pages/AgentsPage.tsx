@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  checkUpdates,
+  checkRemoteVersion,
   installTool,
   scanCliTools,
   uninstallTool,
@@ -36,27 +36,48 @@ export default function AgentsPage() {
 
   const { tasks, getTaskForTarget } = useTaskStream();
 
-  // 首次加载 + 刷新：scan 本地 + 查远程版本，一步到位
+  // 逐个查远程版本，每查到一个立即更新对应行
+  const checkRemoteVersions = useCallback(async (toolList: CliTool[]) => {
+    for (const tool of toolList) {
+      try {
+        const result = await checkRemoteVersion(tool.name);
+        if (result.remote_version) {
+          setTools(prev =>
+            prev.map(t =>
+              t.name === result.name ? { ...t, remote_version: result.remote_version } : t
+            )
+          );
+        }
+      } catch {
+        // 单个查询失败不影响其他
+      }
+    }
+  }, []);
+
+  // 首次加载：先 scan 本地（快），再逐个查远程版本
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await checkUpdates();
-      setTools(data.tools ?? []);
+      const data = await scanCliTools();
+      const toolList = data.tools ?? [];
+      setTools(toolList);
+      setLoading(false);
+      // 后台逐个查远程版本
+      void checkRemoteVersions(toolList);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
-    } finally {
       setLoading(false);
     }
-  }, []);
+  }, [checkRemoteVersions]);
 
-  // 静默刷新：任务完成后只更新本地状态，不查远程（快）
+  // 静默刷新：任务完成后只更新本地状态（快）
   const silentReload = useCallback(async () => {
     try {
       const data = await scanCliTools();
       setTools(data.tools ?? []);
     } catch {
-      // 静默失败，不影响 UI
+      // 静默失败
     }
   }, []);
 
@@ -83,12 +104,14 @@ export default function AgentsPage() {
     setRefreshing(true);
     setError(null);
     try {
-      const data = await checkUpdates();
-      setTools(data.tools ?? []);
+      const data = await scanCliTools();
+      const toolList = data.tools ?? [];
+      setTools(toolList);
+      setRefreshing(false);
       toast("刷新完成", "success");
+      void checkRemoteVersions(toolList);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "刷新失败");
-    } finally {
       setRefreshing(false);
     }
   };
@@ -214,7 +237,9 @@ export default function AgentsPage() {
                         >
                           {tool.local_version ?? "-"}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.remote_version ?? "-"}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
+                          {tool.remote_version ?? <Spinner className="h-3 w-3 text-[var(--muted)]" />}
+                        </td>
                         <td className="max-w-58 truncate px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.path ?? "-"}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
