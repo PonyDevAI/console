@@ -5,6 +5,23 @@ export function useTaskStream() {
   const [tasks, setTasks] = useState<Map<string, Task>>(new Map());
   const esRef = useRef<EventSource | null>(null);
 
+  // Load existing tasks on mount (survives page refresh)
+  useEffect(() => {
+    fetch('/api/tasks')
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then((data: { tasks: Task[] }) => {
+        setTasks(prev => {
+          const next = new Map(prev);
+          for (const task of data.tasks) {
+            next.set(task.id, task);
+          }
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, []);
+
+  // SSE for incremental updates
   useEffect(() => {
     const es = new EventSource('/api/tasks/stream');
     esRef.current = es;
