@@ -125,24 +125,37 @@ async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>)
         .danger_accept_invalid_certs(true)
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
-    
-    let url = format!("{}/health", agent.endpoint.trim_end_matches('/'));
-    
-    let mut request = client.get(&url);
+
+    let base = agent.endpoint.trim_end_matches('/');
+
+    let mut request = client.get(format!("{}/health", base));
     if let Some(ref api_key) = agent.api_key {
         request = request.header("Authorization", format!("Bearer {}", api_key));
     }
-    
+
     match request.send().await {
         Ok(response) if response.status().is_success() => {
+            let mut version: Option<String> = None;
+
+            // 先尝试从 /health 响应提取 version
             if let Ok(json) = response.json::<serde_json::Value>().await {
-                let version = json.get("version")
+                version = json.get("version")
                     .and_then(|v| v.as_str())
                     .map(String::from);
-                (RemoteAgentStatus::Online, version)
-            } else {
-                (RemoteAgentStatus::Online, None)
             }
+
+            // 如果 /health 没有 version，尝试 OpenClaw 的 control-ui-config
+            if version.is_none() {
+                if let Ok(resp) = client.get(format!("{}/__openclaw/control-ui-config.json", base)).send().await {
+                    if let Ok(json) = resp.json::<serde_json::Value>().await {
+                        version = json.get("serverVersion")
+                            .and_then(|v| v.as_str())
+                            .map(String::from);
+                    }
+                }
+            }
+
+            (RemoteAgentStatus::Online, version)
         }
         _ => (RemoteAgentStatus::Offline, None),
     }
