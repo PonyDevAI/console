@@ -7,25 +7,33 @@ use crate::models::{InstalledInfo, SwitchMode};
 pub struct OpenCodeAdapter;
 
 impl CliAdapter for OpenCodeAdapter {
-    fn name(&self) -> &str { "opencode" }
-    fn display_name(&self) -> &str { "OpenCode" }
+    fn name(&self) -> &str {
+        "opencode"
+    }
+    fn display_name(&self) -> &str {
+        "OpenCode"
+    }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("opencode") {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version = run_command_stdout("opencode", &["--version"]).unwrap_or_else(|_| "unknown".into());
+        let version =
+            run_command_stdout(path.to_str().unwrap_or("opencode"), &["--version"]).unwrap_or_else(|_| "unknown".into());
         Ok(Some(InstalledInfo { version, path }))
     }
 
     fn check_remote_version(&self) -> Result<Option<String>> {
+        #[cfg(windows)]
+        let output = run_command_stdout("cmd", &["/C", "npm", "view", "opencode", "version"]);
+        #[cfg(not(windows))]
         let output = run_command_stdout("npm", &["view", "opencode", "version"]);
         Ok(output.ok())
     }
 
     fn install(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["install", "-g", "opencode"])
             .status()?;
         if !status.success() {
@@ -35,7 +43,7 @@ impl CliAdapter for OpenCodeAdapter {
     }
 
     fn upgrade(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["update", "-g", "opencode"])
             .status()?;
         if !status.success() {
@@ -45,7 +53,7 @@ impl CliAdapter for OpenCodeAdapter {
     }
 
     fn uninstall(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["uninstall", "-g", "opencode"])
             .status()?;
         if !status.success() {
@@ -55,8 +63,9 @@ impl CliAdapter for OpenCodeAdapter {
     }
 
     fn config_dir(&self) -> Result<PathBuf> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("no home dir"))?;
-        Ok(home.join(".config").join("opencode"))
+        dirs::config_dir()
+            .ok_or_else(|| anyhow::anyhow!("cannot determine config directory"))
+            .map(|d| d.join("opencode"))
     }
 
     fn config_file(&self) -> Result<PathBuf> {

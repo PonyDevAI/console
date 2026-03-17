@@ -1,9 +1,9 @@
 pub mod claude;
 pub mod codex;
-pub mod gemini;
 pub mod cursor;
-pub mod opencode;
+pub mod gemini;
 pub mod openclaw;
+pub mod opencode;
 
 use anyhow::Result;
 use std::path::PathBuf;
@@ -31,9 +31,13 @@ pub trait CliAdapter: Send + Sync {
     fn uninstall(&self) -> Result<()>;
     /// Whether this tool supports automatic install/upgrade/uninstall.
     /// Tools like Cursor that require manual installation return false.
-    fn supports_auto_install(&self) -> bool { true }
+    fn supports_auto_install(&self) -> bool {
+        true
+    }
     /// URL to visit for manual installation (when supports_auto_install is false).
-    fn install_url(&self) -> Option<&str> { None }
+    fn install_url(&self) -> Option<&str> {
+        None
+    }
 
     // ── Config paths ──
 
@@ -84,7 +88,10 @@ impl AdapterRegistry {
     }
 
     pub fn find(&self, name: &str) -> Option<&dyn CliAdapter> {
-        self.adapters.iter().find(|a| a.name() == name).map(|a| a.as_ref())
+        self.adapters
+            .iter()
+            .find(|a| a.name() == name)
+            .map(|a| a.as_ref())
     }
 }
 
@@ -112,12 +119,37 @@ pub(crate) fn run_command_stdout(cmd: &str, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-/// Find a binary in PATH using `which`.
+/// Find a binary in PATH (cross-platform).
 pub(crate) fn which(name: &str) -> Option<PathBuf> {
-    std::process::Command::new("which")
-        .arg(name)
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| PathBuf::from(String::from_utf8_lossy(&o.stdout).trim().to_string()))
+    let path_var = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path_var) {
+        let candidate = dir.join(name);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        #[cfg(windows)]
+        {
+            for ext in &[".exe", ".cmd", ".bat"] {
+                let with_ext = dir.join(format!("{name}{ext}"));
+                if with_ext.exists() {
+                    return Some(with_ext);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Cross-platform npm command runner.
+pub(crate) fn npm_command() -> std::process::Command {
+    #[cfg(windows)]
+    {
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.args(["/C", "npm"]);
+        cmd
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("npm")
+    }
 }

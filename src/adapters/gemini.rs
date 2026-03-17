@@ -1,32 +1,42 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{which, run_command_stdout, CliAdapter};
+use super::{run_command_stdout, which, CliAdapter};
 use crate::models::InstalledInfo;
 
 pub struct GeminiAdapter;
 
 impl CliAdapter for GeminiAdapter {
-    fn name(&self) -> &str { "gemini" }
-    fn display_name(&self) -> &str { "Gemini" }
+    fn name(&self) -> &str {
+        "gemini"
+    }
+    fn display_name(&self) -> &str {
+        "Gemini"
+    }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("gemini") {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version = run_command_stdout("gemini", &["--version"])
-            .unwrap_or_else(|_| "unknown".into());
+        let version =
+            run_command_stdout(path.to_str().unwrap_or("gemini"), &["--version"]).unwrap_or_else(|_| "unknown".into());
         Ok(Some(InstalledInfo { version, path }))
     }
 
     fn check_remote_version(&self) -> Result<Option<String>> {
+        #[cfg(windows)]
+        let output = run_command_stdout(
+            "cmd",
+            &["/C", "npm", "view", "@google/gemini-cli", "version"],
+        );
+        #[cfg(not(windows))]
         let output = run_command_stdout("npm", &["view", "@google/gemini-cli", "version"]);
         Ok(output.ok())
     }
 
     fn install(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["install", "-g", "@google/gemini-cli"])
             .status()?;
         if !status.success() {
@@ -36,7 +46,7 @@ impl CliAdapter for GeminiAdapter {
     }
 
     fn upgrade(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["update", "-g", "@google/gemini-cli"])
             .status()?;
         if !status.success() {
@@ -46,7 +56,7 @@ impl CliAdapter for GeminiAdapter {
     }
 
     fn uninstall(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["uninstall", "-g", "@google/gemini-cli"])
             .status()?;
         if !status.success() {

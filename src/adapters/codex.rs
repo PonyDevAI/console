@@ -1,32 +1,39 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{which, run_command_stdout, CliAdapter};
+use super::{run_command_stdout, which, CliAdapter};
 use crate::models::InstalledInfo;
 
 pub struct CodexAdapter;
 
 impl CliAdapter for CodexAdapter {
-    fn name(&self) -> &str { "codex" }
-    fn display_name(&self) -> &str { "Codex" }
+    fn name(&self) -> &str {
+        "codex"
+    }
+    fn display_name(&self) -> &str {
+        "Codex"
+    }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("codex") {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version = run_command_stdout("codex", &["--version"])
-            .unwrap_or_else(|_| "unknown".into());
+        let version =
+            run_command_stdout(path.to_str().unwrap_or("codex"), &["--version"]).unwrap_or_else(|_| "unknown".into());
         Ok(Some(InstalledInfo { version, path }))
     }
 
     fn check_remote_version(&self) -> Result<Option<String>> {
+        #[cfg(windows)]
+        let output = run_command_stdout("cmd", &["/C", "npm", "view", "@openai/codex", "version"]);
+        #[cfg(not(windows))]
         let output = run_command_stdout("npm", &["view", "@openai/codex", "version"]);
         Ok(output.ok())
     }
 
     fn install(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["install", "-g", "@openai/codex"])
             .status()?;
         if !status.success() {
@@ -36,7 +43,7 @@ impl CliAdapter for CodexAdapter {
     }
 
     fn upgrade(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["update", "-g", "@openai/codex"])
             .status()?;
         if !status.success() {
@@ -46,7 +53,7 @@ impl CliAdapter for CodexAdapter {
     }
 
     fn uninstall(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["uninstall", "-g", "@openai/codex"])
             .status()?;
         if !status.success() {
@@ -76,7 +83,9 @@ impl CliAdapter for CodexAdapter {
 
         let mut config: toml::Value = if config_path.exists() {
             let content = std::fs::read_to_string(&config_path)?;
-            content.parse().unwrap_or(toml::Value::Table(toml::map::Map::new()))
+            content
+                .parse()
+                .unwrap_or(toml::Value::Table(toml::map::Map::new()))
         } else {
             toml::Value::Table(toml::map::Map::new())
         };
@@ -137,20 +146,31 @@ impl CliAdapter for CodexAdapter {
             serde_json::json!({})
         };
         if let Some(obj) = auth.as_object_mut() {
-            obj.insert("OPENAI_API_KEY".to_string(), serde_json::json!(provider.api_key_ref));
+            obj.insert(
+                "OPENAI_API_KEY".to_string(),
+                serde_json::json!(provider.api_key_ref),
+            );
         }
         std::fs::write(&auth_path, serde_json::to_string_pretty(&auth)?)?;
 
         let config_path = config_dir.join("config.toml");
         let mut config: toml::Value = if config_path.exists() {
             let content = std::fs::read_to_string(&config_path)?;
-            content.parse().unwrap_or(toml::Value::Table(toml::map::Map::new()))
+            content
+                .parse()
+                .unwrap_or(toml::Value::Table(toml::map::Map::new()))
         } else {
             toml::Value::Table(toml::map::Map::new())
         };
         if let Some(table) = config.as_table_mut() {
-            table.insert("model_provider".to_string(), toml::Value::String("openai".to_string()));
-            table.insert("base_url".to_string(), toml::Value::String(provider.api_endpoint.clone()));
+            table.insert(
+                "model_provider".to_string(),
+                toml::Value::String("openai".to_string()),
+            );
+            table.insert(
+                "base_url".to_string(),
+                toml::Value::String(provider.api_endpoint.clone()),
+            );
         }
         std::fs::write(&config_path, toml::to_string_pretty(&config)?)?;
 

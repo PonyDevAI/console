@@ -7,15 +7,20 @@ use crate::models::{InstalledInfo, SwitchMode};
 pub struct OpenClawAdapter;
 
 impl CliAdapter for OpenClawAdapter {
-    fn name(&self) -> &str { "openclaw" }
-    fn display_name(&self) -> &str { "OpenClaw" }
+    fn name(&self) -> &str {
+        "openclaw"
+    }
+    fn display_name(&self) -> &str {
+        "OpenClaw"
+    }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("openclaw") {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version = run_command_stdout("openclaw", &["--version"]).unwrap_or_else(|_| "unknown".into());
+        let version =
+            run_command_stdout("openclaw", &["--version"]).unwrap_or_else(|_| "unknown".into());
         Ok(Some(InstalledInfo { version, path }))
     }
 

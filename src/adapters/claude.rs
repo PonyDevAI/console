@@ -1,33 +1,42 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{which, run_command_stdout, CliAdapter};
+use super::{run_command_stdout, which, CliAdapter};
 use crate::models::InstalledInfo;
 
 pub struct ClaudeAdapter;
 
 impl CliAdapter for ClaudeAdapter {
-    fn name(&self) -> &str { "claude" }
-    fn display_name(&self) -> &str { "Claude" }
+    fn name(&self) -> &str {
+        "claude"
+    }
+    fn display_name(&self) -> &str {
+        "Claude"
+    }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
         let path = match which("claude") {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version = run_command_stdout("claude", &["--version"])
-            .unwrap_or_else(|_| "unknown".into());
+        let version =
+            run_command_stdout(path.to_str().unwrap_or("claude"), &["--version"]).unwrap_or_else(|_| "unknown".into());
         Ok(Some(InstalledInfo { version, path }))
     }
 
     fn check_remote_version(&self) -> Result<Option<String>> {
-        // npm: @anthropic-ai/claude-code
+        #[cfg(windows)]
+        let output = run_command_stdout(
+            "cmd",
+            &["/C", "npm", "view", "@anthropic-ai/claude-code", "version"],
+        );
+        #[cfg(not(windows))]
         let output = run_command_stdout("npm", &["view", "@anthropic-ai/claude-code", "version"]);
         Ok(output.ok())
     }
 
     fn install(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["install", "-g", "@anthropic-ai/claude-code"])
             .status()?;
         if !status.success() {
@@ -37,7 +46,7 @@ impl CliAdapter for ClaudeAdapter {
     }
 
     fn upgrade(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["update", "-g", "@anthropic-ai/claude-code"])
             .status()?;
         if !status.success() {
@@ -47,7 +56,7 @@ impl CliAdapter for ClaudeAdapter {
     }
 
     fn uninstall(&self) -> Result<()> {
-        let status = std::process::Command::new("npm")
+        let status = super::npm_command()
             .args(["uninstall", "-g", "@anthropic-ai/claude-code"])
             .status()?;
         if !status.success() {
@@ -100,7 +109,8 @@ impl CliAdapter for ClaudeAdapter {
     }
 
     fn read_mcp_config(&self) -> Result<serde_json::Value> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+        let home =
+            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
         let desktop_path = home.join(".claude").join("claude_desktop_config.json");
         if desktop_path.exists() {
             let content = std::fs::read_to_string(&desktop_path)?;
