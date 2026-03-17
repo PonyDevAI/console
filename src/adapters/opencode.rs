@@ -25,58 +25,67 @@ impl CliAdapter for OpenCodeAdapter {
     }
 
     fn check_remote_version(&self) -> Result<Option<String>> {
-        // OpenCode 通过 GitHub Releases 发布，不在 npm 上
-        let output = std::process::Command::new("curl")
-            .args(["-sfL", "https://api.github.com/repos/opencode-ai/opencode/releases/latest"])
-            .output();
-        match output {
-            Ok(out) if out.status.success() => {
-                let body = String::from_utf8_lossy(&out.stdout);
-                // 简单提取 "tag_name":"vX.Y.Z"
-                if let Some(start) = body.find("\"tag_name\"") {
-                    let rest = &body[start..];
-                    if let Some(colon) = rest.find(':') {
-                        let after = rest[colon + 1..].trim().trim_start_matches('"');
-                        if let Some(end) = after.find('"') {
-                            let tag = after[..end].trim_start_matches('v');
-                            return Ok(Some(tag.to_string()));
-                        }
-                    }
-                }
-                Ok(None)
-            }
-            _ => Ok(None),
-        }
+        // npm 包名是 opencode-ai（不是 opencode）
+        #[cfg(windows)]
+        let output = run_command_stdout("cmd", &["/C", "npm", "view", "opencode-ai", "version"]);
+        #[cfg(not(windows))]
+        let output = run_command_stdout("npm", &["view", "opencode-ai", "version"]);
+        Ok(output.ok())
     }
 
     fn install(&self) -> Result<()> {
-        let status = super::npm_command()
-            .args(["install", "-g", "opencode"])
-            .status()?;
-        if !status.success() {
-            anyhow::bail!("npm install failed for OpenCode");
+        // 官方推荐 curl 安装
+        #[cfg(windows)]
+        {
+            let status = super::npm_command()
+                .args(["install", "-g", "opencode-ai@latest"])
+                .status()?;
+            if !status.success() {
+                anyhow::bail!("npm install failed for OpenCode");
+            }
+            return Ok(());
         }
-        Ok(())
+        #[cfg(not(windows))]
+        {
+            let output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg("curl -fsSL https://opencode.ai/install | bash")
+                .output();
+            match output {
+                Ok(out) if out.status.success() => Ok(()),
+                Ok(out) => {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    anyhow::bail!("OpenCode 安装失败：{}", stderr)
+                }
+                Err(_) => {
+                    anyhow::bail!("OpenCode 安装失败，请手动执行：curl -fsSL https://opencode.ai/install | bash")
+                }
+            }
+        }
     }
 
     fn upgrade(&self) -> Result<()> {
-        let status = super::npm_command()
-            .args(["update", "-g", "opencode"])
-            .status()?;
-        if !status.success() {
-            anyhow::bail!("npm update failed for OpenCode");
-        }
-        Ok(())
+        // 重新执行安装脚本即可升级
+        self.install()
     }
 
     fn uninstall(&self) -> Result<()> {
-        let status = super::npm_command()
-            .args(["uninstall", "-g", "opencode"])
-            .status()?;
-        if !status.success() {
-            anyhow::bail!("npm uninstall failed for OpenCode");
+        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+        let bin_path = home.join(".opencode/bin/opencode");
+        if bin_path.exists() {
+            std::fs::remove_file(&bin_path)?;
+            tracing::info!("Removed OpenCode: {}", bin_path.display());
+            Ok(())
+        } else {
+            // fallback: try npm uninstall
+            let status = super::npm_command()
+                .args(["uninstall", "-g", "opencode-ai"])
+                .status()?;
+            if !status.success() {
+                anyhow::bail!("OpenCode 卸载失败");
+            }
+            Ok(())
         }
-        Ok(())
     }
 
     fn config_dir(&self) -> Result<PathBuf> {
