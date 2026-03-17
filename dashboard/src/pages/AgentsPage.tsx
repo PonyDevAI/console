@@ -248,7 +248,7 @@ export default function AgentsPage() {
         display_name: formData.display_name,
         endpoint: formData.endpoint,
         api_key: formData.api_key || undefined,
-        tags: tags.length > 0 ? tags : undefined,
+        tags,
       });
       toast("OpenClaw 更新成功", "success");
       setEditingAgent(null);
