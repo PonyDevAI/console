@@ -594,16 +594,6 @@ function RemoteAgentDialog({ open, onClose, onSubmit, initialData }: RemoteAgent
     }
   }, [initialData]);
 
-  const handleOpenClawTemplate = () => {
-    setFormData({
-      name: "openclaw",
-      display_name: "OpenClaw",
-      endpoint: "",
-      api_key: "",
-      tags: "",
-    });
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.display_name || !formData.endpoint) {
@@ -624,13 +614,6 @@ function RemoteAgentDialog({ open, onClose, onSubmit, initialData }: RemoteAgent
           </h3>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
-          {!initialData && (
-            <div className="flex justify-end">
-              <Button type="button" size="sm" variant="secondary" onClick={handleOpenClawTemplate}>
-                OpenClaw 模板
-              </Button>
-            </div>
-          )}
           <div>
             <label className="block text-sm font-medium text-[var(--muted)] mb-1">
               名称 <span className="text-[var(--danger)]">*</span>
