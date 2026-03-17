@@ -122,6 +122,7 @@ pub async fn list() -> Result<Vec<RemoteAgent>> {
 async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>) {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
+        .danger_accept_invalid_certs(true)
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
     
