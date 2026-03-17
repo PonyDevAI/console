@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{run_command_stdout, which, CliAdapter};
+use super::{run_command_stdout, which, CliAdapter, extract_version};
 use crate::models::InstalledInfo;
 
 pub struct CodexAdapter;
@@ -19,8 +19,10 @@ impl CliAdapter for CodexAdapter {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version =
+        let raw =
             run_command_stdout(path.to_str().unwrap_or("codex"), &["--version"]).unwrap_or_else(|_| "unknown".into());
+        // `codex --version` outputs "codex-cli 0.115.0"; extract the version number only.
+        let version = extract_version(&raw);
         Ok(Some(InstalledInfo { version, path }))
     }
 

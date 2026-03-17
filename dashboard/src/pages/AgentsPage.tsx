@@ -384,12 +384,17 @@ export default function AgentsPage() {
                 </thead>
                 <tbody>
                   {tools.map((tool) => {
+                    // Extract bare version number (e.g. "codex-cli 0.115.0" → "0.115.0")
+                    const normalizeVersion = (v: string | null) =>
+                      v?.match(/\d+\.\d+[\w.-]*/)?.[0] ?? v;
+                    const localVer = normalizeVersion(tool.local_version);
+                    const remoteVer = normalizeVersion(tool.remote_version);
                     const hasUpdate =
                       tool.installed &&
-                      tool.local_version &&
-                      tool.remote_version &&
+                      localVer &&
+                      remoteVer &&
                       tool.remote_version !== "-" &&
-                      tool.local_version !== tool.remote_version;
+                      localVer !== remoteVer;
 
                     const runningTask = getTaskForTarget(tool.name);
 

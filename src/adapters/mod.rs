@@ -140,6 +140,20 @@ pub(crate) fn which(name: &str) -> Option<PathBuf> {
     None
 }
 
+/// Extract a semver-like version number from a `--version` output string.
+///
+/// Many CLIs include extra text (e.g. "codex-cli 0.115.0", "2.1.74 (Claude Code)").
+/// This function finds the first token that looks like a version number (digits + dots).
+pub(crate) fn extract_version(raw: &str) -> String {
+    raw.split_whitespace()
+        .find(|token| {
+            let t = token.strip_prefix('v').unwrap_or(token);
+            !t.is_empty() && t.chars().next().map_or(false, |c| c.is_ascii_digit()) && t.contains('.')
+        })
+        .map(|v| v.strip_prefix('v').unwrap_or(v).to_string())
+        .unwrap_or_else(|| raw.trim().to_string())
+}
+
 /// Cross-platform npm command runner.
 pub(crate) fn npm_command() -> std::process::Command {
     #[cfg(windows)]

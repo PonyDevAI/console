@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{run_command_stdout, which, CliAdapter};
+use super::{run_command_stdout, which, CliAdapter, extract_version};
 use crate::models::InstalledInfo;
 
 pub struct GeminiAdapter;
@@ -19,8 +19,9 @@ impl CliAdapter for GeminiAdapter {
             Some(p) => p,
             None => return Ok(None),
         };
-        let version =
+        let raw =
             run_command_stdout(path.to_str().unwrap_or("gemini"), &["--version"]).unwrap_or_else(|_| "unknown".into());
+        let version = extract_version(&raw);
         Ok(Some(InstalledInfo { version, path }))
     }
 
