@@ -28,6 +28,9 @@ init: ## Install deps, build backend, init ~/.console/
 server: ## Start backend only
 	@cargo run -- start
 
+dev: ## Start backend with hot-reload (auto recompile on file change)
+	@cargo watch -x 'run -- start'
+
 dashboard: ## Start frontend dev server only
 	@cd dashboard && pnpm dev
 

@@ -42,7 +42,8 @@ export default function AgentsPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getCliTools();
+      // 首次加载使用 scan 实时检测，确保状态准确
+      const data = await scanCliTools();
       setTools(data.tools ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
