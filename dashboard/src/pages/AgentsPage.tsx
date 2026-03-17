@@ -515,8 +515,19 @@ export default function AgentsPage() {
                             {agent.tags.length > 0 && (
                               <div className="flex gap-1 mt-1">
                                 {agent.tags.map((tag, i) => (
-                                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-accent)] rounded text-[var(--muted)]">
+                                  <span key={i} className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 bg-[var(--bg-accent)] rounded text-[var(--muted)]">
                                     {tag}
+                                    <button
+                                      type="button"
+                                      className="ml-0.5 hover:text-[var(--text)] transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newTags = agent.tags.filter((_, idx) => idx !== i);
+                                        void updateRemoteAgent(agent.id, { tags: newTags }).then(() => void loadRemoteAgents());
+                                      }}
+                                    >
+                                      ×
+                                    </button>
                                   </span>
                                 ))}
                               </div>
