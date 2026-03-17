@@ -143,8 +143,8 @@ export default function AgentsPage() {
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center py-32">
-      <Spinner className="h-8 w-8 text-[var(--muted)]" />
+    <div className="flex items-center justify-center py-20">
+      <Spinner className="h-5 w-5 text-[var(--accent)]" />
     </div>
   );
 
