@@ -40,17 +40,27 @@ export default function AgentsPage() {
   // 逐个查远程版本，每查到一个立即更新对应行
   const checkRemoteVersions = useCallback(async (toolList: CliTool[]) => {
     for (const tool of toolList) {
+      // 已有远程版本的跳过
+      if (tool.remote_version) continue;
       try {
         const result = await checkRemoteVersion(tool.name);
-        if (result.remote_version) {
-          setTools(prev =>
-            prev.map(t =>
-              t.name === result.name ? { ...t, remote_version: result.remote_version } : t
-            )
-          );
-        }
+        // null 表示该工具不支持远程版本查询，标记为已检查（用 "-"）
+        setTools(prev =>
+          prev.map(t =>
+            t.name === result.name
+              ? { ...t, remote_version: result.remote_version ?? "-" }
+              : t
+          )
+        );
       } catch {
-        // 单个查询失败不影响其他
+        // 查询失败也标记为已检查
+        setTools(prev =>
+          prev.map(t =>
+            t.name === tool.name && !t.remote_version
+              ? { ...t, remote_version: "-" }
+              : t
+          )
+        );
       }
     }
   }, []);
@@ -254,7 +264,7 @@ export default function AgentsPage() {
                           {tool.local_version ?? "-"}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
-                          {tool.remote_version ?? <Spinner className="h-3 w-3 text-[var(--muted)]" />}
+                          {tool.remote_version ? tool.remote_version : <Spinner className="h-3 w-3 text-[var(--muted)]" />}
                         </td>
                         <td className="max-w-58 truncate px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.path ?? "-"}</td>
                         <td className="px-4 py-3">
