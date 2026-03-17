@@ -25,11 +25,28 @@ impl CliAdapter for OpenCodeAdapter {
     }
 
     fn check_remote_version(&self) -> Result<Option<String>> {
-        #[cfg(windows)]
-        let output = run_command_stdout("cmd", &["/C", "npm", "view", "opencode", "version"]);
-        #[cfg(not(windows))]
-        let output = run_command_stdout("npm", &["view", "opencode", "version"]);
-        Ok(output.ok())
+        // OpenCode 通过 GitHub Releases 发布，不在 npm 上
+        let output = std::process::Command::new("curl")
+            .args(["-sfL", "https://api.github.com/repos/opencode-ai/opencode/releases/latest"])
+            .output();
+        match output {
+            Ok(out) if out.status.success() => {
+                let body = String::from_utf8_lossy(&out.stdout);
+                // 简单提取 "tag_name":"vX.Y.Z"
+                if let Some(start) = body.find("\"tag_name\"") {
+                    let rest = &body[start..];
+                    if let Some(colon) = rest.find(':') {
+                        let after = rest[colon + 1..].trim().trim_start_matches('"');
+                        if let Some(end) = after.find('"') {
+                            let tag = after[..end].trim_start_matches('v');
+                            return Ok(Some(tag.to_string()));
+                        }
+                    }
+                }
+                Ok(None)
+            }
+            _ => Ok(None),
+        }
     }
 
     fn install(&self) -> Result<()> {

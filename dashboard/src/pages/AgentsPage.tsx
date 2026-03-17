@@ -243,6 +243,7 @@ export default function AgentsPage() {
                       tool.installed &&
                       tool.local_version &&
                       tool.remote_version &&
+                      tool.remote_version !== "-" &&
                       tool.local_version !== tool.remote_version;
 
                     const runningTask = getTaskForTarget(tool.name);
