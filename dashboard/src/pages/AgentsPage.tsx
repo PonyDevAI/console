@@ -172,10 +172,8 @@ export default function AgentsPage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'openclaw') {
-      void loadRemoteAgents();
-    }
-  }, [activeTab, loadRemoteAgents]);
+    void loadRemoteAgents();
+  }, [loadRemoteAgents]);
 
   // 刷新：只 scan 安装状态，保留已有的 remote_version
   const onRefresh = async () => {
