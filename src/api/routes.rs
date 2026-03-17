@@ -147,6 +147,15 @@ async fn check_remote_version(Path(name): Path<String>) -> Result<Json<Value>, S
     let registry = crate::adapters::registry();
     let adapter = registry.find(&name).ok_or(StatusCode::NOT_FOUND)?;
     let remote = adapter.check_remote_version().unwrap_or(None);
+
+    // 保存远程版本到缓存
+    if let Ok(mut state) = services::version::load() {
+        if let Some(tool) = state.tools.iter_mut().find(|t| t.name == name) {
+            tool.remote_version = remote.clone();
+            let _ = services::version::save(&state);
+        }
+    }
+
     Ok(Json(json!({ "name": name, "remote_version": remote })))
 }
 

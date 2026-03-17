@@ -11,7 +11,11 @@ pub fn load() -> Result<CliToolsState> {
 }
 
 /// Scan all adapters and return current tool states (parallel).
+/// Preserves existing remote_version from cached state.
 pub fn scan_all() -> Result<CliToolsState> {
+    // 读取已有缓存，用于保留 remote_version
+    let cached = load().unwrap_or_else(|_| CliToolsState { tools: vec![] });
+
     let registry = adapters::registry();
     let adapter_list = registry.adapters();
 
@@ -20,15 +24,17 @@ pub fn scan_all() -> Result<CliToolsState> {
         let handles: Vec<_> = adapter_list
             .iter()
             .map(|adapter| {
-                s.spawn(|| -> CliTool {
+                let cached_tool = cached.tools.iter().find(|t| t.name == adapter.name()).cloned();
+                s.spawn(move || -> CliTool {
                     let now = chrono::Utc::now();
+                    let cached_remote = cached_tool.and_then(|t| t.remote_version);
                     match adapter.detect_installation() {
                         Ok(Some(info)) => CliTool {
                             name: adapter.name().to_string(),
                             display_name: adapter.display_name().to_string(),
                             installed: true,
                             local_version: Some(info.version),
-                            remote_version: None,
+                            remote_version: cached_remote,
                             path: Some(info.path),
                             last_checked: Some(now),
                             auto_install: adapter.supports_auto_install(),
@@ -39,7 +45,7 @@ pub fn scan_all() -> Result<CliToolsState> {
                             display_name: adapter.display_name().to_string(),
                             installed: false,
                             local_version: None,
-                            remote_version: None,
+                            remote_version: cached_remote,
                             path: None,
                             last_checked: Some(now),
                             auto_install: adapter.supports_auto_install(),
@@ -53,7 +59,10 @@ pub fn scan_all() -> Result<CliToolsState> {
         handles.into_iter().map(|h| h.join().unwrap()).collect()
     });
 
-    Ok(CliToolsState { tools })
+    let state = CliToolsState { tools };
+    // 保存 scan 结果（包含保留的 remote_version）
+    let _ = save(&state);
+    Ok(state)
 }
 
 /// Check remote versions for all tools and update state.

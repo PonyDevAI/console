@@ -44,6 +44,7 @@ export default function AgentsPage() {
   const [tools, setTools] = useState<CliTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [checking, setChecking] = useState<string | null>(null); // 正在检测的工具名
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("local");
@@ -57,61 +58,77 @@ export default function AgentsPage() {
 
   const { tasks, getTaskForTarget } = useTaskStream();
 
-  const checkRemoteVersions = useCallback(async (toolList: CliTool[]) => {
-    for (const tool of toolList) {
-      if (tool.remote_version) continue;
-      try {
-        const result = await checkRemoteVersion(tool.name);
-        setTools(prev =>
-          prev.map(t =>
-            t.name === result.name
-              ? { ...t, remote_version: result.remote_version ?? "-" }
-              : t
-          )
-        );
-      } catch {
-        setTools(prev =>
-          prev.map(t =>
-            t.name === tool.name && !t.remote_version
-              ? { ...t, remote_version: "-" }
-              : t
-          )
-        );
-      }
+  // 单个工具检测远程版本
+  const onCheckSingle = async (toolName: string) => {
+    setChecking(toolName);
+    try {
+      const result = await checkRemoteVersion(toolName);
+      setTools(prev =>
+        prev.map(t =>
+          t.name === result.name
+            ? { ...t, remote_version: result.remote_version ?? "-" }
+            : t
+        )
+      );
+    } catch {
+      setTools(prev =>
+        prev.map(t =>
+          t.name === toolName && !t.remote_version
+            ? { ...t, remote_version: "-" }
+            : t
+        )
+      );
+    } finally {
+      setChecking(null);
     }
-  }, []);
+  };
 
+  // 首次加载：读缓存（瞬间）→ 后台 scan 安装状态（不查远程版本）
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // 1. 先读缓存，瞬间显示（包含上次保存的 remote_version）
       const cached = await getCliTools();
       const cachedTools = cached.tools ?? [];
       if (cachedTools.length > 0) {
         setTools(cachedTools);
         setLoading(false);
+        // 2. 后台 scan 刷新安装状态，保留缓存的 remote_version
         scanCliTools().then(data => {
           const freshTools = data.tools ?? [];
-          if (freshTools.length > 0) setTools(freshTools);
-          void checkRemoteVersions(freshTools);
+          if (freshTools.length > 0) {
+            setTools(prev =>
+              freshTools.map(ft => {
+                const cached = prev.find(p => p.name === ft.name);
+                return { ...ft, remote_version: cached?.remote_version ?? ft.remote_version };
+              })
+            );
+          }
         }).catch(() => {});
       } else {
+        // 无缓存，等 scan 完成
         const data = await scanCliTools();
-        const toolList = data.tools ?? [];
-        setTools(toolList);
+        setTools(data.tools ?? []);
         setLoading(false);
-        void checkRemoteVersions(toolList);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
       setLoading(false);
     }
-  }, [checkRemoteVersions]);
+  }, []);
 
+  // 静默刷新：任务完成后刷新安装状态，保留 remote_version
   const silentReload = useCallback(async () => {
     try {
       const data = await scanCliTools();
-      setTools(data.tools ?? []);
+      const freshTools = data.tools ?? [];
+      setTools(prev =>
+        freshTools.map(ft => {
+          const cached = prev.find(p => p.name === ft.name);
+          return { ...ft, remote_version: cached?.remote_version ?? ft.remote_version };
+        })
+      );
     } catch {
       // 静默失败
     }
@@ -156,18 +173,23 @@ export default function AgentsPage() {
     }
   }, [activeTab, loadRemoteAgents]);
 
+  // 刷新：只 scan 安装状态，保留已有的 remote_version
   const onRefresh = async () => {
     setRefreshing(true);
     setError(null);
     try {
       const data = await scanCliTools();
-      const toolList = data.tools ?? [];
-      setTools(toolList);
-      setRefreshing(false);
+      const freshTools = data.tools ?? [];
+      setTools(prev =>
+        freshTools.map(ft => {
+          const cached = prev.find(p => p.name === ft.name);
+          return { ...ft, remote_version: cached?.remote_version ?? ft.remote_version };
+        })
+      );
       toast("刷新完成", "success");
-      void checkRemoteVersions(toolList);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "刷新失败");
+    } finally {
       setRefreshing(false);
     }
   };
@@ -361,7 +383,7 @@ export default function AgentsPage() {
                           {tool.local_version ?? "-"}
                         </td>
                         <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
-                          {tool.remote_version ? tool.remote_version : <Spinner className="h-3 w-3 text-[var(--muted)]" />}
+                          {checking === tool.name ? <Spinner className="h-3 w-3 text-[var(--accent)]" /> : (tool.remote_version ?? "-")}
                         </td>
                         <td className="max-w-58 truncate px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.path ?? "-"}</td>
                         <td className="px-4 py-3">
@@ -373,6 +395,7 @@ export default function AgentsPage() {
                               </span>
                             ) : (
                               <>
+                                {/* 未安装 → 安装 */}
                                 {!tool.installed && tool.auto_install ? (
                                   <Button size="sm" onClick={() => void onDirectAction('install', tool.name)}>
                                     安装
@@ -388,11 +411,19 @@ export default function AgentsPage() {
                                     前往下载 ↗
                                   </a>
                                 ) : null}
+                                {/* 已安装 + 有新版本 → 升级 */}
                                 {tool.installed && hasUpdate && tool.auto_install ? (
                                   <Button size="sm" onClick={() => void onDirectAction('upgrade', tool.name)}>
                                     升级
                                   </Button>
                                 ) : null}
+                                {/* 已安装 → 检测（查远程版本） */}
+                                {tool.installed ? (
+                                  <Button size="sm" variant="secondary" onClick={() => void onCheckSingle(tool.name)} disabled={checking === tool.name}>
+                                    {checking === tool.name ? "检测中..." : "检测"}
+                                  </Button>
+                                ) : null}
+                                {/* 已安装 → 卸载 */}
                                 {tool.installed && tool.auto_install ? (
                                   <Button size="sm" variant="ghost" onClick={() => setPending({ type: 'uninstall', tool })}>
                                     卸载
