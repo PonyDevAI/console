@@ -52,8 +52,15 @@ impl CliAdapter for CursorAdapter {
         let path_str = path.to_str().unwrap_or("agent");
         let version =
             run_command_stdout(path_str, &["--version"]).unwrap_or_else(|_| "unknown".into());
+
+        // Cursor agent --version 输出格式为日期+hash（如 2026.03.11-6dfa30c）
+        // 只要二进制名为 agent 且能正常返回版本号，就认为是 Cursor CLI
+        // 排除明显不是 Cursor 的情况（如输出包含其他已知工具名）
         let version_lower = version.to_lowercase();
-        if !version_lower.contains("cursor") && !version_lower.contains("agent") {
+        let dominated_by_other = version_lower.contains("claude")
+            || version_lower.contains("codex")
+            || version_lower.contains("gemini");
+        if dominated_by_other {
             return Ok(None);
         }
         Ok(Some(InstalledInfo { version, path }))
