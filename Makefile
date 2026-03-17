@@ -28,8 +28,12 @@ init: ## Install deps, build backend, init ~/.console/
 server: ## Start backend only
 	@cargo run -- start
 
-dev: ## Start backend with hot-reload (auto recompile on file change)
-	@cargo watch -x 'run -- start'
+dev: ## Start backend with hot-reload + frontend HMR
+	@command -v cargo-watch >/dev/null 2>&1 || { echo "cargo-watch not found. Run 'cargo install cargo-watch' first."; exit 1; }
+	@trap 'kill 0' INT TERM; \
+	cargo watch -w src -x 'run -- start' & \
+	cd dashboard && pnpm dev & \
+	wait
 
 dashboard: ## Start frontend dev server only
 	@cd dashboard && pnpm dev
@@ -37,15 +41,6 @@ dashboard: ## Start frontend dev server only
 run: ## Start backend + frontend together
 	@trap 'kill 0' INT TERM; \
 	cargo run -- start & \
-	cd dashboard && pnpm dev & \
-	wait
-
-# ── Dev (hot-reload) ─────────────────────────────────────
-
-dev: ## Start with hot-reload (cargo-watch + vite HMR)
-	@command -v cargo-watch >/dev/null 2>&1 || { echo "cargo-watch not found. Run 'make init' first."; exit 1; }
-	@trap 'kill 0' INT TERM; \
-	cargo watch -w src -x 'run -- start' & \
 	cd dashboard && pnpm dev & \
 	wait
 
