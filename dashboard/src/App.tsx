@@ -2,6 +2,7 @@ import {
   Bot,
   Cpu,
   LayoutDashboard,
+  ListTodo,
   Menu,
   RefreshCw,
   ScrollText,
@@ -11,7 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
-import { getHealth } from "./api";
+import { getHealth, checkSystemUpdate } from "./api";
 import ThemeModeToggle from "./components/ThemeModeToggle";
 import { ToastContainer } from "./components/Toast";
 import UpdateBanner from "./components/UpdateBanner";
@@ -26,6 +27,7 @@ import ProviderPage from "./pages/ProviderPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillPage from "./pages/SkillPage";
 import AgentsPage from "./pages/AgentsPage";
+import { useTaskStream } from "./hooks/useTask";
 
 type NavItem = {
   to: string;
@@ -69,11 +71,30 @@ export default function App() {
   const { mode, setMode } = useTheme();
   const [connected, setConnected] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
+  const [versionInfo, setVersionInfo] = useState<{ current: string; latest: string; updateAvailable: boolean } | null>(null);
+  const { tasks } = useTaskStream();
+
+  const allTasks = Array.from(tasks.values()).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  const activeTasks = allTasks.filter(t => t.status === 'pending' || t.status === 'running');
+  const activeCount = activeTasks.length;
+  const [taskPanelOpen, setTaskPanelOpen] = useState(false);
 
   useEffect(() => {
     getHealth()
       .then(() => setConnected(true))
       .catch(() => setConnected(false));
+  }, []);
+
+  useEffect(() => {
+    async function fetchVersion() {
+      try {
+        const data = await checkSystemUpdate();
+        setVersionInfo({ current: data.current, latest: data.latest, updateAvailable: data.update_available });
+      } catch {
+        // 静默失败，不影响页面
+      }
+    }
+    void fetchVersion();
   }, []);
 
   return (
@@ -217,6 +238,63 @@ export default function App() {
         {/* Right: version + health + avatar + settings */}
         {/* Right: version pill + health pill + theme toggle */}
         <div className="flex items-center gap-2">
+          {/* Task queue icon + dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setTaskPanelOpen(!taskPanelOpen)}
+              className="relative inline-flex items-center justify-center rounded-full p-2 text-[var(--muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)] transition-colors"
+              title={activeCount > 0 ? `${activeCount} 个任务进行中` : "任务队列"}
+            >
+              <ListTodo className="h-4 w-4" strokeWidth={1.5} />
+              {activeCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-white">
+                  {activeCount}
+                </span>
+              )}
+            </button>
+            {taskPanelOpen && (
+              <div className="absolute right-0 top-full mt-2 w-72 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--bg-elevated)] shadow-lg z-50">
+                <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
+                  <span className="text-xs font-semibold text-[var(--text)]">任务队列</span>
+                  <button
+                    type="button"
+                    onClick={() => setTaskPanelOpen(false)}
+                    className="text-[var(--muted)] hover:text-[var(--text)] text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {allTasks.length === 0 ? (
+                    <div className="px-3 py-4 text-center text-xs text-[var(--muted)]">暂无任务</div>
+                  ) : (
+                    allTasks.map((task) => (
+                      <div key={task.id} className="flex items-center gap-2 border-b border-[var(--border)] last:border-0 px-3 py-2">
+                        <span className="flex-shrink-0">
+                          {task.status === "running" || task.status === "pending" ? (
+                            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+                          ) : task.status === "completed" ? (
+                            <span className="text-[var(--success)] text-sm">✓</span>
+                          ) : (
+                            <span className="text-[var(--danger)] text-sm">✗</span>
+                          )}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium text-[var(--text)] truncate">
+                            {task.action === "install" ? "安装" : task.action === "upgrade" ? "升级" : "卸载"} {task.target}
+                          </div>
+                          {task.message && (
+                            <div className="text-[10px] text-[var(--muted)] truncate">{task.message}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           {/* 版本 pill — 橙色圆点表示有更新 */}
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-[var(--text)]"
@@ -226,8 +304,10 @@ export default function App() {
               height: "32px",
             }}
           >
-            <span className="h-2 w-2 rounded-full bg-[var(--warning)]" />
-            版本 0.1.0
+            {versionInfo === null ? null : (
+              <span className={cn("h-2 w-2 rounded-full", versionInfo.updateAvailable ? "bg-[var(--warning)]" : "bg-[var(--success)]")} />
+            )}
+            版本 {versionInfo?.current ?? '...'}
           </span>
           {/* 健康状况 pill */}
           <span
@@ -250,7 +330,9 @@ export default function App() {
 
       {/* ── Content ── */}
       <main className="overflow-y-auto bg-[var(--bg)] p-5" style={{ gridArea: "content" }}>
-        <UpdateBanner currentVersion="0.1.0" latestVersion="0.2.0" />
+        {versionInfo?.updateAvailable && (
+          <UpdateBanner currentVersion={versionInfo.current} latestVersion={versionInfo.latest} />
+        )}
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/agents" element={<AgentsPage />} />

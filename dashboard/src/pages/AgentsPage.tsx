@@ -20,7 +20,7 @@ import { useTaskStream } from "../hooks/useTask";
 type ActionType = "install" | "upgrade" | "uninstall";
 
 type PendingAction = {
-  type: ActionType;
+  type: "uninstall";
   tool: CliTool;
 };
 
@@ -105,23 +105,27 @@ export default function AgentsPage() {
     }
   };
 
+  const onDirectAction = async (action: 'install' | 'upgrade', toolName: string) => {
+    setError(null);
+    try {
+      if (action === 'install') {
+        await installTool(toolName);
+      } else {
+        await upgradeTool(toolName);
+      }
+      toast("任务已提交，后台执行中", "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "操作失败", "error");
+    }
+  };
+
   const onConfirmAction = async () => {
     if (!pending) return;
     setError(null);
 
     try {
-      if (pending.type === "install") {
-        await installTool(pending.tool.name);
-        toast("任务已提交，后台执行中", "success");
-      }
-      if (pending.type === "upgrade") {
-        await upgradeTool(pending.tool.name);
-        toast("任务已提交，后台执行中", "success");
-      }
-      if (pending.type === "uninstall") {
-        await uninstallTool(pending.tool.name);
-        toast("任务已提交，后台执行中", "success");
-      }
+      await uninstallTool(pending.tool.name);
+      toast("任务已提交，后台执行中", "success");
       setPending(null);
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : "操作失败", "error");
@@ -233,7 +237,7 @@ export default function AgentsPage() {
                             ) : (
                               <>
                                 {!tool.installed && tool.auto_install ? (
-                                  <Button size="sm" onClick={() => setPending({ type: "install", tool })}>
+                                  <Button size="sm" onClick={() => void onDirectAction('install', tool.name)}>
                                     安装
                                   </Button>
                                 ) : null}
@@ -248,12 +252,12 @@ export default function AgentsPage() {
                                   </a>
                                 ) : null}
                                 {tool.installed && hasUpdate && tool.auto_install ? (
-                                  <Button size="sm" onClick={() => setPending({ type: "upgrade", tool })}>
+                                  <Button size="sm" onClick={() => void onDirectAction('upgrade', tool.name)}>
                                     升级
                                   </Button>
                                 ) : null}
                                 {tool.installed && tool.auto_install ? (
-                                  <Button size="sm" variant="ghost" onClick={() => setPending({ type: "uninstall", tool })}>
+                                  <Button size="sm" variant="ghost" onClick={() => setPending({ type: 'uninstall', tool })}>
                                     卸载
                                   </Button>
                                 ) : null}
@@ -275,10 +279,10 @@ export default function AgentsPage() {
 
       <ConfirmDialog
         open={Boolean(pending)}
-        title={`${pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "操作"} ${pending?.tool.display_name ?? ""}`}
-        message={`请确认对 ${pending?.tool.display_name ?? "此工具"} 执行${pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "操作"}。`}
-        confirmLabel={pending?.type === "install" ? "安装" : pending?.type === "upgrade" ? "升级" : pending?.type === "uninstall" ? "卸载" : "确认"}
-        variant={pending?.type === "uninstall" ? "danger" : "default"}
+        title={`卸载 ${pending?.tool.display_name ?? ""}`}
+        message={`请确认对 ${pending?.tool.display_name ?? "此工具"} 执行卸载操作。`}
+        confirmLabel="卸载"
+        variant="danger"
         onCancel={() => setPending(null)}
         onConfirm={() => void onConfirmAction()}
       />

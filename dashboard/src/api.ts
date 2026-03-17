@@ -75,6 +75,18 @@ export async function getHealth() {
   return get<{ status: string }>("/health");
 }
 
+export async function getSystemVersion() {
+  await ensureReady();
+  if (useMock) return { version: '0.1.0', name: 'console', os: 'darwin', arch: 'arm64' };
+  return get<{ version: string; name: string; os: string; arch: string }>('/system/version');
+}
+
+export async function checkSystemUpdate() {
+  await ensureReady();
+  if (useMock) return { current: '0.1.0', latest: '0.1.0', update_available: false };
+  return get<{ current: string; latest: string; update_available: boolean }>('/system/check-update');
+}
+
 export async function getCliTools() {
   await ensureReady();
   if (useMock) return mockApi.getCliTools();
