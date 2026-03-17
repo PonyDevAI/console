@@ -26,7 +26,7 @@ export default function Tabs({ tabs, activeTab, onChange }: TabsProps) {
               type="button"
               onClick={() => onChange(tab.id)}
               className={cn(
-                "-mb-px flex items-center gap-1.5 border-b-2 px-0 py-2 text-sm transition-colors",
+                "-mb-px flex items-center gap-1.5 border-b-2 px-0 py-2 text-sm transition-colors cursor-pointer",
                 active
                   ? "border-[var(--accent)] text-[var(--accent)]"
                   : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",

@@ -330,7 +330,7 @@ export default function AgentsPage() {
             type="button"
             onClick={() => setActiveTab("local")}
             className={cn(
-              "-mb-px flex items-center gap-1.5 border-b-2 px-0 py-2 text-sm transition-colors",
+              "-mb-px flex items-center gap-1.5 border-b-2 px-0 py-2 text-sm transition-colors cursor-pointer",
               activeTab === "local"
                 ? "border-[var(--accent)] text-[var(--accent)]"
                 : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",
@@ -342,7 +342,7 @@ export default function AgentsPage() {
             type="button"
             onClick={() => setActiveTab("openclaw")}
             className={cn(
-              "-mb-px flex items-center gap-1.5 border-b-2 px-0 py-2 text-sm transition-colors",
+              "-mb-px flex items-center gap-1.5 border-b-2 px-0 py-2 text-sm transition-colors cursor-pointer",
               activeTab === "openclaw"
                 ? "border-[var(--accent)] text-[var(--accent)]"
                 : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",
@@ -438,7 +438,7 @@ export default function AgentsPage() {
                                     href={tool.install_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium bg-[var(--bg-accent)] text-[var(--fg)] hover:opacity-80 transition-opacity"
+                                    className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium bg-[var(--bg-accent)] text-[var(--fg)] hover:opacity-80 transition-opacity cursor-pointer"
                                   >
                                     前往下载 ↗
                                   </a>
@@ -524,7 +524,7 @@ export default function AgentsPage() {
                                     {tag}
                                     <button
                                       type="button"
-                                      className="ml-0.5 hover:text-[var(--text)] transition-colors"
+                                      className="ml-0.5 hover:text-[var(--text)] transition-colors cursor-pointer"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         const newTags = agent.tags.filter((_, idx) => idx !== i);

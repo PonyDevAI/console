@@ -87,7 +87,7 @@ export default function DataTable<T extends { id?: string }>({
                   <button
                     type="button"
                     onClick={() => toggleSort(column.key)}
-                    className="flex items-center gap-1.5 text-left hover:text-[var(--text)]"
+                    className="flex items-center gap-1.5 text-left hover:text-[var(--text)] cursor-pointer"
                   >
                     <span>{column.header}</span>
                     {renderSortIcon(column.key)}

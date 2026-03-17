@@ -37,7 +37,7 @@ export default function ThemeModeToggle({ mode, onChange }: ThemeModeToggleProps
             aria-pressed={isActive}
             onClick={() => onChange(opt.id)}
             className={cn(
-              "inline-flex h-[26px] w-[26px] items-center justify-center rounded-full border border-transparent transition-all",
+              "inline-flex h-[26px] w-[26px] items-center justify-center rounded-full border border-transparent transition-all cursor-pointer",
               isActive
                 ? "bg-[var(--accent)] text-white shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
                 : "bg-transparent text-[var(--muted)] hover:text-[var(--text)]",

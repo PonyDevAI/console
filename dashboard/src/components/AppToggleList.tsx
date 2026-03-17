@@ -26,7 +26,7 @@ export default function AppToggleList({ selected, onChange }: AppToggleListProps
             type="button"
             onClick={() => toggle(app)}
             className={cn(
-              "rounded-full px-2.5 py-1 text-xs",
+              "rounded-full px-2.5 py-1 text-xs cursor-pointer",
               active ? "bg-[var(--accent-subtle)] text-[var(--accent)]" : "bg-[var(--bg-hover)] text-[var(--muted)]",
             )}
           >

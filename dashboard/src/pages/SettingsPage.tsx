@@ -170,7 +170,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between">
               <span className="text-[var(--muted)]">源码仓库</span>
               <a
-                className="text-[var(--accent)] hover:underline"
+                className="text-[var(--accent)] hover:underline cursor-pointer"
                 href="https://github.com"
                 target="_blank"
                 rel="noreferrer"

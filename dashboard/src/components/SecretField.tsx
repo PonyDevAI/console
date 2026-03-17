@@ -31,7 +31,7 @@ export default function SecretField({ label, error, className, value, onChange, 
         <button
           type="button"
           onClick={() => setVisible((prev) => !prev)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-[var(--muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)]"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-[var(--muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)] cursor-pointer"
           aria-label={visible ? "Hide secret" : "Show secret"}
         >
           {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

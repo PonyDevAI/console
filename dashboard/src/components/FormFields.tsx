@@ -41,7 +41,7 @@ type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
 export function Select({ label, error, className, children, ...props }: SelectProps) {
   return (
     <FieldWrapper label={label} error={error}>
-      <select {...props} className={cn(fieldClass, className)}>
+      <select {...props} className={cn(fieldClass, "cursor-pointer", className)}>
         {children}
       </select>
     </FieldWrapper>

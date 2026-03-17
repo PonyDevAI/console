@@ -174,7 +174,7 @@ export default function App() {
                         end={item.to === "/"}
                         className={({ isActive }) =>
                           cn(
-                            "relative flex items-center transition-colors",
+                            "relative flex items-center transition-colors cursor-pointer",
                             collapsed
                               ? cn(
                                   "mx-auto h-[44px] w-[44px] justify-center rounded-[16px] border border-transparent",
@@ -229,7 +229,7 @@ export default function App() {
         <button
           type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text)]"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text)] cursor-pointer"
           aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
         >
           <Menu className="h-5 w-5" strokeWidth={1.5} />
@@ -243,7 +243,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setTaskPanelOpen(!taskPanelOpen)}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-[var(--text)] transition-colors hover:opacity-80"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-[var(--text)] transition-colors hover:opacity-80 cursor-pointer"
               style={{
                 border: "1px solid color-mix(in srgb, var(--border) 84%, transparent)",
                 background: "color-mix(in srgb, var(--bg-elevated) 78%, transparent)",
@@ -265,7 +265,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setTaskPanelOpen(false)}
-                    className="text-[var(--muted)] hover:text-[var(--text)] text-xs"
+                    className="text-[var(--muted)] hover:text-[var(--text)] text-xs cursor-pointer"
                   >
                     ✕
                   </button>

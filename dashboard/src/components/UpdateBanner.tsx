@@ -15,7 +15,7 @@ export default function UpdateBanner({ currentVersion, latestVersion, onUpdate }
       {onUpdate ? (
         <button
           onClick={onUpdate}
-          className="rounded-[var(--radius-md)] border border-[var(--accent)]/30 bg-transparent px-3 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10"
+          className="rounded-[var(--radius-md)] border border-[var(--accent)]/30 bg-transparent px-3 py-1 text-xs font-medium text-[var(--accent)] hover:bg-[var(--accent)]/10 cursor-pointer"
         >
           立即更新
         </button>

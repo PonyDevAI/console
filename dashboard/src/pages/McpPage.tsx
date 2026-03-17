@@ -194,7 +194,7 @@ export default function McpPage() {
           <select
             value={importApp}
             onChange={(event) => setImportApp(event.target.value)}
-            className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-sm text-[var(--text)]"
+            className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-sm text-[var(--text)] cursor-pointer"
           >
             <option value="cursor">cursor</option>
             <option value="claude">claude</option>
