@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   checkUpdates,
-  getCliTools,
   installTool,
   scanCliTools,
   uninstallTool,
@@ -30,7 +29,6 @@ export default function AgentsPage() {
   const [tools, setTools] = useState<CliTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("local");
@@ -38,11 +36,12 @@ export default function AgentsPage() {
 
   const { tasks, getTaskForTarget } = useTaskStream();
 
+  // 首次加载 + 刷新：scan 本地 + 查远程版本，一步到位
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await scanCliTools();
+      const data = await checkUpdates();
       setTools(data.tools ?? []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
@@ -51,7 +50,7 @@ export default function AgentsPage() {
     }
   }, []);
 
-  // 静默刷新：不触发全屏 loading，只更新数据
+  // 静默刷新：任务完成后只更新本地状态，不查远程（快）
   const silentReload = useCallback(async () => {
     try {
       const data = await scanCliTools();
@@ -64,13 +63,6 @@ export default function AgentsPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  // Auto-check remote versions on first load
-  useEffect(() => {
-    if (!loading && tools.length > 0 && tools.every(t => t.remote_version === null)) {
-      void onCheckUpdates();
-    }
-  }, [loading, tools.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     tasks.forEach((task) => {
@@ -91,27 +83,13 @@ export default function AgentsPage() {
     setRefreshing(true);
     setError(null);
     try {
-      const data = await scanCliTools();
-      setTools(data.tools ?? []);
-      toast("工具扫描完成", "success");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "扫描工具失败");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const onCheckUpdates = async () => {
-    setChecking(true);
-    setError(null);
-    try {
       const data = await checkUpdates();
       setTools(data.tools ?? []);
-      toast("更新检查完成", "success");
+      toast("刷新完成", "success");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "检查更新失败");
+      setError(err instanceof Error ? err.message : "刷新失败");
     } finally {
-      setChecking(false);
+      setRefreshing(false);
     }
   };
 
@@ -191,10 +169,7 @@ export default function AgentsPage() {
         <>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => void onRefresh()} disabled={refreshing}>
-              {refreshing ? "扫描中..." : "刷新"}
-            </Button>
-            <Button onClick={() => void onCheckUpdates()} disabled={checking}>
-              {checking ? "检查中..." : "检查更新"}
+              {refreshing ? "刷新中..." : "刷新"}
             </Button>
           </div>
 
