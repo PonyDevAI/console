@@ -36,7 +36,7 @@ impl CliAdapter for CursorAdapter {
     fn install(&self) -> Result<()> {
         let output = std::process::Command::new("sh")
             .arg("-c")
-            .arg("curl -fsSL https://www.cursor.com/install.sh | sh")
+            .arg("curl https://cursor.com/install -fsS | bash")
             .output();
 
         match output {
@@ -46,7 +46,7 @@ impl CliAdapter for CursorAdapter {
                 anyhow::bail!("Cursor CLI 安装失败：{}", stderr)
             }
             Err(_e) => {
-                anyhow::bail!("Cursor CLI 安装失败，请手动执行：curl -fsSL https://www.cursor.com/install.sh | sh")
+                anyhow::bail!("Cursor CLI 安装失败，请手动执行：curl https://cursor.com/install -fsS | bash")
             }
         }
     }
@@ -54,7 +54,7 @@ impl CliAdapter for CursorAdapter {
     fn upgrade(&self) -> Result<()> {
         let output = std::process::Command::new("sh")
             .arg("-c")
-            .arg("curl -fsSL https://www.cursor.com/install.sh | sh")
+            .arg("curl https://cursor.com/install -fsS | bash")
             .output();
 
         match output {
@@ -64,7 +64,7 @@ impl CliAdapter for CursorAdapter {
                 anyhow::bail!("Cursor CLI 升级失败：{}", stderr)
             }
             Err(_e) => {
-                anyhow::bail!("Cursor CLI 升级失败，请手动执行：curl -fsSL https://www.cursor.com/install.sh | sh")
+                anyhow::bail!("Cursor CLI 升级失败，请手动执行：curl https://cursor.com/install -fsS | bash")
             }
         }
     }
