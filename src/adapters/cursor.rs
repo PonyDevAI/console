@@ -15,12 +15,23 @@ impl CliAdapter for CursorAdapter {
     }
 
     fn detect_installation(&self) -> Result<Option<InstalledInfo>> {
-        let path = match which("agent") {
+        // Try PATH first, then known install locations
+        let path = which("agent").or_else(|| {
+            let known_paths = [
+                dirs::home_dir().map(|h| h.join(".local/bin/agent")),
+                Some(PathBuf::from("/usr/local/bin/agent")),
+            ];
+            known_paths.into_iter().flatten().find(|p| p.exists())
+        });
+
+        let path = match path {
             Some(p) => p,
             None => return Ok(None),
         };
+
+        let path_str = path.to_str().unwrap_or("agent");
         let version =
-            run_command_stdout("agent", &["--version"]).unwrap_or_else(|_| "unknown".into());
+            run_command_stdout(path_str, &["--version"]).unwrap_or_else(|_| "unknown".into());
         // Verify it's actually Cursor's agent, not some other "agent" binary
         let version_lower = version.to_lowercase();
         if !version_lower.contains("cursor") && !version_lower.contains("agent") {
