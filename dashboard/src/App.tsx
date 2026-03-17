@@ -238,20 +238,25 @@ export default function App() {
         {/* Right: version + health + avatar + settings */}
         {/* Right: version pill + health pill + theme toggle */}
         <div className="flex items-center gap-2">
-          {/* Task queue icon + dropdown */}
+          {/* Task queue pill + dropdown */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setTaskPanelOpen(!taskPanelOpen)}
-              className="relative inline-flex items-center justify-center rounded-full p-2 text-[var(--muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)] transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-[var(--text)] transition-colors hover:opacity-80"
+              style={{
+                border: "1px solid color-mix(in srgb, var(--border) 84%, transparent)",
+                background: "color-mix(in srgb, var(--bg-elevated) 78%, transparent)",
+                height: "32px",
+              }}
               title={activeCount > 0 ? `${activeCount} 个任务进行中` : "任务队列"}
             >
-              <ListTodo className="h-4 w-4" strokeWidth={1.5} />
-              {activeCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-white">
-                  {activeCount}
-                </span>
+              {activeCount > 0 ? (
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
+              ) : (
+                <ListTodo className="h-3.5 w-3.5" strokeWidth={1.5} />
               )}
+              任务{activeCount > 0 ? ` ${activeCount}` : ""}
             </button>
             {taskPanelOpen && (
               <div className="absolute right-0 top-full mt-2 w-72 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--bg-elevated)] shadow-lg z-50">
