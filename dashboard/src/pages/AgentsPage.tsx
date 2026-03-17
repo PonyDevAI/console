@@ -30,7 +30,7 @@ type PendingAction = {
   tool: CliTool;
 };
 
-type TabId = "local" | "remote";
+type TabId = "local" | "openclaw";
 
 interface RemoteAgentForm {
   name: string;
@@ -144,14 +144,14 @@ export default function AgentsPage() {
       const pinged = await pingAllRemoteAgents();
       setRemoteAgents(pinged.agents ?? []);
     } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "加载远程 Agent 失败", "error");
+      toast(err instanceof Error ? err.message : "加载 OpenClaw 失败", "error");
     } finally {
       setRemoteLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'remote') {
+    if (activeTab === 'openclaw') {
       void loadRemoteAgents();
     }
   }, [activeTab, loadRemoteAgents]);
@@ -209,7 +209,7 @@ export default function AgentsPage() {
         api_key: formData.api_key || undefined,
         tags: tags.length > 0 ? tags : undefined,
       });
-      toast("远程 Agent 添加成功", "success");
+      toast("OpenClaw 添加成功", "success");
       setShowAddDialog(false);
       void loadRemoteAgents();
     } catch (err: unknown) {
@@ -226,7 +226,7 @@ export default function AgentsPage() {
         api_key: formData.api_key || undefined,
         tags: tags.length > 0 ? tags : undefined,
       });
-      toast("远程 Agent 更新成功", "success");
+      toast("OpenClaw 更新成功", "success");
       setEditingAgent(null);
       void loadRemoteAgents();
     } catch (err: unknown) {
@@ -237,7 +237,7 @@ export default function AgentsPage() {
   const handleDeleteRemoteAgent = async (id: string) => {
     try {
       await deleteRemoteAgent(id);
-      toast("远程 Agent 已删除", "success");
+      toast("OpenClaw 已删除", "success");
       void loadRemoteAgents();
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : "删除失败", "error");
@@ -291,15 +291,15 @@ export default function AgentsPage() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("remote")}
+            onClick={() => setActiveTab("openclaw")}
             className={cn(
               "-mb-px flex items-center gap-1.5 border-b-2 px-0 py-2 text-sm transition-colors",
-              activeTab === "remote"
+              activeTab === "openclaw"
                 ? "border-[var(--accent)] text-[var(--accent)]"
                 : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",
             )}
           >
-            远程 Agent
+            OpenClaw
           </button>
         </div>
       </div>
@@ -412,19 +412,19 @@ export default function AgentsPage() {
         </>
       )}
 
-      {activeTab === "remote" && (
+      {activeTab === "openclaw" && (
         <>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => void loadRemoteAgents()} disabled={remoteLoading}>
               {remoteLoading ? "刷新中..." : "刷新"}
             </Button>
             <Button onClick={() => setShowAddDialog(true)}>
-              添加远程 Agent
+              添加 OpenClaw
             </Button>
           </div>
 
           {remoteAgents.length === 0 ? (
-            <EmptyState message="暂无远程 Agent，点击添加" />
+            <EmptyState message="暂无 OpenClaw 实例，点击添加" />
           ) : (
             <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
               <table className="w-full text-sm">
@@ -610,7 +610,7 @@ function RemoteAgentDialog({ open, onClose, onSubmit, initialData }: RemoteAgent
       <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="px-6 py-4 border-b border-[var(--border)]">
           <h3 className="text-lg font-semibold text-[var(--text)]">
-            {initialData ? "编辑远程 Agent" : "添加远程 Agent"}
+            {initialData ? "编辑 OpenClaw" : "添加 OpenClaw"}
           </h3>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
