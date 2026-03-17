@@ -123,3 +123,17 @@ export type Task = {
   created_at: string;
   updated_at: string;
 };
+
+// ── Remote Agent ──
+export type RemoteAgent = {
+  id: string;
+  name: string;
+  display_name: string;
+  endpoint: string;
+  api_key?: string | null;
+  status: 'online' | 'offline' | 'unknown';
+  version?: string | null;
+  last_ping?: string | null;
+  created_at: string;
+  tags: string[];
+};

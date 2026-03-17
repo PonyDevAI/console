@@ -7,6 +7,7 @@ import type {
   LogEntry,
   McpServer,
   Provider,
+  RemoteAgent,
   Settings,
   SkillRepo,
   Skill,
@@ -365,4 +366,40 @@ export async function syncAll() {
   await ensureReady();
   if (useMock) return mockApi.syncAll();
   return post<{ entries: ConfigSyncEntry[] }>("/config-sync/sync-all");
+}
+
+export async function getRemoteAgents() {
+  await ensureReady();
+  if (useMock) return { agents: [] as RemoteAgent[] };
+  return get<{ agents: RemoteAgent[] }>("/remote-agents");
+}
+
+export async function addRemoteAgent(data: { name: string; display_name: string; endpoint: string; api_key?: string; tags?: string[] }) {
+  await ensureReady();
+  if (useMock) return {} as RemoteAgent;
+  return post<RemoteAgent>("/remote-agents", data);
+}
+
+export async function updateRemoteAgent(id: string, data: { display_name?: string; endpoint?: string; api_key?: string; tags?: string[] }) {
+  await ensureReady();
+  if (useMock) return {} as RemoteAgent;
+  return put<RemoteAgent>(`/remote-agents/${id}`, data);
+}
+
+export async function deleteRemoteAgent(id: string) {
+  await ensureReady();
+  if (useMock) return;
+  return del(`/remote-agents/${id}`);
+}
+
+export async function pingRemoteAgent(id: string) {
+  await ensureReady();
+  if (useMock) return {} as RemoteAgent;
+  return post<RemoteAgent>(`/remote-agents/${id}/ping`);
+}
+
+export async function pingAllRemoteAgents() {
+  await ensureReady();
+  if (useMock) return { agents: [] as RemoteAgent[] };
+  return post<{ agents: RemoteAgent[] }>("/remote-agents/ping-all");
 }

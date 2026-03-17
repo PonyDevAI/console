@@ -64,6 +64,9 @@ impl ConsolePaths {
     pub fn settings_file(&self) -> PathBuf {
         self.root.join("settings.json")
     }
+    pub fn remote_agents_file(&self) -> PathBuf {
+        self.state_dir().join("remote_agents.json")
+    }
 
     /// Create all required directories.
     pub fn ensure_dirs(&self) -> Result<()> {
@@ -94,10 +97,13 @@ impl ConsolePaths {
         }
         let providers = self.providers_file();
         if !providers.exists() {
-            write_json(&providers, &crate::models::ProvidersState {
-                providers: vec![],
-                switch_modes: std::collections::HashMap::new(),
-            })?;
+            write_json(
+                &providers,
+                &crate::models::ProvidersState {
+                    providers: vec![],
+                    switch_modes: std::collections::HashMap::new(),
+                },
+            )?;
         }
         let mcp = self.mcp_servers_file();
         if !mcp.exists() {
@@ -113,7 +119,10 @@ impl ConsolePaths {
         }
         let skill_repos = self.skill_repos_file();
         if !skill_repos.exists() {
-            write_json(&skill_repos, &crate::models::SkillReposState { repos: vec![] })?;
+            write_json(
+                &skill_repos,
+                &crate::models::SkillReposState { repos: vec![] },
+            )?;
         }
         let settings = self.settings_file();
         if !settings.exists() {

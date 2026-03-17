@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, SwitchMode};
+use crate::models::{CreateRemoteAgentRequest, RemoteAgentsState, UpdateRemoteAgentRequest};
 use crate::services;
 use crate::services::task_queue::{TaskQueue, TaskStatus};
 
@@ -90,6 +91,12 @@ pub fn api_routes() -> Router {
         .route("/config-sync", get(get_config_sync))
         .route("/config-sync/sync-all", post(sync_all_config))
         .route("/config-sync/:id/sync", post(sync_single_config))
+        .route("/remote-agents", get(list_remote_agents))
+        .route("/remote-agents", post(add_remote_agent))
+        .route("/remote-agents/ping-all", post(ping_all_remote_agents))
+        .route("/remote-agents/:id", put(update_remote_agent))
+        .route("/remote-agents/:id", delete(delete_remote_agent))
+        .route("/remote-agents/:id/ping", post(ping_remote_agent))
 }
 
 async fn health() -> Json<Value> {
@@ -623,4 +630,58 @@ fn map_not_found(err: anyhow::Error) -> StatusCode {
     } else {
         StatusCode::INTERNAL_SERVER_ERROR
     }
+}
+
+async fn list_remote_agents() -> Result<Json<Value>, StatusCode> {
+    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "agents": agents })))
+}
+
+async fn add_remote_agent(
+    Json(req): Json<CreateRemoteAgentRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let agent = services::remote_agent::add(
+        &req.name,
+        &req.display_name,
+        &req.endpoint,
+        req.api_key.as_deref(),
+        req.tags,
+    )
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(agent)))
+}
+
+async fn update_remote_agent(
+    Path(id): Path<String>,
+    Json(req): Json<UpdateRemoteAgentRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let agent = services::remote_agent::update(
+        &id,
+        req.display_name.as_deref(),
+        req.endpoint.as_deref(),
+        req.api_key.as_deref(),
+        req.tags,
+    )
+    .await
+    .map_err(map_not_found)?;
+    Ok(Json(json!(agent)))
+}
+
+async fn delete_remote_agent(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    services::remote_agent::remove(&id).await.map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn ping_remote_agent(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let agent = services::remote_agent::ping_by_id(&id).await.map_err(map_not_found)?;
+    Ok(Json(json!(agent)))
+}
+
+async fn ping_all_remote_agents() -> Result<Json<Value>, StatusCode> {
+    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut state = RemoteAgentsState { agents };
+    services::remote_agent::ping_all(&mut state).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::remote_agent::save(&state).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "agents": state.agents })))
 }

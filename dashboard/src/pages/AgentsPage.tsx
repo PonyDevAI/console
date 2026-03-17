@@ -6,6 +6,12 @@ import {
   scanCliTools,
   uninstallTool,
   upgradeTool,
+  getRemoteAgents,
+  addRemoteAgent,
+  updateRemoteAgent,
+  deleteRemoteAgent,
+  pingRemoteAgent,
+  pingAllRemoteAgents,
 } from "../api";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -13,7 +19,7 @@ import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toast";
-import type { CliTool, Task } from "../types";
+import type { CliTool, RemoteAgent, Task } from "../types";
 import { cn } from "../lib/utils";
 import { useTaskStream } from "../hooks/useTask";
 
@@ -26,6 +32,14 @@ type PendingAction = {
 
 type TabId = "local" | "remote";
 
+interface RemoteAgentForm {
+  name: string;
+  display_name: string;
+  endpoint: string;
+  api_key: string;
+  tags: string;
+}
+
 export default function AgentsPage() {
   const [tools, setTools] = useState<CliTool[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,16 +49,19 @@ export default function AgentsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("local");
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
+  const [remoteAgents, setRemoteAgents] = useState<RemoteAgent[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<RemoteAgent | null>(null);
+  const [pinging, setPinging] = useState<string | null>(null);
+
   const { tasks, getTaskForTarget } = useTaskStream();
 
-  // 逐个查远程版本，每查到一个立即更新对应行
   const checkRemoteVersions = useCallback(async (toolList: CliTool[]) => {
     for (const tool of toolList) {
-      // 已有远程版本的跳过
       if (tool.remote_version) continue;
       try {
         const result = await checkRemoteVersion(tool.name);
-        // null 表示该工具不支持远程版本查询，标记为已检查（用 "-"）
         setTools(prev =>
           prev.map(t =>
             t.name === result.name
@@ -53,7 +70,6 @@ export default function AgentsPage() {
           )
         );
       } catch {
-        // 查询失败也标记为已检查
         setTools(prev =>
           prev.map(t =>
             t.name === tool.name && !t.remote_version
@@ -65,26 +81,21 @@ export default function AgentsPage() {
     }
   }, []);
 
-  // 首次加载：先用缓存（瞬间显示），再后台 scan 刷新 + 查远程
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. 先读缓存，瞬间显示列表
       const cached = await getCliTools();
       const cachedTools = cached.tools ?? [];
       if (cachedTools.length > 0) {
         setTools(cachedTools);
         setLoading(false);
-        // 2. 后台 scan 刷新本地状态
         scanCliTools().then(data => {
           const freshTools = data.tools ?? [];
           if (freshTools.length > 0) setTools(freshTools);
-          // 3. 逐个查远程版本
           void checkRemoteVersions(freshTools);
         }).catch(() => {});
       } else {
-        // 无缓存，等 scan 完成
         const data = await scanCliTools();
         const toolList = data.tools ?? [];
         setTools(toolList);
@@ -97,7 +108,6 @@ export default function AgentsPage() {
     }
   }, [checkRemoteVersions]);
 
-  // 静默刷新：任务完成后只更新本地状态（快）
   const silentReload = useCallback(async () => {
     try {
       const data = await scanCliTools();
@@ -125,6 +135,26 @@ export default function AgentsPage() {
       }
     });
   }, [tasks, completedTasks, silentReload]);
+
+  const loadRemoteAgents = useCallback(async () => {
+    setRemoteLoading(true);
+    try {
+      const data = await getRemoteAgents();
+      setRemoteAgents(data.agents ?? []);
+      const pinged = await pingAllRemoteAgents();
+      setRemoteAgents(pinged.agents ?? []);
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "加载远程 Agent 失败", "error");
+    } finally {
+      setRemoteLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'remote') {
+      void loadRemoteAgents();
+    }
+  }, [activeTab, loadRemoteAgents]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -166,6 +196,72 @@ export default function AgentsPage() {
       setPending(null);
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : "操作失败", "error");
+    }
+  };
+
+  const handleAddRemoteAgent = async (formData: RemoteAgentForm) => {
+    try {
+      const tags = formData.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+      await addRemoteAgent({
+        name: formData.name,
+        display_name: formData.display_name,
+        endpoint: formData.endpoint,
+        api_key: formData.api_key || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+      });
+      toast("远程 Agent 添加成功", "success");
+      setShowAddDialog(false);
+      void loadRemoteAgents();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "添加失败", "error");
+    }
+  };
+
+  const handleUpdateRemoteAgent = async (id: string, formData: RemoteAgentForm) => {
+    try {
+      const tags = formData.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+      await updateRemoteAgent(id, {
+        display_name: formData.display_name,
+        endpoint: formData.endpoint,
+        api_key: formData.api_key || undefined,
+        tags: tags.length > 0 ? tags : undefined,
+      });
+      toast("远程 Agent 更新成功", "success");
+      setEditingAgent(null);
+      void loadRemoteAgents();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "更新失败", "error");
+    }
+  };
+
+  const handleDeleteRemoteAgent = async (id: string) => {
+    try {
+      await deleteRemoteAgent(id);
+      toast("远程 Agent 已删除", "success");
+      void loadRemoteAgents();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "删除失败", "error");
+    }
+  };
+
+  const handlePingAgent = async (id: string) => {
+    setPinging(id);
+    try {
+      const agent = await pingRemoteAgent(id);
+      toast(`${agent.display_name} 状态：${agent.status}`, agent.status === 'online' ? "success" : "error");
+      void loadRemoteAgents();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "检测失败", "error");
+    } finally {
+      setPinging(null);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'offline': return 'bg-red-500';
+      default: return 'bg-gray-400';
     }
   };
 
@@ -316,7 +412,92 @@ export default function AgentsPage() {
         </>
       )}
 
-      {activeTab === "remote" && <EmptyState message="远程 Agent 管理即将推出，敬请期待。" />}
+      {activeTab === "remote" && (
+        <>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => void loadRemoteAgents()} disabled={remoteLoading}>
+              {remoteLoading ? "刷新中..." : "刷新"}
+            </Button>
+            <Button onClick={() => setShowAddDialog(true)}>
+              添加远程 Agent
+            </Button>
+          </div>
+
+          {remoteAgents.length === 0 ? (
+            <EmptyState message="暂无远程 Agent，点击添加" />
+          ) : (
+            <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
+              <table className="w-full text-sm">
+                <thead className="bg-[var(--bg-accent)] text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+                  <tr>
+                    <th className="px-4 py-3 text-left">名称</th>
+                    <th className="px-4 py-3 text-left">Endpoint</th>
+                    <th className="px-4 py-3 text-left">状态</th>
+                    <th className="px-4 py-3 text-left">版本</th>
+                    <th className="px-4 py-3 text-left">最后检测</th>
+                    <th className="px-4 py-3 text-left">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {remoteAgents.map((agent) => (
+                    <tr key={agent.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
+                      <td className="px-4 py-3 text-sm text-[var(--text)]">
+                        <div className="font-medium">{agent.display_name}</div>
+                        {agent.tags.length > 0 && (
+                          <div className="flex gap-1 mt-1">
+                            {agent.tags.map((tag, i) => (
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-accent)] rounded text-[var(--muted)]">
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{agent.endpoint}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${getStatusColor(agent.status)}`} />
+                          <span className="text-[var(--muted)] capitalize">{agent.status}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{agent.version ?? "-"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">
+                        {agent.last_ping ? formatTimeAgo(agent.last_ping) : "-"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="secondary"
+                            disabled={pinging === agent.id}
+                            onClick={() => void handlePingAgent(agent.id)}
+                          >
+                            {pinging === agent.id ? "检测中..." : "检测"}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => setEditingAgent(agent)}
+                          >
+                            编辑
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => void handleDeleteRemoteAgent(agent.id)}
+                          >
+                            删除
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
 
       <ConfirmDialog
         open={Boolean(pending)}
@@ -327,6 +508,29 @@ export default function AgentsPage() {
         onCancel={() => setPending(null)}
         onConfirm={() => void onConfirmAction()}
       />
+
+      {showAddDialog && (
+        <RemoteAgentDialog
+          open={showAddDialog}
+          onClose={() => setShowAddDialog(false)}
+          onSubmit={handleAddRemoteAgent}
+        />
+      )}
+
+      {editingAgent && (
+        <RemoteAgentDialog
+          open={Boolean(editingAgent)}
+          onClose={() => setEditingAgent(null)}
+          onSubmit={(data) => void handleUpdateRemoteAgent(editingAgent.id, data)}
+          initialData={{
+            name: editingAgent.name,
+            display_name: editingAgent.display_name,
+            endpoint: editingAgent.endpoint,
+            api_key: editingAgent.api_key ?? "",
+            tags: editingAgent.tags.join(", "),
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -344,11 +548,160 @@ function formatAction(action: string): string {
   }
 }
 
+function formatTimeAgo(timestamp: string): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays > 0) return `${diffDays}天前`;
+  if (diffHours > 0) return `${diffHours}小时前`;
+  if (diffMins > 0) return `${diffMins}分钟前`;
+  return "刚刚";
+}
+
 function Spinner({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={`animate-spin ${className}`} viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
     </svg>
+  );
+}
+
+interface RemoteAgentDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: RemoteAgentForm) => void;
+  initialData?: RemoteAgentForm;
+}
+
+function RemoteAgentDialog({ open, onClose, onSubmit, initialData }: RemoteAgentDialogProps) {
+  const [formData, setFormData] = useState<RemoteAgentForm>({
+    name: "",
+    display_name: "",
+    endpoint: "",
+    api_key: "",
+    tags: "",
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData(initialData);
+    }
+  }, [initialData]);
+
+  const handleOpenClawTemplate = () => {
+    setFormData({
+      name: "openclaw",
+      display_name: "OpenClaw",
+      endpoint: "",
+      api_key: "",
+      tags: "",
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name || !formData.display_name || !formData.endpoint) {
+      toast("请填写必填字段", "error");
+      return;
+    }
+    onSubmit(formData);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-[var(--card)] rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="px-6 py-4 border-b border-[var(--border)]">
+          <h3 className="text-lg font-semibold text-[var(--text)]">
+            {initialData ? "编辑远程 Agent" : "添加远程 Agent"}
+          </h3>
+        </div>
+        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+          {!initialData && (
+            <div className="flex justify-end">
+              <Button type="button" size="sm" variant="secondary" onClick={handleOpenClawTemplate}>
+                OpenClaw 模板
+              </Button>
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-[var(--muted)] mb-1">
+              名称 <span className="text-[var(--danger)]">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="如：openclaw"
+              disabled={!!initialData}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--muted)] mb-1">
+              显示名称 <span className="text-[var(--danger)]">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.display_name}
+              onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="如：OpenClaw"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--muted)] mb-1">
+              Endpoint URL <span className="text-[var(--danger)]">*</span>
+            </label>
+            <input
+              type="url"
+              value={formData.endpoint}
+              onChange={(e) => setFormData({ ...formData, endpoint: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="如：https://openclaw.example.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--muted)] mb-1">
+              API Key <span className="text-xs text-[var(--muted)]">(可选)</span>
+            </label>
+            <input
+              type="password"
+              value={formData.api_key}
+              onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="API 密钥"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--muted)] mb-1">
+              标签 <span className="text-xs text-[var(--muted)]">(可选，逗号分隔)</span>
+            </label>
+            <input
+              type="text"
+              value={formData.tags}
+              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+              className="w-full px-3 py-2 bg-[var(--bg)] border border-[var(--border)] rounded text-[var(--text)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+              placeholder="如：ai, assistant, remote"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              取消
+            </Button>
+            <Button type="submit">
+              {initialData ? "保存" : "添加"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

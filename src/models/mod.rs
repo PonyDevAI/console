@@ -18,7 +18,9 @@ pub struct CliTool {
     pub install_url: Option<String>,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CliToolsState {
@@ -215,4 +217,51 @@ where
 {
     let value = Option::<String>::deserialize(deserializer)?;
     Ok(value.unwrap_or_default())
+}
+
+// ── Remote Agent ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteAgent {
+    pub id: String,
+    pub name: String,
+    pub display_name: String,
+    pub endpoint: String,
+    pub api_key: Option<String>,
+    pub status: RemoteAgentStatus,
+    pub version: Option<String>,
+    pub last_ping: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum RemoteAgentStatus {
+    Online,
+    Offline,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoteAgentsState {
+    pub agents: Vec<RemoteAgent>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateRemoteAgentRequest {
+    pub name: String,
+    pub display_name: String,
+    pub endpoint: String,
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct UpdateRemoteAgentRequest {
+    pub display_name: Option<String>,
+    pub endpoint: Option<String>,
+    pub api_key: Option<String>,
+    pub tags: Option<Vec<String>>,
 }
