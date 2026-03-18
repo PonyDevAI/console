@@ -179,4 +179,65 @@ impl CliAdapter for CodexAdapter {
         tracing::info!("Wrote Codex provider config: auth.json + config.toml");
         Ok(())
     }
+
+    fn supports_model_config(&self) -> bool {
+        true
+    }
+
+    fn write_model_config(&self, _provider: &crate::models::Provider, model: &str) -> Result<()> {
+        let config_dir = self.config_dir()?;
+        std::fs::create_dir_all(&config_dir)?;
+
+        let config_path = config_dir.join("config.toml");
+        let mut config: toml::Value = if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path)?;
+            content
+                .parse()
+                .unwrap_or(toml::Value::Table(toml::map::Map::new()))
+        } else {
+            toml::Value::Table(toml::map::Map::new())
+        };
+
+        if let Some(table) = config.as_table_mut() {
+            table.insert("model".to_string(), toml::Value::String(model.to_string()));
+        }
+
+        std::fs::write(&config_path, toml::to_string_pretty(&config)?)?;
+        tracing::info!("Wrote Codex model config: model={}", model);
+        Ok(())
+    }
+
+    fn read_model_config(&self) -> Result<Option<String>> {
+        let config_path = self.config_dir()?.join("config.toml");
+        if !config_path.exists() {
+            return Ok(None);
+        }
+
+        let content = std::fs::read_to_string(&config_path)?;
+        let config: toml::Value = content.parse()?;
+        Ok(config
+            .get("model")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string()))
+    }
+
+    fn clear_model_config(&self) -> Result<()> {
+        let config_path = self.config_dir()?.join("config.toml");
+        if !config_path.exists() {
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&config_path)?;
+        let mut config: toml::Value = content
+            .parse()
+            .unwrap_or(toml::Value::Table(toml::map::Map::new()));
+
+        if let Some(table) = config.as_table_mut() {
+            table.remove("model");
+        }
+
+        std::fs::write(&config_path, toml::to_string_pretty(&config)?)?;
+        tracing::info!("Cleared Codex model config");
+        Ok(())
+    }
 }

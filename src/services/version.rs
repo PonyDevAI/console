@@ -38,6 +38,7 @@ pub fn scan_all() -> Result<CliToolsState> {
                             path: Some(info.path),
                             last_checked: Some(now),
                             auto_install: adapter.supports_auto_install(),
+                            supports_model_config: adapter.supports_model_config(),
                             install_url: adapter.install_url().map(|u| u.to_string()),
                         },
                         _ => CliTool {
@@ -49,6 +50,7 @@ pub fn scan_all() -> Result<CliToolsState> {
                             path: None,
                             last_checked: Some(now),
                             auto_install: adapter.supports_auto_install(),
+                            supports_model_config: adapter.supports_model_config(),
                             install_url: adapter.install_url().map(|u| u.to_string()),
                         },
                     }

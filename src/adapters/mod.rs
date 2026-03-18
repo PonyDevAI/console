@@ -65,6 +65,30 @@ pub trait CliAdapter: Send + Sync {
         Ok(())
     }
 
+    /// Whether this CLI supports direct model configuration.
+    fn supports_model_config(&self) -> bool {
+        false
+    }
+
+    /// Write model config in this CLI's native format.
+    fn write_model_config(
+        &self,
+        _provider: &crate::models::Provider,
+        _model: &str,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    /// Read the currently effective model from this CLI's native config.
+    fn read_model_config(&self) -> Result<Option<String>> {
+        Ok(None)
+    }
+
+    /// Clear Console-managed model config so the CLI falls back to its default behavior.
+    fn clear_model_config(&self) -> Result<()> {
+        Ok(())
+    }
+
     /// Whether this CLI uses switch mode (one provider) or additive mode (all providers).
     fn switch_mode(&self) -> crate::models::SwitchMode {
         crate::models::SwitchMode::Switch

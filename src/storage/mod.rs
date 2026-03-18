@@ -45,6 +45,9 @@ impl ConsolePaths {
     pub fn providers_file(&self) -> PathBuf {
         self.state_dir().join("providers.json")
     }
+    pub fn model_assignments_file(&self) -> PathBuf {
+        self.state_dir().join("model_assignments.json")
+    }
     pub fn mcp_servers_file(&self) -> PathBuf {
         self.state_dir().join("mcp_servers.json")
     }
@@ -108,6 +111,13 @@ impl ConsolePaths {
         let mcp = self.mcp_servers_file();
         if !mcp.exists() {
             write_json(&mcp, &crate::models::McpServersState { servers: vec![] })?;
+        }
+        let model_assignments = self.model_assignments_file();
+        if !model_assignments.exists() {
+            write_json(
+                &model_assignments,
+                &crate::models::ModelAssignmentsState::default(),
+            )?;
         }
         let skills = self.skills_file();
         if !skills.exists() {

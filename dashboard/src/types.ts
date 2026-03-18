@@ -8,6 +8,7 @@ export type CliTool = {
   path: string | null;
   last_checked: string | null;
   auto_install: boolean;
+  supports_model_config: boolean;
   install_url: string | null;
 };
 
@@ -19,6 +20,7 @@ export type Provider = {
   api_key_ref: string;
   active: boolean;
   apps: string[];
+  models: string[];
   created_at: string;
   modified_at: string;
 };
@@ -28,6 +30,14 @@ export type CreateProviderInput = {
   api_endpoint: string;
   api_key_ref: string;
   apps: string[];
+  models: string[];
+};
+
+export type ModelAssignment = {
+  app: string;
+  provider_id: string;
+  model: string;
+  updated_at: string;
 };
 
 export type SwitchMode = "switch" | "additive";

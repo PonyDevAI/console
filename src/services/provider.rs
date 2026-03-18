@@ -32,6 +32,7 @@ pub fn create(
     api_endpoint: String,
     api_key_ref: String,
     apps: Vec<String>,
+    models: Vec<String>,
 ) -> Result<Provider> {
     let mut state = load()?;
     let now = chrono::Utc::now();
@@ -42,6 +43,7 @@ pub fn create(
         api_key_ref,
         active: false,
         apps,
+        models,
         created_at: now,
         modified_at: now,
     };
@@ -56,6 +58,7 @@ pub fn update_fields(
     api_endpoint: String,
     api_key_ref: String,
     apps: Vec<String>,
+    models: Vec<String>,
 ) -> Result<Provider> {
     let mut state = load()?;
     if let Some(p) = state.providers.iter_mut().find(|p| p.id == id) {
@@ -63,6 +66,7 @@ pub fn update_fields(
         p.api_endpoint = api_endpoint;
         p.api_key_ref = api_key_ref;
         p.apps = apps;
+        p.models = models;
         p.modified_at = chrono::Utc::now();
         let result = p.clone();
         save(&state)?;

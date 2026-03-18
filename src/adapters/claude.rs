@@ -6,6 +6,34 @@ use crate::models::InstalledInfo;
 
 pub struct ClaudeAdapter;
 
+fn load_settings(path: &std::path::Path) -> Result<serde_json::Value> {
+    if path.exists() {
+        let content = std::fs::read_to_string(path)?;
+        Ok(serde_json::from_str(&content).unwrap_or(serde_json::json!({})))
+    } else {
+        Ok(serde_json::json!({}))
+    }
+}
+
+fn ensure_env_object(settings: &mut serde_json::Value) -> Result<&mut serde_json::Map<String, serde_json::Value>> {
+    let obj = settings
+        .as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("Claude settings.json must be a JSON object"))?;
+    let env = obj
+        .entry("env".to_string())
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    env.as_object_mut()
+        .ok_or_else(|| anyhow::anyhow!("Claude settings.json env must be a JSON object"))
+}
+
+fn save_settings(path: &std::path::Path, settings: &serde_json::Value) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, serde_json::to_string_pretty(settings)?)?;
+    Ok(())
+}
+
 impl CliAdapter for ClaudeAdapter {
     fn name(&self) -> &str {
         "claude"
@@ -138,6 +166,80 @@ impl CliAdapter for ClaudeAdapter {
     }
 
     fn supports_provider_sync(&self) -> bool {
-        false
+        true
+    }
+
+    fn write_provider_config(&self, provider: &crate::models::Provider) -> Result<()> {
+        let settings_path = self.config_file()?;
+        let mut settings = load_settings(&settings_path)?;
+        let env = ensure_env_object(&mut settings)?;
+        env.insert(
+            "ANTHROPIC_BASE_URL".to_string(),
+            serde_json::Value::String(provider.api_endpoint.clone()),
+        );
+        env.insert(
+            "ANTHROPIC_AUTH_TOKEN".to_string(),
+            serde_json::Value::String(provider.api_key_ref.clone()),
+        );
+        save_settings(&settings_path, &settings)?;
+        tracing::info!("Wrote Claude provider config: {}", settings_path.display());
+        Ok(())
+    }
+
+    fn supports_model_config(&self) -> bool {
+        true
+    }
+
+    fn write_model_config(&self, provider: &crate::models::Provider, model: &str) -> Result<()> {
+        let settings_path = self.config_file()?;
+        let mut settings = load_settings(&settings_path)?;
+        let env = ensure_env_object(&mut settings)?;
+        env.insert(
+            "ANTHROPIC_MODEL".to_string(),
+            serde_json::Value::String(model.to_string()),
+        );
+        env.insert(
+            "ANTHROPIC_BASE_URL".to_string(),
+            serde_json::Value::String(provider.api_endpoint.clone()),
+        );
+        env.insert(
+            "ANTHROPIC_AUTH_TOKEN".to_string(),
+            serde_json::Value::String(provider.api_key_ref.clone()),
+        );
+        save_settings(&settings_path, &settings)?;
+        tracing::info!("Wrote Claude model config: model={}", model);
+        Ok(())
+    }
+
+    fn read_model_config(&self) -> Result<Option<String>> {
+        let settings_path = self.config_file()?;
+        if !settings_path.exists() {
+            return Ok(None);
+        }
+
+        let settings = load_settings(&settings_path)?;
+        Ok(settings
+            .get("env")
+            .and_then(|env| env.get("ANTHROPIC_MODEL"))
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string()))
+    }
+
+    fn clear_model_config(&self) -> Result<()> {
+        let settings_path = self.config_file()?;
+        if !settings_path.exists() {
+            return Ok(());
+        }
+
+        let mut settings = load_settings(&settings_path)?;
+        if let Some(env) = settings.get_mut("env").and_then(|value| value.as_object_mut()) {
+            env.remove("ANTHROPIC_MODEL");
+            env.remove("ANTHROPIC_BASE_URL");
+            env.remove("ANTHROPIC_AUTH_TOKEN");
+        }
+
+        save_settings(&settings_path, &settings)?;
+        tracing::info!("Cleared Claude model config");
+        Ok(())
     }
 }

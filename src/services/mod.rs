@@ -1,5 +1,6 @@
 pub mod version;
 pub mod provider;
+pub mod model_assignment;
 pub mod mcp;
 pub mod skill;
 pub mod skill_sync;

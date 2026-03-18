@@ -40,6 +40,12 @@ struct ToggleSkillRepoRequest {
 }
 
 #[derive(serde::Deserialize)]
+struct SetModelAssignmentRequest {
+    provider_id: String,
+    model: String,
+}
+
+#[derive(serde::Deserialize)]
 struct InstallFromUrlRequest {
     name: String,
     source_url: String,
@@ -65,6 +71,11 @@ pub fn api_routes() -> Router {
         .route("/providers/:id", delete(delete_provider))
         .route("/providers/:id/activate", post(activate_provider))
         .route("/providers/:id/test", post(test_provider))
+        .route("/providers/:id/fetch-models", post(fetch_provider_models))
+        .route("/model-assignments", get(list_model_assignments))
+        .route("/model-assignments/:app", put(set_model_assignment))
+        .route("/model-assignments/:app", delete(remove_model_assignment))
+        .route("/model-assignments/:app/current", get(get_current_model))
         .route("/mcp-servers", get(list_mcp_servers))
         .route("/mcp-servers", post(create_mcp_server))
         .route("/mcp-servers/import-from/:app", post(import_mcp_from_app))
@@ -248,7 +259,13 @@ async fn set_switch_mode(
 }
 
 async fn create_provider(Json(req): Json<CreateProviderRequest>) -> Result<Json<Value>, StatusCode> {
-    let provider = services::provider::create(req.name, req.api_endpoint, req.api_key_ref, req.apps)
+    let provider = services::provider::create(
+        req.name,
+        req.api_endpoint,
+        req.api_key_ref,
+        req.apps,
+        req.models,
+    )
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(provider)))
 }
@@ -269,7 +286,14 @@ async fn update_provider(
     Path(id): Path<String>,
     Json(req): Json<CreateProviderRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let updated = services::provider::update_fields(&id, req.name, req.api_endpoint, req.api_key_ref, req.apps)
+    let updated = services::provider::update_fields(
+        &id,
+        req.name,
+        req.api_endpoint,
+        req.api_key_ref,
+        req.apps,
+        req.models,
+    )
         .map_err(map_not_found)?;
     Ok(Json(json!(updated)))
 }
@@ -333,6 +357,118 @@ async fn test_provider(Path(id): Path<String>) -> Result<Json<Value>, StatusCode
         }
         Err(e) => Ok(Json(json!({ "ok": false, "error": e.to_string() }))),
     }
+}
+
+async fn fetch_provider_models(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let providers = services::provider::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let provider = providers
+        .into_iter()
+        .find(|provider| provider.id == id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/models", provider.api_endpoint.trim_end_matches('/')))
+        .header("Authorization", format!("Bearer {}", provider.api_key_ref))
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+
+    if !response.status().is_success() {
+        return Err(StatusCode::BAD_GATEWAY);
+    }
+
+    let body: Value = response
+        .json()
+        .await
+        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let models = body
+        .get("data")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("id").and_then(|value| value.as_str()))
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    services::provider::update_fields(
+        &provider.id,
+        provider.name,
+        provider.api_endpoint,
+        provider.api_key_ref,
+        provider.apps,
+        models.clone(),
+    )
+    .map_err(map_not_found)?;
+
+    Ok(Json(json!({ "models": models })))
+}
+
+async fn list_model_assignments() -> Result<Json<Value>, StatusCode> {
+    let assignments = services::model_assignment::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "assignments": assignments })))
+}
+
+async fn set_model_assignment(
+    Path(app): Path<String>,
+    Json(req): Json<SetModelAssignmentRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let providers = services::provider::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let provider = providers
+        .into_iter()
+        .find(|provider| provider.id == req.provider_id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let registry = crate::adapters::registry();
+    let adapter = registry.find(&app).ok_or(StatusCode::NOT_FOUND)?;
+    if !adapter.supports_model_config() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let assignment = services::model_assignment::set(app, req.provider_id, req.model.clone())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    adapter
+        .write_model_config(&provider, &req.model)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(json!(assignment)))
+}
+
+async fn remove_model_assignment(Path(app): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let registry = crate::adapters::registry();
+    let adapter = registry.find(&app).ok_or(StatusCode::NOT_FOUND)?;
+    if !adapter.supports_model_config() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    services::model_assignment::remove(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    adapter
+        .clear_model_config()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn get_current_model(Path(app): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let registry = crate::adapters::registry();
+    let adapter = registry.find(&app).ok_or(StatusCode::NOT_FOUND)?;
+    if !adapter.supports_model_config() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let assignment = services::model_assignment::get(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let current_model = adapter
+        .read_model_config()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(json!({
+        "assignment": assignment,
+        "current_model": current_model,
+    })))
 }
 
 async fn list_mcp_servers() -> Result<Json<Value>, StatusCode> {

@@ -11,6 +11,7 @@ export const mockTools: CliTool[] = [
     path: "~/.local/bin/agent",
     last_checked: new Date().toISOString(),
     auto_install: true,
+    supports_model_config: false,
     install_url: null,
   },
   {
@@ -22,6 +23,7 @@ export const mockTools: CliTool[] = [
     path: "/usr/local/bin/claude",
     last_checked: new Date().toISOString(),
     auto_install: true,
+    supports_model_config: true,
     install_url: null,
   },
   {
@@ -33,6 +35,7 @@ export const mockTools: CliTool[] = [
     path: "/usr/local/bin/codex",
     last_checked: new Date().toISOString(),
     auto_install: true,
+    supports_model_config: true,
     install_url: null,
   },
   {
@@ -44,6 +47,7 @@ export const mockTools: CliTool[] = [
     path: null,
     last_checked: null,
     auto_install: true,
+    supports_model_config: false,
     install_url: null,
   },
   {
@@ -55,6 +59,7 @@ export const mockTools: CliTool[] = [
     path: null,
     last_checked: null,
     auto_install: true,
+    supports_model_config: true,
     install_url: null,
   },
 ];
@@ -67,6 +72,7 @@ export const mockProviders: Provider[] = [
     api_key_ref: "sk-****7f3a",
     active: true,
     apps: ["cursor", "claude"],
+    models: ["gpt-4o", "gpt-4.1", "o3-mini"],
     created_at: "2025-01-15T08:00:00Z",
     modified_at: "2025-03-01T10:00:00Z",
   },
@@ -77,6 +83,7 @@ export const mockProviders: Provider[] = [
     api_key_ref: "sk-ant-****9b2c",
     active: true,
     apps: ["claude", "codex"],
+    models: ["claude-3.5-sonnet", "claude-3.7-sonnet", "claude-3-haiku"],
     created_at: "2025-02-01T08:00:00Z",
     modified_at: "2025-03-10T10:00:00Z",
   },
@@ -87,6 +94,7 @@ export const mockProviders: Provider[] = [
     api_key_ref: "sk-or-****4d1e",
     active: false,
     apps: ["cursor"],
+    models: ["openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash"],
     created_at: "2025-02-20T08:00:00Z",
     modified_at: "2025-02-20T08:00:00Z",
   },

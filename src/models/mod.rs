@@ -15,6 +15,8 @@ pub struct CliTool {
     pub last_checked: Option<DateTime<Utc>>,
     #[serde(default = "default_true")]
     pub auto_install: bool,
+    #[serde(default)]
+    pub supports_model_config: bool,
     pub install_url: Option<String>,
 }
 
@@ -37,6 +39,8 @@ pub struct Provider {
     pub api_key_ref: String,
     pub active: bool,
     pub apps: Vec<String>,
+    #[serde(default)]
+    pub models: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub modified_at: DateTime<Utc>,
 }
@@ -68,6 +72,21 @@ pub struct CreateProviderRequest {
     pub api_endpoint: String,
     pub api_key_ref: String,
     pub apps: Vec<String>,
+    #[serde(default)]
+    pub models: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelAssignment {
+    pub app: String,
+    pub provider_id: String,
+    pub model: String,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModelAssignmentsState {
+    pub assignments: Vec<ModelAssignment>,
 }
 
 // ── MCP Server ──

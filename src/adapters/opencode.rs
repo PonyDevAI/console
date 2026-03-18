@@ -187,4 +187,65 @@ impl CliAdapter for OpenCodeAdapter {
         tracing::info!("Wrote OpenCode provider config: {}", config_path.display());
         Ok(())
     }
+
+    fn supports_model_config(&self) -> bool {
+        true
+    }
+
+    fn write_model_config(&self, provider: &crate::models::Provider, model: &str) -> Result<()> {
+        let config_path = self.config_file()?;
+        let mut config: serde_json::Value = if config_path.exists() {
+            let content = std::fs::read_to_string(&config_path)?;
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
+        } else {
+            serde_json::json!({})
+        };
+
+        if let Some(obj) = config.as_object_mut() {
+            obj.insert(
+                "model".to_string(),
+                serde_json::Value::String(format!("{}/{}", provider.name.to_lowercase(), model)),
+            );
+        }
+
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&config_path, serde_json::to_string_pretty(&config)?)?;
+        tracing::info!("Wrote OpenCode model config: {}", config_path.display());
+        Ok(())
+    }
+
+    fn read_model_config(&self) -> Result<Option<String>> {
+        let config_path = self.config_file()?;
+        if !config_path.exists() {
+            return Ok(None);
+        }
+
+        let content = std::fs::read_to_string(&config_path)?;
+        let config: serde_json::Value = serde_json::from_str(&content)?;
+        Ok(config
+            .get("model")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string()))
+    }
+
+    fn clear_model_config(&self) -> Result<()> {
+        let config_path = self.config_file()?;
+        if !config_path.exists() {
+            return Ok(());
+        }
+
+        let content = std::fs::read_to_string(&config_path)?;
+        let mut config: serde_json::Value =
+            serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+
+        if let Some(obj) = config.as_object_mut() {
+            obj.remove("model");
+        }
+
+        std::fs::write(&config_path, serde_json::to_string_pretty(&config)?)?;
+        tracing::info!("Cleared OpenCode model config");
+        Ok(())
+    }
 }

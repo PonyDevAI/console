@@ -1,9 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   checkRemoteVersion,
+  getCurrentModel,
   getCliTools,
+  getModelAssignments,
+  getProviders,
   installTool,
+  removeModelAssignment,
   scanCliTools,
+  setModelAssignment,
   uninstallTool,
   upgradeTool,
   getRemoteAgents,
@@ -17,10 +22,11 @@ import {
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
+import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { toast } from "../components/Toast";
-import type { CliTool, OpenClawDetail, RemoteAgent, RemoteAgentDetail, Task } from "../types";
+import type { CliTool, ModelAssignment, OpenClawDetail, Provider, RemoteAgent, RemoteAgentDetail, Task } from "../types";
 import { cn } from "../lib/utils";
 import { useTaskStream } from "../hooks/useTask";
 
@@ -41,10 +47,23 @@ interface RemoteAgentForm {
   tags: string;
 }
 
+type CurrentModelState = {
+  assignment: ModelAssignment | null;
+  current_model: string | null;
+};
+
 export default function AgentsPage() {
   const [tools, setTools] = useState<CliTool[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [assignments, setAssignments] = useState<ModelAssignment[]>([]);
+  const [currentModels, setCurrentModels] = useState<Record<string, CurrentModelState>>({});
+  const [modelConfigTool, setModelConfigTool] = useState<CliTool | null>(null);
+  const [modelConfigProviderId, setModelConfigProviderId] = useState("");
+  const [modelConfigModel, setModelConfigModel] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [applyingModelFor, setApplyingModelFor] = useState<string | null>(null);
+  const [resettingModelFor, setResettingModelFor] = useState<string | null>(null);
   const [checking, setChecking] = useState<string | null>(null); // 正在检测的工具名
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingAction | null>(null);
@@ -61,6 +80,36 @@ export default function AgentsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const { tasks, getTaskForTarget } = useTaskStream();
+
+  const syncModelMetadata = useCallback(async () => {
+    try {
+      const [providerData, assignmentData] = await Promise.all([
+        getProviders(),
+        getModelAssignments(),
+      ]);
+      setProviders(providerData.providers ?? []);
+      setAssignments(assignmentData.assignments ?? []);
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "加载模型配置失败", "error");
+    }
+  }, []);
+
+  const refreshCurrentModels = useCallback(async (toolList: CliTool[]) => {
+    const supportedInstalled = toolList.filter((tool) => tool.installed && tool.supports_model_config);
+    if (supportedInstalled.length === 0) {
+      setCurrentModels({});
+      return;
+    }
+
+    try {
+      const entries = await Promise.all(
+        supportedInstalled.map(async (tool) => [tool.name, await getCurrentModel(tool.name)] as const),
+      );
+      setCurrentModels(Object.fromEntries(entries));
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "读取当前模型失败", "error");
+    }
+  }, []);
 
   // 单个工具检测远程版本
   const onCheckSingle = async (toolName: string) => {
@@ -92,51 +141,59 @@ export default function AgentsPage() {
     setLoading(true);
     setError(null);
     try {
+      void syncModelMetadata();
       // 1. 先读缓存，瞬间显示（包含上次保存的 remote_version）
       const cached = await getCliTools();
       const cachedTools = cached.tools ?? [];
       if (cachedTools.length > 0) {
         setTools(cachedTools);
+        void refreshCurrentModels(cachedTools);
         setLoading(false);
         // 2. 后台 scan 刷新安装状态，保留缓存的 remote_version
         scanCliTools().then(data => {
           const freshTools = data.tools ?? [];
           if (freshTools.length > 0) {
-            setTools(prev =>
-              freshTools.map(ft => {
+            setTools(prev => {
+              const nextTools = freshTools.map(ft => {
                 const cached = prev.find(p => p.name === ft.name);
                 return { ...ft, remote_version: cached?.remote_version ?? ft.remote_version };
-              })
-            );
+              });
+              void refreshCurrentModels(nextTools);
+              return nextTools;
+            });
           }
         }).catch(() => {});
       } else {
         // 无缓存，等 scan 完成
         const data = await scanCliTools();
-        setTools(data.tools ?? []);
+        const nextTools = data.tools ?? [];
+        setTools(nextTools);
+        void refreshCurrentModels(nextTools);
         setLoading(false);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "加载 CLI 工具失败");
       setLoading(false);
     }
-  }, []);
+  }, [refreshCurrentModels, syncModelMetadata]);
 
   // 静默刷新：任务完成后刷新安装状态，保留 remote_version
   const silentReload = useCallback(async () => {
     try {
       const data = await scanCliTools();
       const freshTools = data.tools ?? [];
-      setTools(prev =>
-        freshTools.map(ft => {
+      setTools(prev => {
+        const nextTools = freshTools.map(ft => {
           const cached = prev.find(p => p.name === ft.name);
           return { ...ft, remote_version: cached?.remote_version ?? ft.remote_version };
-        })
-      );
+        });
+        void refreshCurrentModels(nextTools);
+        return nextTools;
+      });
     } catch {
       // 静默失败
     }
-  }, []);
+  }, [refreshCurrentModels]);
 
   useEffect(() => {
     void load();
@@ -182,12 +239,17 @@ export default function AgentsPage() {
     try {
       const data = await scanCliTools();
       const freshTools = data.tools ?? [];
+      const nextTools = freshTools.map(ft => {
+        const cached = tools.find(p => p.name === ft.name);
+        return { ...ft, remote_version: cached?.remote_version ?? ft.remote_version };
+      });
       setTools(prev =>
-        freshTools.map(ft => {
+        nextTools.map(ft => {
           const cached = prev.find(p => p.name === ft.name);
           return { ...ft, remote_version: cached?.remote_version ?? ft.remote_version };
         })
       );
+      void refreshCurrentModels(nextTools);
       toast("刷新完成", "success");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "刷新失败");
@@ -221,6 +283,75 @@ export default function AgentsPage() {
     } catch (err: unknown) {
       toast(err instanceof Error ? err.message : "操作失败", "error");
     }
+  };
+
+  const handleApplyModel = async (tool: CliTool, providerId: string, model: string) => {
+    if (!providerId || !model) {
+      toast("请选择供应商和模型", "error");
+      return;
+    }
+
+    setApplyingModelFor(tool.name);
+    try {
+      const assignment = await setModelAssignment(tool.name, providerId, model);
+      setAssignments((prev) => {
+        const rest = prev.filter((item) => item.app !== tool.name);
+        return [...rest, assignment];
+      });
+      await refreshCurrentModels([tool]);
+      toast(`${tool.display_name} 模型已更新`, "success");
+      setModelConfigTool(null);
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "设置模型失败", "error");
+    } finally {
+      setApplyingModelFor(null);
+    }
+  };
+
+  const handleResetModel = async (tool: CliTool) => {
+    setResettingModelFor(tool.name);
+    try {
+      await removeModelAssignment(tool.name);
+      setAssignments((prev) => prev.filter((item) => item.app !== tool.name));
+      setCurrentModels((prev) => ({
+        ...prev,
+        [tool.name]: { assignment: null, current_model: null },
+      }));
+      toast(`${tool.display_name} 已恢复默认模型`, "success");
+      await refreshCurrentModels([tool]);
+      setModelConfigTool(null);
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "恢复默认失败", "error");
+    } finally {
+      setResettingModelFor(null);
+    }
+  };
+
+  const getCurrentAssignment = (toolName: string) =>
+    assignments.find((item) => item.app === toolName) ?? currentModels[toolName]?.assignment ?? null;
+
+  const getCurrentModelDisplay = (tool: CliTool) => {
+    if (!tool.installed || !tool.supports_model_config) {
+      return { label: "-", muted: true };
+    }
+    const assignment = getCurrentAssignment(tool.name);
+    if (assignment) {
+      const providerName = providers.find((item) => item.id === assignment.provider_id)?.name;
+      return {
+        label: providerName ? `${assignment.model} (${providerName})` : assignment.model,
+        muted: false,
+      };
+    }
+    return { label: "默认", muted: true };
+  };
+
+  const openModelConfigModal = (tool: CliTool) => {
+    const assignment = getCurrentAssignment(tool.name);
+    const nextProviderId = assignment?.provider_id ?? providers[0]?.id ?? "";
+    const provider = providers.find((item) => item.id === nextProviderId);
+    setModelConfigTool(tool);
+    setModelConfigProviderId(nextProviderId);
+    setModelConfigModel(assignment?.model ?? provider?.models[0] ?? "");
   };
 
   const handleAddRemoteAgent = async (formData: RemoteAgentForm) => {
@@ -314,6 +445,16 @@ export default function AgentsPage() {
     return 'text-red-500';
   };
 
+  const modelConfigProvider = providers.find((item) => item.id === modelConfigProviderId);
+  const modelConfigCurrentState = modelConfigTool ? currentModels[modelConfigTool.name] : undefined;
+  const modelConfigCurrentAssignment = modelConfigTool ? getCurrentAssignment(modelConfigTool.name) : null;
+  const modelConfigCurrentProviderName = modelConfigCurrentAssignment
+    ? providers.find((item) => item.id === modelConfigCurrentAssignment.provider_id)?.name
+    : null;
+  const modelConfigCurrentLabel = modelConfigCurrentState?.current_model
+    ? `${modelConfigCurrentState.current_model}${modelConfigCurrentProviderName ? ` (${modelConfigCurrentProviderName})` : ""}`
+    : "默认";
+
   if (loading) return (
     <div className="flex items-center justify-center py-20">
       <Spinner className="h-5 w-5 text-[var(--accent)]" />
@@ -379,6 +520,7 @@ export default function AgentsPage() {
                     <th className="px-4 py-3 text-left">已安装版本</th>
                     <th className="px-4 py-3 text-left">最新版本</th>
                     <th className="px-4 py-3 text-left">路径</th>
+                    <th className="px-4 py-3 text-left">当前模型</th>
                     <th className="px-4 py-3 text-left">操作</th>
                   </tr>
                 </thead>
@@ -397,6 +539,7 @@ export default function AgentsPage() {
                       localVer !== remoteVer;
 
                     const runningTask = getTaskForTarget(tool.name);
+                    const currentModelDisplay = getCurrentModelDisplay(tool);
 
                     return (
                       <tr key={tool.name} className="border-b border-[var(--border)] hover:bg-[var(--bg-hover)]">
@@ -418,6 +561,13 @@ export default function AgentsPage() {
                           {checking === tool.name ? <Spinner className="h-3 w-3 text-[var(--accent)]" /> : (tool.remote_version ?? "-")}
                         </td>
                         <td className="max-w-58 truncate px-4 py-3 font-mono text-xs text-[var(--muted)]">{tool.path ?? "-"}</td>
+                        <td
+                          className={`px-4 py-3 text-sm ${
+                            currentModelDisplay.muted ? "text-[var(--muted)]" : "text-[var(--text)]"
+                          }`}
+                        >
+                          {currentModelDisplay.label}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             {runningTask ? (
@@ -427,7 +577,11 @@ export default function AgentsPage() {
                               </span>
                             ) : (
                               <>
-                                {/* 未安装 → 安装 */}
+                                {tool.installed && tool.supports_model_config ? (
+                                  <Button size="sm" variant="secondary" onClick={() => openModelConfigModal(tool)}>
+                                    配置
+                                  </Button>
+                                ) : null}
                                 {!tool.installed && tool.auto_install ? (
                                   <Button size="sm" onClick={() => void onDirectAction('install', tool.name)}>
                                     安装
@@ -443,19 +597,16 @@ export default function AgentsPage() {
                                     前往下载 ↗
                                   </a>
                                 ) : null}
-                                {/* 已安装 + 有新版本 → 升级 */}
                                 {tool.installed && hasUpdate && tool.auto_install ? (
                                   <Button size="sm" onClick={() => void onDirectAction('upgrade', tool.name)}>
                                     升级
                                   </Button>
                                 ) : null}
-                                {/* 已安装 → 检测（查远程版本） */}
                                 {tool.installed ? (
                                   <Button size="sm" variant="secondary" onClick={() => void onCheckSingle(tool.name)} disabled={checking === tool.name}>
                                     {checking === tool.name ? "检测中..." : "检测"}
                                   </Button>
                                 ) : null}
-                                {/* 已安装 → 卸载 */}
                                 {tool.installed && tool.auto_install ? (
                                   <Button size="sm" variant="ghost" onClick={() => setPending({ type: 'uninstall', tool })}>
                                     卸载
@@ -712,6 +863,83 @@ export default function AgentsPage() {
           }}
         />
       )}
+
+      <Modal
+        open={Boolean(modelConfigTool)}
+        onClose={() => setModelConfigTool(null)}
+        title={`模型配置 — ${modelConfigTool?.display_name ?? ""}`}
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => modelConfigTool && void handleResetModel(modelConfigTool)}
+              disabled={!modelConfigTool || resettingModelFor === modelConfigTool.name}
+            >
+              {modelConfigTool && resettingModelFor === modelConfigTool.name ? "恢复中..." : "恢复默认"}
+            </Button>
+            <Button
+              onClick={() =>
+                modelConfigTool && void handleApplyModel(modelConfigTool, modelConfigProviderId, modelConfigModel)
+              }
+              disabled={
+                !modelConfigTool ||
+                applyingModelFor === modelConfigTool.name ||
+                !modelConfigProviderId ||
+                !modelConfigModel
+              }
+            >
+              {modelConfigTool && applyingModelFor === modelConfigTool.name ? "应用中..." : "应用"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <div className="mb-1 text-sm font-medium text-[var(--text-strong)]">当前模型</div>
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] px-3 py-2 text-sm text-[var(--text)]">
+              {modelConfigCurrentLabel}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--muted)]">供应商</label>
+              <select
+                className="h-9 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] cursor-pointer"
+                value={modelConfigProviderId}
+                onChange={(event) => {
+                  const nextProviderId = event.target.value;
+                  const provider = providers.find((item) => item.id === nextProviderId);
+                  setModelConfigProviderId(nextProviderId);
+                  setModelConfigModel(provider?.models[0] ?? "");
+                }}
+              >
+                <option value="">选择供应商</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-[var(--muted)]">模型</label>
+              <select
+                className="h-9 w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] cursor-pointer"
+                value={modelConfigModel}
+                onChange={(event) => setModelConfigModel(event.target.value)}
+                disabled={!modelConfigProvider}
+              >
+                <option value="">选择模型</option>
+                {(modelConfigProvider?.models ?? []).map((model) => (
+                  <option key={model} value={model}>
+                    {model}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -1,10 +1,11 @@
-import { ChevronDown, ChevronUp, FlaskConical } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Download, FlaskConical } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   activateProvider,
   createProvider,
   deleteProvider,
   exportProviders,
+  fetchProviderModels,
   getProviders,
   getSwitchModes,
   importProviders,
@@ -15,7 +16,6 @@ import {
 import AppToggleList from "../components/AppToggleList";
 import Button from "../components/Button";
 import Card from "../components/Card";
-import ChipRow from "../components/ChipRow";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
 import { Input } from "../components/FormFields";
@@ -34,12 +34,7 @@ const emptyForm: CreateProviderInput = {
   api_endpoint: "",
   api_key_ref: "",
   apps: [],
-};
-
-const providerModels: Record<string, string[]> = {
-  OpenAI: ["gpt-4o", "gpt-4.1", "o3-mini"],
-  Anthropic: ["claude-3.5-sonnet", "claude-3.7-sonnet", "claude-3-haiku"],
-  OpenRouter: ["openai/gpt-4o", "anthropic/claude-3.5-sonnet", "google/gemini-2.0-flash"],
+  models: [],
 };
 
 export default function ProviderPage() {
@@ -48,14 +43,15 @@ export default function ProviderPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [fetchingModelsId, setFetchingModelsId] = useState<string | null>(null);
 
   const [openForm, setOpenForm] = useState(false);
   const [editing, setEditing] = useState<Provider | null>(null);
   const [deleting, setDeleting] = useState<Provider | null>(null);
   const [form, setForm] = useState<CreateProviderInput>(emptyForm);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [testResult, setTestResult] = useState<Record<string, string>>({});
   const [switchModes, setSwitchModes] = useState<Record<string, SwitchMode>>({});
+  const [modelInput, setModelInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
@@ -77,11 +73,10 @@ export default function ProviderPage() {
     void load();
   }, [load]);
 
-  const activeCount = useMemo(() => providers.filter((provider) => provider.active).length, [providers]);
-
   const openCreateModal = () => {
     setEditing(null);
     setForm(emptyForm);
+    setModelInput("");
     setOpenForm(true);
   };
 
@@ -92,7 +87,9 @@ export default function ProviderPage() {
       api_endpoint: provider.api_endpoint,
       api_key_ref: provider.api_key_ref,
       apps: provider.apps,
+      models: provider.models,
     });
+    setModelInput("");
     setOpenForm(true);
   };
 
@@ -156,13 +153,39 @@ export default function ProviderPage() {
     }
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const addModelToForm = () => {
+    const model = modelInput.trim();
+    if (!model) return;
+    setForm((prev) => ({
+      ...prev,
+      models: prev.models.includes(model) ? prev.models : [...prev.models, model],
+    }));
+    setModelInput("");
+  };
+
+  const removeModelFromForm = (model: string) => {
+    setForm((prev) => ({
+      ...prev,
+      models: prev.models.filter((item) => item !== model),
+    }));
+  };
+
+  const onFetchModels = async (provider: Provider) => {
+    setFetchingModelsId(provider.id);
+    try {
+      const result = await fetchProviderModels(provider.id);
+      setProviders((prev) =>
+        prev.map((item) => (item.id === provider.id ? { ...item, models: result.models } : item)),
+      );
+      if (editing?.id === provider.id) {
+        setForm((prev) => ({ ...prev, models: result.models }));
+      }
+      toast(`已拉取 ${result.models.length} 个模型`, "success");
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : "拉取模型失败", "error");
+    } finally {
+      setFetchingModelsId(null);
+    }
   };
 
   const onChangeSwitchMode = async (app: string, mode: SwitchMode) => {
@@ -209,6 +232,33 @@ export default function ProviderPage() {
     } finally {
       event.target.value = "";
     }
+  };
+
+  const renderModelCell = (models: string[]) => {
+    if (models.length === 0) {
+      return <span className="text-xs text-[var(--muted)]">未配置</span>;
+    }
+
+    const shown = models.slice(0, 3);
+    const remaining = models.length - shown.length;
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {shown.map((model) => (
+          <span
+            key={model}
+            className="rounded-full bg-[var(--bg-hover)] px-2 py-0.5 text-[11px] text-[var(--muted)]"
+            title={model}
+          >
+            {model}
+          </span>
+        ))}
+        {remaining > 0 ? (
+          <span className="rounded-full bg-[var(--bg-hover)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
+            +{remaining}
+          </span>
+        ) : null}
+      </div>
+    );
   };
 
   return (
@@ -264,27 +314,32 @@ export default function ProviderPage() {
       {!loading && !error && providers.length === 0 ? <EmptyState message="暂无供应商配置。" /> : null}
 
       {!loading && !error && providers.length > 0 ? (
-        <div className="space-y-3">
-          {providers.map((provider) => {
-            const expanded = expandedIds.has(provider.id);
-            const models = providerModels[provider.name] ?? ["default-model"];
-
-            return (
-              <Card key={provider.id}>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-[var(--text-strong)]">{provider.name}</span>
-                        <StatusBadge
-                          label={provider.active ? "已激活" : "未激活"}
-                          variant={provider.active ? "success" : "muted"}
-                        />
-                      </div>
-                      <p className="mt-1 font-mono text-xs text-[var(--muted)]">{provider.api_endpoint}</p>
-                      <ChipRow items={provider.apps} variant="accent" />
-                    </div>
-
+        <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
+          <table className="w-full text-sm">
+            <thead className="bg-[var(--bg-accent)] text-[11px] font-semibold uppercase tracking-wider text-[var(--muted)]">
+              <tr>
+                <th className="px-4 py-3 text-left">名称</th>
+                <th className="px-4 py-3 text-left">API 端点</th>
+                <th className="px-4 py-3 text-left">状态</th>
+                <th className="px-4 py-3 text-left">模型</th>
+                <th className="px-4 py-3 text-left">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {providers.map((provider) => (
+                <tr key={provider.id} className="border-b border-[var(--border)] align-top hover:bg-[var(--bg-hover)]">
+                  <td className="px-4 py-3">
+                    <div className="text-sm font-medium text-[var(--text-strong)]">{provider.name}</div>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{provider.api_endpoint}</td>
+                  <td className="px-4 py-3">
+                    <StatusBadge
+                      label={provider.active ? "已激活" : "未激活"}
+                      variant={provider.active ? "success" : "muted"}
+                    />
+                  </td>
+                  <td className="px-4 py-3">{renderModelCell(provider.models)}</td>
+                  <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
                       {!provider.active ? (
                         <Button size="sm" onClick={() => void onActivate(provider.id)}>
@@ -300,41 +355,30 @@ export default function ProviderPage() {
                         <FlaskConical className="h-4 w-4" />
                         {testingId === provider.id ? "测试中..." : "测试连接"}
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => void onFetchModels(provider)}
+                        disabled={fetchingModelsId === provider.id}
+                      >
+                        <Download className="h-4 w-4" />
+                        {fetchingModelsId === provider.id ? "拉取中..." : "拉取模型"}
+                      </Button>
                       <Button size="sm" variant="secondary" onClick={() => openEditModal(provider)}>
                         编辑
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => toggleExpand(provider.id)}>
-                        {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        详情
                       </Button>
                       <Button size="sm" variant="destructive" onClick={() => setDeleting(provider)}>
                         删除
                       </Button>
                     </div>
-                  </div>
-
-                  {testResult[provider.id] ? (
-                    <div className="text-xs text-[var(--muted)]">连接测试: {testResult[provider.id]}</div>
-                  ) : null}
-
-                  {expanded ? (
-                    <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] p-3">
-                      <div>
-                        <div className="text-xs font-medium text-[var(--muted)]">API 密钥</div>
-                        <div className="mt-1 max-w-sm">
-                          <SecretField value={provider.api_key_ref} readOnly />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs font-medium text-[var(--muted)]">模型</div>
-                        <ChipRow items={models} />
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </Card>
-            );
-          })}
+                    {testResult[provider.id] ? (
+                      <div className="mt-2 text-xs text-[var(--muted)]">连接测试: {testResult[provider.id]}</div>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
 
@@ -375,6 +419,49 @@ export default function ProviderPage() {
           <div>
             <div className="mb-1 text-xs font-medium text-[var(--muted)]">启用的应用</div>
             <AppToggleList selected={form.apps} onChange={(apps) => setForm((prev) => ({ ...prev, apps }))} />
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-[var(--muted)]">模型列表</div>
+            <div className="flex gap-2">
+              <Input
+                label="添加模型"
+                placeholder="输入模型名后回车"
+                value={modelInput}
+                onChange={(event) => setModelInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addModelToForm();
+                  }
+                }}
+              />
+              <div className="flex items-end">
+                <Button type="button" variant="secondary" onClick={addModelToForm}>
+                  添加
+                </Button>
+              </div>
+            </div>
+            {form.models.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {form.models.map((model) => (
+                  <span
+                    key={model}
+                    className="inline-flex items-center gap-2 rounded-full bg-[var(--bg-hover)] px-3 py-1 text-xs text-[var(--text)]"
+                  >
+                    {model}
+                    <button
+                      type="button"
+                      className="text-[var(--muted)] transition-colors hover:text-[var(--text-strong)] cursor-pointer"
+                      onClick={() => removeModelFromForm(model)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-[var(--muted)]">尚未添加模型，可手动维护或从供应商接口拉取。</div>
+            )}
           </div>
         </form>
       </Modal>

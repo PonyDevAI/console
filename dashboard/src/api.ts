@@ -6,6 +6,7 @@ import type {
   CreateProviderInput,
   LogEntry,
   McpServer,
+  ModelAssignment,
   Provider,
   RemoteAgent,
   RemoteAgentDetail,
@@ -201,6 +202,53 @@ export async function testProvider(id: string) {
   await ensureReady();
   if (useMock) return mockApi.testProvider(id);
   return post<{ ok: boolean; latency_ms?: number; error?: string; status?: number }>(`/providers/${id}/test`);
+}
+
+export async function fetchProviderModels(id: string) {
+  await ensureReady();
+  if (useMock) return { models: [] as string[] };
+  return post<{ models: string[] }>(`/providers/${id}/fetch-models`);
+}
+
+export async function getModelAssignments() {
+  await ensureReady();
+  if (useMock) return { assignments: [] as ModelAssignment[] };
+  return get<{ assignments: ModelAssignment[] }>("/model-assignments");
+}
+
+export async function setModelAssignment(app: string, providerId: string, model: string) {
+  await ensureReady();
+  if (useMock) {
+    return {
+      app,
+      provider_id: providerId,
+      model,
+      updated_at: new Date().toISOString(),
+    } satisfies ModelAssignment;
+  }
+  return put<ModelAssignment>(`/model-assignments/${app}`, {
+    provider_id: providerId,
+    model,
+  });
+}
+
+export async function removeModelAssignment(app: string) {
+  await ensureReady();
+  if (useMock) return;
+  await del<{ ok: boolean }>(`/model-assignments/${app}`);
+}
+
+export async function getCurrentModel(app: string) {
+  await ensureReady();
+  if (useMock) {
+    return {
+      assignment: null as ModelAssignment | null,
+      current_model: null as string | null,
+    };
+  }
+  return get<{ assignment: ModelAssignment | null; current_model: string | null }>(
+    `/model-assignments/${app}/current`,
+  );
 }
 
 export async function getMcpServers() {
