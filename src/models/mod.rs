@@ -388,3 +388,20 @@ pub struct DispatchRecord {
 pub struct DispatchHistory {
     pub records: Vec<DispatchRecord>,
 }
+
+// ── Backup ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupMeta {
+    pub id: String,
+    pub label: String,
+    pub created_at: DateTime<Utc>,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupSnapshot {
+    #[serde(flatten)]
+    pub meta: BackupMeta,
+    pub files: std::collections::HashMap<String, serde_json::Value>,
+}

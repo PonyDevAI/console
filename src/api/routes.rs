@@ -103,6 +103,10 @@ pub fn api_routes() -> Router {
         .route("/config-sync", get(get_config_sync))
         .route("/config-sync/sync-all", post(sync_all_config))
         .route("/config-sync/:id/sync", post(sync_single_config))
+        .route("/backups", get(list_backups))
+        .route("/backups", post(create_backup))
+        .route("/backups/:id/restore", post(restore_backup))
+        .route("/backups/:id", delete(delete_backup))
         .route("/remote-agents", get(list_remote_agents))
         .route("/remote-agents", post(add_remote_agent))
         .route("/remote-agents/ping-all", post(ping_all_remote_agents))
@@ -983,6 +987,11 @@ struct UpdatePromptRequest {
     apps: Option<Vec<String>>,
 }
 
+#[derive(serde::Deserialize)]
+struct CreateBackupRequest {
+    label: Option<String>,
+}
+
 async fn create_employee(Json(req): Json<CreateEmployeeRequest>) -> Result<Json<Value>, StatusCode> {
     let employee = services::employee::create(
         &req.name,
@@ -1310,6 +1319,37 @@ async fn activate_prompt(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
     services::prompt::activate(&id)
+        .map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn list_backups() -> Result<Json<Value>, StatusCode> {
+    let backups = services::backup::list()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "backups": backups })))
+}
+
+async fn create_backup(
+    Json(req): Json<CreateBackupRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let label = req.label.unwrap_or_else(|| "手动备份".to_string());
+    let meta = services::backup::create(&label)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(meta)))
+}
+
+async fn restore_backup(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    services::backup::restore(&id)
+        .map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn delete_backup(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    services::backup::delete(&id)
         .map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }

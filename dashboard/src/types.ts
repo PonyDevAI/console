@@ -260,3 +260,11 @@ export interface PromptPreset {
   created_at: string;
   modified_at: string;
 }
+
+// ── Backup ──
+export interface BackupMeta {
+  id: string;
+  label: string;
+  created_at: string;
+  size_bytes: number;
+}

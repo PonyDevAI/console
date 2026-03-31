@@ -28,6 +28,7 @@ import type {
   DispatchRecord,
   DispatchHistory,
   PromptPreset,
+  BackupMeta,
 } from "./types";
 
 const BASE = "/api";
@@ -588,4 +589,28 @@ export async function activatePrompt(id: string) {
   await ensureReady();
   if (useMock) return;
   return post(`/prompts/${id}/activate`, {});
+}
+
+export async function getBackups() {
+  await ensureReady();
+  if (useMock) return { backups: [] as BackupMeta[] };
+  return get<{ backups: BackupMeta[] }>('/backups');
+}
+
+export async function createBackup(label?: string) {
+  await ensureReady();
+  if (useMock) return {} as BackupMeta;
+  return post<BackupMeta>('/backups', { label });
+}
+
+export async function restoreBackup(id: string) {
+  await ensureReady();
+  if (useMock) return;
+  return post(`/backups/${id}/restore`, {});
+}
+
+export async function deleteBackup(id: string) {
+  await ensureReady();
+  if (useMock) return;
+  return del(`/backups/${id}`);
 }
