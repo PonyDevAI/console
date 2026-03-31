@@ -1091,8 +1091,7 @@ pub async fn dispatch_employee(
     let soul_files = services::employee::read_soul_files(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
-    let task_label = format!("Dispatch to {}", employee.display_name);
-    let task = queue.submit("dispatch", &task_label);
+    let task = queue.submit("dispatch", &employee.display_name);
     let task_id = task.id.clone();
     let q = queue.clone();
     let emp_name = employee.display_name.clone();

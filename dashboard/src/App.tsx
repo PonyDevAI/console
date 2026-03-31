@@ -291,7 +291,10 @@ export default function App() {
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium text-[var(--text)] truncate">
-                            {task.action === "install" ? "安装" : task.action === "upgrade" ? "升级" : "卸载"} {task.target}
+                            {task.action === "install" ? "安装" :
+ task.action === "upgrade" ? "升级" :
+ task.action === "uninstall" ? "卸载" :
+ task.action === "dispatch" ? "派发" : task.action} {task.target}
                           </div>
                           {task.message && (
                             <div className="text-[10px] text-[var(--muted)] truncate">{task.message}</div>

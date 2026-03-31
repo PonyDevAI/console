@@ -28,6 +28,7 @@ import type {
   DispatchRequest,
   Employee,
   SoulFiles,
+  Task,
   UpdateBindingRequest,
   UpdateEmployeeRequest,
   RemoteAgent,
@@ -52,6 +53,7 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [deletingEmployee, setDeletingEmployee] = useState<string | null>(null);
   const [dispatchingEmployee, setDispatchingEmployee] = useState<string | null>(null);
+  const { tasks } = useTasks();
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -169,11 +171,22 @@ export default function EmployeesPage() {
             const localCount = emp.bindings.filter((b) => b.protocol.type === "local_process").length;
             const openclawCount = emp.bindings.filter((b) => b.protocol.type === "open_ai_compatible").length;
             const sshCount = emp.bindings.filter((b) => b.protocol.type === "ssh_exec").length;
+            const activeTask = Array.from(tasks.values()).find(
+              (t: Task) => t.action === "dispatch" &&
+                           t.target === emp.display_name &&
+                           (t.status === "pending" || t.status === "running")
+            );
+            const isRunning = !!activeTask;
             return (
               <div key={emp.id} className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-4 hover:border-[var(--border-hover)] transition-colors">
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: emp.avatar_color }}>
-                    {emp.display_name.charAt(0).toUpperCase()}
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg" style={{ backgroundColor: emp.avatar_color }}>
+                      {emp.display_name.charAt(0).toUpperCase()}
+                    </div>
+                    {isRunning && (
+                      <span className="absolute -top-0.5 -left-0.5 h-3 w-3 rounded-full bg-[var(--accent)] animate-pulse border-2 border-[var(--card)]" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -199,8 +212,9 @@ export default function EmployeesPage() {
                   </div>
                 )}
                 <div className="mt-4 flex gap-2">
-                  <Button size="sm" onClick={() => setDispatchingEmployee(emp.id)} disabled={emp.bindings.length === 0}>
-                    <Play className="w-3 h-3 mr-1" />派发任务
+                  <Button size="sm" onClick={() => setDispatchingEmployee(emp.id)} disabled={emp.bindings.length === 0 || isRunning}>
+                    <Play className="w-3 h-3 mr-1" />
+                    {isRunning ? "执行中..." : "派发任务"}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setEditingEmployee(emp)}><Edit2 className="w-3 h-3 mr-1" />编辑</Button>
                   <Button size="sm" variant="ghost" onClick={() => setDeletingEmployee(emp.id)}><Trash2 className="w-3 h-3 mr-1" />删除</Button>
@@ -541,6 +555,34 @@ function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeI
                 <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">使用绑定</label><select value={bindingId} onChange={(e) => setBindingId(e.target.value)} className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm">{employee?.bindings.map((b) => (<option key={b.id} value={b.id}>{b.label}{b.is_primary ? " (主)" : ""}</option>))}</select></div>
                 <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">工作目录（可选）</label><input type="text" value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="e.g. /path/to/project" className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm" /></div>
                 <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">任务内容</label><textarea value={task} onChange={(e) => setTask(e.target.value)} placeholder="请输入要派发的任务..." className="w-full h-32 px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm resize-none" /></div>
+                {(() => {
+                  const recentHistory = Array.from(tasks.values())
+                    .filter(t => t.action === "dispatch" && t.target === employee?.display_name)
+                    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+                    .slice(0, 5);
+                  if (recentHistory.length === 0) return null;
+                  return (
+                    <div>
+                      <div className="text-xs font-medium text-[var(--text-strong)] mb-2">最近记录</div>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {recentHistory.map(t => (
+                          <div key={t.id} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-accent)] text-xs">
+                            <span className="shrink-0 mt-0.5">
+                              {t.status === "completed" ? (
+                                <span className="text-[var(--success)]">✓</span>
+                              ) : t.status === "failed" ? (
+                                <span className="text-[var(--danger)]">✗</span>
+                              ) : (
+                                <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                              )}
+                            </span>
+                            <span className="text-[var(--muted)] truncate flex-1">{t.message ?? "—"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
 
