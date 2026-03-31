@@ -298,6 +298,12 @@ pub struct Employee {
     pub bindings: Vec<AgentBinding>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_dispatched_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub dispatch_count: u32,
+    #[serde(default)]
+    pub dispatch_success_count: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -363,4 +369,21 @@ pub struct UpdateEmployeeRequest {
 pub struct UpdateBindingRequest {
     pub label: Option<String>,
     pub is_primary: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DispatchRecord {
+    pub id: String,
+    pub task: String,
+    pub binding_label: String,
+    pub status: String,
+    pub output: String,
+    pub exit_code: i32,
+    pub started_at: DateTime<Utc>,
+    pub completed_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DispatchHistory {
+    pub records: Vec<DispatchRecord>,
 }

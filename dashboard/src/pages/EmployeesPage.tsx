@@ -14,6 +14,7 @@ import {
   getRemoteAgents,
   getRemoteWorkers,
   testEmployeeBinding,
+  getDispatchHistory,
 } from "../api";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -33,6 +34,7 @@ import type {
   UpdateEmployeeRequest,
   RemoteAgent,
   WorkerInfo,
+  DispatchRecord,
 } from "../types";
 import { cn } from "../lib/utils";
 import { useTasks } from "../contexts/TaskContext";
@@ -209,6 +211,16 @@ export default function EmployeesPage() {
                     <span className="ml-2 px-1 py-0.5 bg-[var(--bg-accent)] rounded text-[9px]">
                       {primaryBinding.protocol.type === "local_process" ? "本地进程" : primaryBinding.protocol.type === "open_ai_compatible" ? "OpenAI 兼容" : "SSH"}
                     </span>
+                  </div>
+                )}
+                {emp.last_dispatched_at && (
+                  <div className="mt-1 text-xs text-[var(--muted)]">
+                    最近派发：{new Date(emp.last_dispatched_at).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    {emp.dispatch_count != null && emp.dispatch_count > 0 && (
+                      <span className="ml-2">
+                        成功率 {Math.round((emp.dispatch_success_count ?? 0) / emp.dispatch_count * 100)}%
+                      </span>
+                    )}
                   </div>
                 )}
                 <div className="mt-4 flex gap-2">
@@ -489,12 +501,20 @@ function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeI
   const [loading, setLoading] = useState(true);
   const [dispatching, setDispatching] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [history, setHistory] = useState<DispatchRecord[]>([]);
 
   const { tasks } = useTasks();
 
   const activeTask = activeTaskId ? tasks.get(activeTaskId) ?? null : null;
   const isRunning = activeTask?.status === "pending" || activeTask?.status === "running";
   const isDone = activeTask?.status === "completed" || activeTask?.status === "failed";
+
+  useEffect(() => {
+    if (!isDone) return;
+    getDispatchHistory(employeeId)
+      .then(d => setHistory(d.records ?? []))
+      .catch(() => {});
+  }, [isDone, employeeId]);
 
   useEffect(() => {
     if (!employeeId) return;
@@ -511,6 +531,10 @@ function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeI
       })
       .catch(() => toast("加载员工信息失败", "error"))
       .finally(() => setLoading(false));
+    
+    getDispatchHistory(employeeId)
+      .then(d => setHistory(d.records ?? []))
+      .catch(() => {});
   }, [employeeId]);
 
   const handleSubmit = async () => {
@@ -555,34 +579,24 @@ function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeI
                 <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">使用绑定</label><select value={bindingId} onChange={(e) => setBindingId(e.target.value)} className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm">{employee?.bindings.map((b) => (<option key={b.id} value={b.id}>{b.label}{b.is_primary ? " (主)" : ""}</option>))}</select></div>
                 <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">工作目录（可选）</label><input type="text" value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="e.g. /path/to/project" className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm" /></div>
                 <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">任务内容</label><textarea value={task} onChange={(e) => setTask(e.target.value)} placeholder="请输入要派发的任务..." className="w-full h-32 px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm resize-none" /></div>
-                {(() => {
-                  const recentHistory = Array.from(tasks.values())
-                    .filter(t => t.action === "dispatch" && t.target === employee?.display_name)
-                    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-                    .slice(0, 5);
-                  if (recentHistory.length === 0) return null;
-                  return (
-                    <div>
-                      <div className="text-xs font-medium text-[var(--text-strong)] mb-2">最近记录</div>
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
-                        {recentHistory.map(t => (
-                          <div key={t.id} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-accent)] text-xs">
-                            <span className="shrink-0 mt-0.5">
-                              {t.status === "completed" ? (
-                                <span className="text-[var(--success)]">✓</span>
-                              ) : t.status === "failed" ? (
-                                <span className="text-[var(--danger)]">✗</span>
-                              ) : (
-                                <span className="inline-block h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
-                              )}
-                            </span>
-                            <span className="text-[var(--muted)] truncate flex-1">{t.message ?? "—"}</span>
-                          </div>
-                        ))}
-                      </div>
+                {history.length > 0 && (
+                  <div>
+                    <div className="text-xs font-medium text-[var(--text-strong)] mb-2">最近记录</div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {history.map(r => (
+                        <div key={r.id} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-accent)] text-xs">
+                          <span className="shrink-0 mt-0.5">
+                            {r.status === "completed"
+                              ? <span className="text-[var(--success)]">✓</span>
+                              : <span className="text-[var(--danger)]">✗</span>}
+                          </span>
+                          <span className="text-[var(--muted)] truncate flex-1" title={r.task}>{r.task}</span>
+                          <span className="shrink-0 text-[var(--muted)]">{r.binding_label}</span>
+                        </div>
+                      ))}
                     </div>
-                  );
-                })()}
+                  </div>
+                )}
               </>
             )}
 

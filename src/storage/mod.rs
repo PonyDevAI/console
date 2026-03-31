@@ -89,6 +89,9 @@ impl ConsolePaths {
     pub fn employee_rules_file(&self, id: &str) -> PathBuf {
         self.employee_dir(id).join("rules.md")
     }
+    pub fn employee_history_file(&self, id: &str) -> PathBuf {
+        self.employee_dir(id).join("history.json")
+    }
 
     /// Create all required directories.
     pub fn ensure_dirs(&self) -> Result<()> {

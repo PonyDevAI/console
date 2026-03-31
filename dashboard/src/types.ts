@@ -184,6 +184,9 @@ export type Employee = {
   bindings: AgentBinding[];
   created_at: string;
   updated_at: string;
+  last_dispatched_at?: string;
+  dispatch_count?: number;
+  dispatch_success_count?: number;
 };
 
 export type SoulFiles = {
@@ -229,4 +232,19 @@ export type DispatchRequest = {
 
 export type DispatchResponse = {
   task_id: string;
+};
+
+export type DispatchRecord = {
+  id: string;
+  task: string;
+  binding_label: string;
+  status: "completed" | "failed";
+  output: string;
+  exit_code: number;
+  started_at: string;
+  completed_at: string;
+};
+
+export type DispatchHistory = {
+  records: DispatchRecord[];
 };

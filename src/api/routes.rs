@@ -122,6 +122,7 @@ pub fn api_routes() -> Router {
         .route("/employees/:id/bindings/:bid", put(update_binding))
         .route("/employees/:id/bindings/:bid", delete(delete_binding))
         .route("/employees/:id/bindings/:bid/test", post(test_employee_binding))
+        .route("/employees/:id/history", get(get_dispatch_history))
 }
 
 async fn health() -> Json<Value> {
@@ -1098,13 +1099,15 @@ pub async fn dispatch_employee(
     let task_id_spawn = task_id.clone();
     let cwd_clone = req.cwd.clone();
     let task_str = req.task.clone();
+    let id_clone = id.clone();
+    let binding_clone = binding.clone();
 
     tokio::spawn(async move {
         q.update_status(&task_id_spawn, TaskStatus::Running,
             Some(format!("Dispatching to {}...", emp_name)));
 
         match services::employee_dispatch::dispatch(
-            &binding.protocol,
+            &binding_clone.protocol,
             &soul_files,
             &task_str,
             cwd_clone.as_deref(),
@@ -1112,6 +1115,20 @@ pub async fn dispatch_employee(
             Ok(result) => {
                 services::logs::push("info", "dispatch",
                     &format!("Dispatched to {} - exit code {}", emp_name, result.exit_code));
+                
+                let record = crate::models::DispatchRecord {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    task: task_str.clone(),
+                    binding_label: binding_clone.label.clone(),
+                    status: if result.exit_code == 0 { "completed".into() } else { "failed".into() },
+                    output: result.output.clone(),
+                    exit_code: result.exit_code,
+                    started_at: chrono::Utc::now(),
+                    completed_at: chrono::Utc::now(),
+                };
+                let _ = services::employee::append_dispatch_record(&id_clone, record);
+                let _ = services::employee::record_dispatch_result(&id_clone, result.exit_code == 0).await;
+                
                 q.update_status(&task_id_spawn, TaskStatus::Completed,
                     Some(result.output));
             }
@@ -1120,6 +1137,19 @@ pub async fn dispatch_employee(
                     &format!("Dispatch failed: {}", e));
                 q.update_status(&task_id_spawn, TaskStatus::Failed,
                     Some(e.to_string()));
+                
+                let record = crate::models::DispatchRecord {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    task: task_str.clone(),
+                    binding_label: binding_clone.label.clone(),
+                    status: "failed".into(),
+                    output: e.to_string(),
+                    exit_code: -1,
+                    started_at: chrono::Utc::now(),
+                    completed_at: chrono::Utc::now(),
+                };
+                let _ = services::employee::append_dispatch_record(&id_clone, record);
+                let _ = services::employee::record_dispatch_result(&id_clone, false).await;
             }
         }
     });
@@ -1205,4 +1235,12 @@ async fn test_employee_binding(
             }
         }
     }
+}
+
+async fn get_dispatch_history(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    let history = services::employee::get_dispatch_history(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(history)))
 }

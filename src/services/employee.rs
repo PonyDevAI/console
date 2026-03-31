@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use tokio::sync::Mutex;
 
-use crate::models::{AgentBinding, Employee, EmployeesState, SoulFiles};
+use crate::models::{AgentBinding, DispatchHistory, DispatchRecord, Employee, EmployeesState, SoulFiles};
 use crate::storage::{read_json, write_json, ConsolePaths};
 use std::fs;
 
@@ -62,6 +62,9 @@ pub async fn create(
         bindings: vec![],
         created_at: now,
         updated_at: now,
+        last_dispatched_at: None,
+        dispatch_count: 0,
+        dispatch_success_count: 0,
     };
     
     let paths = ConsolePaths::default();
@@ -256,4 +259,40 @@ pub async fn delete_binding(id: &str, binding_id: &str) -> Result<Employee> {
     set_state(state).await?;
     
     Ok(updated)
+}
+
+pub fn append_dispatch_record(id: &str, record: DispatchRecord) -> Result<()> {
+    let paths = ConsolePaths::default();
+    let path = paths.employee_history_file(id);
+    let mut history: DispatchHistory = if path.exists() {
+        read_json(&path).unwrap_or_default()
+    } else {
+        Default::default()
+    };
+    history.records.insert(0, record);
+    history.records.truncate(50);
+    write_json(&path, &history)?;
+    Ok(())
+}
+
+pub fn get_dispatch_history(id: &str) -> Result<DispatchHistory> {
+    let paths = ConsolePaths::default();
+    let path = paths.employee_history_file(id);
+    if !path.exists() {
+        return Ok(Default::default());
+    }
+    Ok(read_json(&path).unwrap_or_default())
+}
+
+pub async fn record_dispatch_result(id: &str, success: bool) -> Result<()> {
+    let mut state = get_state().await?;
+    if let Some(emp) = state.employees.iter_mut().find(|e| e.id == id) {
+        emp.last_dispatched_at = Some(chrono::Utc::now());
+        emp.dispatch_count += 1;
+        if success {
+            emp.dispatch_success_count += 1;
+        }
+        emp.updated_at = chrono::Utc::now();
+    }
+    set_state(state).await
 }

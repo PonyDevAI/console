@@ -25,6 +25,8 @@ import type {
   UpdateBindingRequest,
   DispatchRequest,
   DispatchResponse,
+  DispatchRecord,
+  DispatchHistory,
 } from "./types";
 
 const BASE = "/api";
@@ -549,4 +551,10 @@ export async function testEmployeeBinding(employeeId: string, bindingId: string)
     `/employees/${employeeId}/bindings/${bindingId}/test`,
     {}
   );
+}
+
+export async function getDispatchHistory(employeeId: string) {
+  await ensureReady();
+  if (useMock) return { records: [] } as DispatchHistory;
+  return get<DispatchHistory>(`/employees/${employeeId}/history`);
 }
