@@ -502,6 +502,7 @@ function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeI
   const [dispatching, setDispatching] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [history, setHistory] = useState<DispatchRecord[]>([]);
+  const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
 
   const { tasks } = useTasks();
 
@@ -584,14 +585,48 @@ function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeI
                     <div className="text-xs font-medium text-[var(--text-strong)] mb-2">最近记录</div>
                     <div className="space-y-1 max-h-40 overflow-y-auto">
                       {history.map(r => (
-                        <div key={r.id} className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-accent)] text-xs">
-                          <span className="shrink-0 mt-0.5">
-                            {r.status === "completed"
-                              ? <span className="text-[var(--success)]">✓</span>
-                              : <span className="text-[var(--danger)]">✗</span>}
-                          </span>
-                          <span className="text-[var(--muted)] truncate flex-1" title={r.task}>{r.task}</span>
-                          <span className="shrink-0 text-[var(--muted)]">{r.binding_label}</span>
+                        <div key={r.id}>
+                          <div
+                            onClick={() => setExpandedRecord(expandedRecord === r.id ? null : r.id)}
+                            className="flex items-start gap-2 px-2 py-1.5 rounded-md bg-[var(--bg-accent)] text-xs cursor-pointer hover:bg-[var(--bg-hover)] transition-colors"
+                          >
+                            <span className="shrink-0 mt-0.5">
+                              {r.status === "completed"
+                                ? <span className="text-[var(--success)]">✓</span>
+                                : <span className="text-[var(--danger)]">✗</span>}
+                            </span>
+                            <span className="text-[var(--muted)] truncate flex-1" title={r.task}>{r.task}</span>
+                            <span className="shrink-0 text-[var(--muted)]">{r.binding_label}</span>
+                            <span className="shrink-0 text-[var(--muted)]">
+                              {expandedRecord === r.id ? "▲" : "▼"}
+                            </span>
+                          </div>
+                          {expandedRecord === r.id && (
+                            <>
+                              {r.output && (
+                                <pre className="mt-1 max-h-48 overflow-auto px-2 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-xs font-mono whitespace-pre-wrap">
+                                  {r.output}
+                                </pre>
+                              )}
+                              {!r.output && (
+                                <div className="mt-1 px-2 py-1 text-xs text-[var(--muted)]">（无输出）</div>
+                              )}
+                              <div className="mt-1 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTask(r.task);
+                                    setExpandedRecord(null);
+                                    setActiveTaskId(null);
+                                  }}
+                                  className="text-[10px] text-[var(--accent)] hover:underline cursor-pointer px-1"
+                                >
+                                  重新派发
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>

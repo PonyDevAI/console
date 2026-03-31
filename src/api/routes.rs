@@ -1103,6 +1103,7 @@ pub async fn dispatch_employee(
     let binding_clone = binding.clone();
 
     tokio::spawn(async move {
+        let started_at = chrono::Utc::now();
         q.update_status(&task_id_spawn, TaskStatus::Running,
             Some(format!("Dispatching to {}...", emp_name)));
 
@@ -1123,7 +1124,7 @@ pub async fn dispatch_employee(
                     status: if result.exit_code == 0 { "completed".into() } else { "failed".into() },
                     output: result.output.clone(),
                     exit_code: result.exit_code,
-                    started_at: chrono::Utc::now(),
+                    started_at,
                     completed_at: chrono::Utc::now(),
                 };
                 let _ = services::employee::append_dispatch_record(&id_clone, record);
@@ -1145,7 +1146,7 @@ pub async fn dispatch_employee(
                     status: "failed".into(),
                     output: e.to_string(),
                     exit_code: -1,
-                    started_at: chrono::Utc::now(),
+                    started_at,
                     completed_at: chrono::Utc::now(),
                 };
                 let _ = services::employee::append_dispatch_record(&id_clone, record);
