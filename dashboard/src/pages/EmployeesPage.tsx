@@ -241,7 +241,14 @@ export default function EmployeesPage() {
       {editingEmployee && (
         <EmployeeEditModal open={!!editingEmployee} employee={editingEmployee} onClose={() => setEditingEmployee(null)} onUpdate={handleUpdate} onUpdateSoulFiles={handleUpdateSoulFiles} onAddBinding={handleAddBinding} onUpdateBinding={handleUpdateBinding} onDeleteBinding={handleDeleteBinding} />
       )}
-      {dispatchingEmployee && <DispatchModal open={!!dispatchingEmployee} employeeId={dispatchingEmployee} onClose={() => setDispatchingEmployee(null)} />}
+      {dispatchingEmployee && (
+        <DispatchModal
+          open={!!dispatchingEmployee}
+          employeeId={dispatchingEmployee}
+          onClose={() => setDispatchingEmployee(null)}
+          onDone={() => { setDispatchingEmployee(null); void loadEmployees(); }}
+        />
+      )}
     </div>
   );
 }
@@ -550,7 +557,14 @@ function AddBindingModal({
   );
 }
 
-function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeId: string; onClose: () => void }) {
+function DispatchModal({
+  open, employeeId, onClose, onDone,
+}: {
+  open: boolean;
+  employeeId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const [bindingId, setBindingId] = useState("");
   const [cwd, setCwd] = useState("");
   const [task, setTask] = useState("");
@@ -617,7 +631,7 @@ function DispatchModal({ open, employeeId, onClose }: { open: boolean; employeeI
   return (
     <Modal open={open} onClose={onClose} title={`派发任务给 ${employee?.display_name ?? ""}`} footer={
       <div className="flex justify-end gap-2">
-        <Button variant="secondary" onClick={onClose}>关闭</Button>
+        <Button variant="secondary" onClick={onDone}>关闭</Button>
         {!activeTaskId && (
           <Button onClick={handleSubmit} disabled={dispatching || !task}>
             {dispatching ? "派发中..." : "派发"}

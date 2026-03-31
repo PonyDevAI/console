@@ -123,6 +123,11 @@ pub fn api_routes() -> Router {
         .route("/employees/:id/bindings/:bid", delete(delete_binding))
         .route("/employees/:id/bindings/:bid/test", post(test_employee_binding))
         .route("/employees/:id/history", get(get_dispatch_history))
+        .route("/prompts", get(list_prompts))
+        .route("/prompts", post(create_prompt))
+        .route("/prompts/:id", put(update_prompt))
+        .route("/prompts/:id", delete(delete_prompt))
+        .route("/prompts/:id/activate", post(activate_prompt))
 }
 
 async fn health() -> Json<Value> {
@@ -964,6 +969,20 @@ pub struct DispatchRequest {
     pub binding_id: Option<String>,
 }
 
+#[derive(serde::Deserialize)]
+struct CreatePromptRequest {
+    name: String,
+    content: String,
+    apps: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct UpdatePromptRequest {
+    name: Option<String>,
+    content: Option<String>,
+    apps: Option<Vec<String>>,
+}
+
 async fn create_employee(Json(req): Json<CreateEmployeeRequest>) -> Result<Json<Value>, StatusCode> {
     let employee = services::employee::create(
         &req.name,
@@ -1245,4 +1264,52 @@ async fn get_dispatch_history(
     let history = services::employee::get_dispatch_history(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(history)))
+}
+
+async fn list_prompts() -> Result<Json<Value>, StatusCode> {
+    let prompts = services::prompt::list()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "prompts": prompts })))
+}
+
+async fn create_prompt(
+    Json(req): Json<CreatePromptRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let preset = crate::models::PromptPreset {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: req.name,
+        content: req.content,
+        active: false,
+        apps: req.apps,
+        created_at: chrono::Utc::now(),
+        modified_at: chrono::Utc::now(),
+    };
+    let created = services::prompt::create(preset)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(created)))
+}
+
+async fn update_prompt(
+    Path(id): Path<String>,
+    Json(req): Json<UpdatePromptRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let updated = services::prompt::update(&id, req.name.as_deref(), req.content.as_deref(), req.apps)
+        .map_err(map_not_found)?;
+    Ok(Json(json!(updated)))
+}
+
+async fn delete_prompt(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    services::prompt::delete(&id)
+        .map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn activate_prompt(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    services::prompt::activate(&id)
+        .map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
 }

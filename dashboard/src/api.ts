@@ -27,6 +27,7 @@ import type {
   DispatchResponse,
   DispatchRecord,
   DispatchHistory,
+  PromptPreset,
 } from "./types";
 
 const BASE = "/api";
@@ -557,4 +558,34 @@ export async function getDispatchHistory(employeeId: string) {
   await ensureReady();
   if (useMock) return { records: [] } as DispatchHistory;
   return get<DispatchHistory>(`/employees/${employeeId}/history`);
+}
+
+export async function getPrompts() {
+  await ensureReady();
+  if (useMock) return { prompts: [] as PromptPreset[] };
+  return get<{ prompts: PromptPreset[] }>('/prompts');
+}
+
+export async function createPrompt(data: { name: string; content: string; apps: string[] }) {
+  await ensureReady();
+  if (useMock) return {} as PromptPreset;
+  return post<PromptPreset>('/prompts', data);
+}
+
+export async function updatePrompt(id: string, data: { name?: string; content?: string; apps?: string[] }) {
+  await ensureReady();
+  if (useMock) return {} as PromptPreset;
+  return put<PromptPreset>(`/prompts/${id}`, data);
+}
+
+export async function deletePrompt(id: string) {
+  await ensureReady();
+  if (useMock) return;
+  return del(`/prompts/${id}`);
+}
+
+export async function activatePrompt(id: string) {
+  await ensureReady();
+  if (useMock) return;
+  return post(`/prompts/${id}/activate`, {});
 }

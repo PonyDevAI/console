@@ -1,6 +1,7 @@
 import {
   Bot,
   Cpu,
+  FileText,
   LayoutDashboard,
   ListTodo,
   Menu,
@@ -26,6 +27,7 @@ import LogsPage from "./pages/LogsPage";
 import McpPage from "./pages/McpPage";
 import NotFound from "./pages/NotFound";
 import ProviderPage from "./pages/ProviderPage";
+import PromptsPage from "./pages/PromptsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillPage from "./pages/SkillPage";
 import AgentsPage from "./pages/AgentsPage";
@@ -58,6 +60,7 @@ const navGroups: NavGroup[] = [
       { to: "/providers", label: "模型供应商", icon: Cpu },
       { to: "/mcp", label: "MCP 服务器", icon: Server },
       { to: "/skills", label: "技能", icon: Zap },
+      { to: "/prompts", label: "系统提示词", icon: FileText },
     ],
   },
   {
@@ -352,6 +355,7 @@ export default function App() {
           <Route path="/providers" element={<ProviderPage />} />
           <Route path="/mcp" element={<McpPage />} />
           <Route path="/skills" element={<SkillPage />} />
+          <Route path="/prompts" element={<PromptsPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/config-sync" element={<ConfigSyncPage />} />
           <Route path="/settings" element={<SettingsPage />} />

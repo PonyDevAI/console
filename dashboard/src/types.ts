@@ -249,3 +249,14 @@ export type DispatchRecord = {
 export type DispatchHistory = {
   records: DispatchRecord[];
 };
+
+// ── Prompt Preset ──
+export interface PromptPreset {
+  id: string;
+  name: string;
+  content: string;
+  active: boolean;
+  apps: string[];
+  created_at: string;
+  modified_at: string;
+}

@@ -23,6 +23,11 @@ pub fn sync_all() -> Result<SyncReport> {
         Err(e) => report.errors.push(format!("mcp sync: {e}")),
     }
 
+    match sync_prompts() {
+        Ok(count) => report.prompts_synced = count,
+        Err(e) => report.errors.push(format!("prompt sync: {e}")),
+    }
+
     tracing::info!("sync_all completed: {report:?}");
     Ok(report)
 }
@@ -55,14 +60,21 @@ fn sync_providers() -> Result<u32> {
                                 services::logs::push(
                                     "info",
                                     "sync",
-                                    &format!("Synced active provider '{}' to {}", provider.name, adapter.display_name()),
+                                    &format!(
+                                        "Synced active provider '{}' to {}",
+                                        provider.name,
+                                        adapter.display_name()
+                                    ),
                                 );
                             }
                             Err(e) => {
                                 services::logs::push(
                                     "error",
                                     "sync",
-                                    &format!("Failed to sync provider to {}: {e}", adapter.display_name()),
+                                    &format!(
+                                        "Failed to sync provider to {}: {e}",
+                                        adapter.display_name()
+                                    ),
                                 );
                             }
                         }
@@ -81,14 +93,21 @@ fn sync_providers() -> Result<u32> {
                             services::logs::push(
                                 "info",
                                 "sync",
-                                &format!("Synced provider '{}' to {} (additive)", provider.name, adapter.display_name()),
+                                &format!(
+                                    "Synced provider '{}' to {} (additive)",
+                                    provider.name,
+                                    adapter.display_name()
+                                ),
                             );
                         }
                         Err(e) => {
                             services::logs::push(
                                 "error",
                                 "sync",
-                                &format!("Failed to sync provider to {}: {e}", adapter.display_name()),
+                                &format!(
+                                    "Failed to sync provider to {}: {e}",
+                                    adapter.display_name()
+                                ),
                             );
                         }
                     }
@@ -123,7 +142,11 @@ fn sync_mcp_servers() -> Result<u32> {
                 services::logs::push(
                     "info",
                     "sync",
-                    &format!("Synced {} MCP servers to {}", enabled.len(), adapter.display_name()),
+                    &format!(
+                        "Synced {} MCP servers to {}",
+                        enabled.len(),
+                        adapter.display_name()
+                    ),
                 );
             }
             Err(e) => {
@@ -136,6 +159,71 @@ fn sync_mcp_servers() -> Result<u32> {
         }
     }
 
+    Ok(count)
+}
+
+fn sync_prompts() -> Result<u32> {
+    let prompts = services::prompt::list()?;
+    let active = prompts.iter().find(|p| p.active);
+    let Some(active_prompt) = active else {
+        return Ok(0);
+    };
+
+    let registry = adapters::registry();
+    let mut count = 0u32;
+
+    for adapter in registry.adapters() {
+        let app_name = adapter.name().to_string();
+        if active_prompt.apps.is_empty() || !active_prompt.apps.contains(&app_name) {
+            continue;
+        }
+
+        let config_dir = match app_name.as_str() {
+            "claude" => dirs::home_dir().map(|h| h.join(".claude")),
+            "codex" => dirs::home_dir().map(|h| h.join(".codex")),
+            "opencode" => dirs::home_dir().map(|h| h.join(".opencode")),
+            "gemini" => dirs::home_dir().map(|h| h.join(".gemini")),
+            _ => None,
+        };
+
+        let filename = match app_name.as_str() {
+            "claude" => Some("CLAUDE.md"),
+            "codex" => Some("CODEX.md"),
+            "opencode" => Some("OPENCODE.md"),
+            "gemini" => Some("GEMINI.md"),
+            _ => None,
+        };
+
+        if let (Some(dir), Some(fname)) = (config_dir, filename) {
+            let path = dir.join(fname);
+            let content = format!(
+                "<!-- Managed by Console. Last synced: {} -->\n\n{}",
+                chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
+                active_prompt.content
+            );
+            match std::fs::write(&path, content) {
+                Ok(()) => {
+                    count += 1;
+                    services::logs::push(
+                        "info",
+                        "sync",
+                        &format!(
+                            "Synced prompt '{}' to {}",
+                            active_prompt.name,
+                            adapter.display_name()
+                        ),
+                    );
+                }
+                Err(e) => {
+                    services::logs::push(
+                        "error",
+                        "sync",
+                        &format!("Failed to sync prompt to {}: {e}", adapter.display_name()),
+                    );
+                }
+            }
+        }
+    }
     Ok(count)
 }
 
