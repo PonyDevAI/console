@@ -10,3 +10,5 @@ pub mod logs;
 pub mod self_update;
 pub mod task_queue;
 pub mod remote_agent;
+pub mod employee;
+pub mod employee_dispatch;

@@ -71,6 +71,25 @@ impl ConsolePaths {
         self.state_dir().join("remote_agents.json")
     }
 
+    pub fn employees_file(&self) -> PathBuf {
+        self.state_dir().join("employees.json")
+    }
+    pub fn employees_dir(&self) -> PathBuf {
+        self.root.join("employees")
+    }
+    pub fn employee_dir(&self, id: &str) -> PathBuf {
+        self.employees_dir().join(id)
+    }
+    pub fn employee_soul_file(&self, id: &str) -> PathBuf {
+        self.employee_dir(id).join("soul.md")
+    }
+    pub fn employee_skills_file(&self, id: &str) -> PathBuf {
+        self.employee_dir(id).join("skills.md")
+    }
+    pub fn employee_rules_file(&self, id: &str) -> PathBuf {
+        self.employee_dir(id).join("rules.md")
+    }
+
     /// Create all required directories.
     pub fn ensure_dirs(&self) -> Result<()> {
         let dirs = [
@@ -81,6 +100,7 @@ impl ConsolePaths {
             &self.logs_dir(),
             &self.backups_dir(),
             &self.cache_dir(),
+            &self.employees_dir(),
         ];
         for d in dirs {
             fs::create_dir_all(d)?;
@@ -137,6 +157,10 @@ impl ConsolePaths {
         let settings = self.settings_file();
         if !settings.exists() {
             write_json(&settings, &crate::services::settings::Settings::default())?;
+        }
+        let employees = self.employees_file();
+        if !employees.exists() {
+            write_json(&employees, &crate::models::EmployeesState::default())?;
         }
         Ok(())
     }

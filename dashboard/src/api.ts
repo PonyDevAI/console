@@ -16,6 +16,15 @@ import type {
   SwitchMode,
   SkillManifest,
   Task,
+  Employee,
+  SoulFiles,
+  WorkerInfo,
+  CreateEmployeeRequest,
+  UpdateEmployeeRequest,
+  AgentBindingRequest,
+  UpdateBindingRequest,
+  DispatchRequest,
+  DispatchResponse,
 } from "./types";
 
 const BASE = "/api";
@@ -457,4 +466,87 @@ export async function getRemoteAgentDetail(id: string) {
   await ensureReady();
   if (useMock) return null as RemoteAgentDetail | null;
   return get<RemoteAgentDetail>(`/remote-agents/${id}/detail`);
+}
+
+// ── AI Employee ──
+
+export async function getEmployees() {
+  await ensureReady();
+  if (useMock) return { employees: [] as Employee[] };
+  return get<{ employees: Employee[] }>("/employees");
+}
+
+export async function createEmployee(data: CreateEmployeeRequest) {
+  await ensureReady();
+  if (useMock) return {} as Employee;
+  return post<Employee>("/employees", data);
+}
+
+export async function getEmployee(id: string) {
+  await ensureReady();
+  if (useMock) return { employee: {} as Employee, soul_files: {} as SoulFiles };
+  return get<{ employee: Employee; soul_files: SoulFiles }>(`/employees/${id}`);
+}
+
+export async function updateEmployee(id: string, data: UpdateEmployeeRequest) {
+  await ensureReady();
+  if (useMock) return {} as Employee;
+  return put<Employee>(`/employees/${id}`, data);
+}
+
+export async function deleteEmployee(id: string) {
+  await ensureReady();
+  if (useMock) return;
+  return del(`/employees/${id}`);
+}
+
+export async function getSoulFiles(id: string) {
+  await ensureReady();
+  if (useMock) return {} as SoulFiles;
+  return get<SoulFiles>(`/employees/${id}/soul-files`);
+}
+
+export async function updateSoulFiles(id: string, data: Partial<SoulFiles>) {
+  await ensureReady();
+  if (useMock) return { ok: true };
+  return put<{ ok: boolean }>(`/employees/${id}/soul-files`, data);
+}
+
+export async function addBinding(id: string, binding: AgentBindingRequest) {
+  await ensureReady();
+  if (useMock) return {} as Employee;
+  return post<Employee>(`/employees/${id}/bindings`, binding);
+}
+
+export async function updateBinding(id: string, bid: string, data: UpdateBindingRequest) {
+  await ensureReady();
+  if (useMock) return {} as Employee;
+  return put<Employee>(`/employees/${id}/bindings/${bid}`, data);
+}
+
+export async function deleteBinding(id: string, bid: string) {
+  await ensureReady();
+  if (useMock) return {} as Employee;
+  return del<Employee>(`/employees/${id}/bindings/${bid}`);
+}
+
+export async function dispatchEmployee(id: string, data: DispatchRequest) {
+  await ensureReady();
+  if (useMock) return { task_id: "mock-task-id", output: "Mock dispatch output", exit_code: 0 } as DispatchResponse;
+  return post<DispatchResponse>(`/employees/${id}/dispatch`, data);
+}
+
+export async function getRemoteWorkers(remoteAgentId: string) {
+  await ensureReady();
+  if (useMock) return { workers: [] as WorkerInfo[] };
+  return get<{ workers: WorkerInfo[] }>(`/remote-agents/${remoteAgentId}/workers`);
+}
+
+export async function testEmployeeBinding(employeeId: string, bindingId: string) {
+  await ensureReady();
+  if (useMock) return { ok: true };
+  return post<{ ok: boolean; latency_ms?: number; error?: string; type?: string }>(
+    `/employees/${employeeId}/bindings/${bindingId}/test`,
+    {}
+  );
 }

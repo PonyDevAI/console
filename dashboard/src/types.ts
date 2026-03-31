@@ -160,3 +160,73 @@ export interface OpenClawDetail {
 export interface RemoteAgentDetail extends RemoteAgent {
   detail: OpenClawDetail | null;
 }
+
+// ── AI Employee ──
+
+export type AgentProtocol =
+  | { type: "local_process"; executable: string; soul_arg: string; extra_args: string[] }
+  | { type: "open_ai_compatible"; endpoint: string; api_key?: string | null; model: string; stream: boolean }
+  | { type: "ssh_exec"; host: string; port: number; user: string; key_path: string; executable: string; soul_arg: string };
+
+export type AgentBinding = {
+  id: string;
+  label: string;
+  is_primary: boolean;
+  protocol: AgentProtocol;
+};
+
+export type Employee = {
+  id: string;
+  name: string;
+  display_name: string;
+  role: string;
+  avatar_color: string;
+  bindings: AgentBinding[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type SoulFiles = {
+  soul: string;
+  skills: string;
+  rules: string;
+};
+
+export type WorkerInfo = {
+  id: string;
+  display_name: string;
+};
+
+export type CreateEmployeeRequest = {
+  name: string;
+  display_name: string;
+  role: string;
+  avatar_color: string;
+};
+
+export type UpdateEmployeeRequest = {
+  display_name?: string;
+  role?: string;
+  avatar_color?: string;
+};
+
+export type AgentBindingRequest = {
+  label: string;
+  is_primary: boolean;
+  protocol: AgentProtocol;
+};
+
+export type UpdateBindingRequest = {
+  label?: string;
+  is_primary?: boolean;
+};
+
+export type DispatchRequest = {
+  task: string;
+  cwd?: string;
+  binding_id?: string;
+};
+
+export type DispatchResponse = {
+  task_id: string;
+};

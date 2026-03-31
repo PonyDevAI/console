@@ -44,6 +44,7 @@ pub async fn serve(addr: &str) -> Result<()> {
         .route("/api/tasks", axum::routing::get(routes::list_tasks))
         .route("/api/tasks/stream", axum::routing::get(sse::task_stream))
         .route("/api/tasks/:id", axum::routing::get(routes::get_task))
+        .route("/api/employees/:id/dispatch", axum::routing::post(routes::dispatch_employee))
         .with_state(queue.clone());
 
     let stateless_routes = routes::api_routes();

@@ -8,6 +8,7 @@ import {
   ScrollText,
   Server,
   Settings,
+  Users,
   Zap,
 } from "lucide-react";
 import { useEffect, useState, type ComponentType } from "react";
@@ -20,6 +21,7 @@ import useTheme from "./hooks/useTheme";
 import { cn } from "./lib/utils";
 import Dashboard from "./pages/Dashboard";
 import ConfigSyncPage from "./pages/ConfigSyncPage";
+import EmployeesPage from "./pages/EmployeesPage";
 import LogsPage from "./pages/LogsPage";
 import McpPage from "./pages/McpPage";
 import NotFound from "./pages/NotFound";
@@ -27,7 +29,7 @@ import ProviderPage from "./pages/ProviderPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillPage from "./pages/SkillPage";
 import AgentsPage from "./pages/AgentsPage";
-import { useTaskStream } from "./hooks/useTask";
+import { TaskProvider, useTasks } from "./contexts/TaskContext";
 
 type NavItem = {
   to: string;
@@ -47,6 +49,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: "/", label: "仪表盘", icon: LayoutDashboard },
       { to: "/agents", label: "Agent 管理", icon: Bot },
+      { to: "/employees", label: "AI 员工", icon: Users },
     ],
   },
   {
@@ -72,7 +75,7 @@ export default function App() {
   const [connected, setConnected] = useState(true);
   const [collapsed, setCollapsed] = useState(false);
   const [versionInfo, setVersionInfo] = useState<{ current: string; latest: string; updateAvailable: boolean } | null>(null);
-  const { tasks } = useTaskStream();
+  const { tasks } = useTasks();
 
   const allTasks = Array.from(tasks.values()).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const activeTasks = allTasks.filter(t => t.status === 'pending' || t.status === 'running');
@@ -98,18 +101,19 @@ export default function App() {
   }, []);
 
   return (
-    <div
-      className="grid h-screen overflow-hidden"
-      style={{
-        gridTemplateColumns: collapsed ? "78px 1fr" : "288px 1fr",
-        gridTemplateRows: "52px 1fr",
-        gridTemplateAreas: '"nav topbar" "nav content"',
-        animation: "dashboard-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
-        transition: "grid-template-columns 200ms cubic-bezier(0.16, 1, 0.3, 1)",
-      }}
-    >
-      {/* ── Sidebar ── */}
-      <aside
+    <TaskProvider>
+      <div
+        className="grid h-screen overflow-hidden"
+        style={{
+          gridTemplateColumns: collapsed ? "78px 1fr" : "288px 1fr",
+          gridTemplateRows: "52px 1fr",
+          gridTemplateAreas: '"nav topbar" "nav content"',
+          animation: "dashboard-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+          transition: "grid-template-columns 200ms cubic-bezier(0.16, 1, 0.3, 1)",
+        }}
+      >
+        {/* ── Sidebar ── */}
+        <aside
         className="flex flex-col overflow-hidden"
         style={{
           gridArea: "nav",
@@ -341,17 +345,20 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/agents" element={<AgentsPage />} />
+          <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/providers" element={<ProviderPage />} />
           <Route path="/mcp" element={<McpPage />} />
           <Route path="/skills" element={<SkillPage />} />
           <Route path="/logs" element={<LogsPage />} />
           <Route path="/config-sync" element={<ConfigSyncPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/not-found" element={<NotFound />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
 
-      <ToastContainer />
     </div>
+    <ToastContainer />
+  </TaskProvider>
   );
 }

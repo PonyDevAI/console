@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, SwitchMode};
 use crate::models::{CreateRemoteAgentRequest, RemoteAgentsState, UpdateRemoteAgentRequest};
+use crate::models::{CreateEmployeeRequest, SoulFiles, UpdateEmployeeRequest, UpdateBindingRequest};
 use crate::services;
 use crate::services::task_queue::{TaskQueue, TaskStatus};
 
@@ -109,6 +110,18 @@ pub fn api_routes() -> Router {
         .route("/remote-agents/:id", put(update_remote_agent))
         .route("/remote-agents/:id", delete(delete_remote_agent))
         .route("/remote-agents/:id/ping", post(ping_remote_agent))
+        .route("/remote-agents/:id/workers", get(list_remote_workers))
+        .route("/employees", get(list_employees))
+        .route("/employees", post(create_employee))
+        .route("/employees/:id", get(get_employee))
+        .route("/employees/:id", put(update_employee))
+        .route("/employees/:id", delete(delete_employee))
+        .route("/employees/:id/soul-files", get(get_soul_files))
+        .route("/employees/:id/soul-files", put(update_soul_files))
+        .route("/employees/:id/bindings", post(add_binding))
+        .route("/employees/:id/bindings/:bid", put(update_binding))
+        .route("/employees/:id/bindings/:bid", delete(delete_binding))
+        .route("/employees/:id/bindings/:bid/test", post(test_employee_binding))
 }
 
 async fn health() -> Json<Value> {
@@ -855,7 +868,6 @@ async fn get_remote_agent_detail(Path(id): Path<String>) -> Result<Json<Value>, 
         Err(_) => None,
     };
 
-    // 映射 camelCase → snake_case，匹配前端 OpenClawDetail 类型
     let detail = match detail {
         Some(raw) => Some(json!({
             "assistant_name": raw.get("assistantName").and_then(|v| v.as_str()).unwrap_or(""),
@@ -880,4 +892,318 @@ async fn get_remote_agent_detail(Path(id): Path<String>) -> Result<Json<Value>, 
         "tags": agent.tags,
         "detail": detail,
     })))
+}
+
+async fn list_remote_workers(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agent = agents
+        .into_iter()
+        .find(|a| a.id == id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let base = agent.endpoint.trim_end_matches('/');
+    let mut request = client.get(format!("{}/v1/models", base));
+    if let Some(ref api_key) = agent.api_key {
+        request = request.header("Authorization", format!("Bearer {}", api_key));
+    }
+
+    let response = request.send().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    if !response.status().is_success() {
+        return Err(StatusCode::BAD_GATEWAY);
+    }
+
+    let body: Value = response.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let workers = body
+        .get("data")
+        .and_then(|d| d.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|item| {
+                    let raw_id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                    if raw_id.is_empty() { return None; }
+                    let final_id = if raw_id.starts_with("openclaw/") {
+                        raw_id.to_string()
+                    } else {
+                        format!("openclaw/{}", raw_id)
+                    };
+                    let display_name = item.get("name")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(raw_id);
+                    Some(json!({ "id": final_id, "display_name": display_name }))
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Ok(Json(json!({ "workers": workers })))
+}
+
+async fn list_employees() -> Result<Json<Value>, StatusCode> {
+    let employees = services::employee::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "employees": employees })))
+}
+
+#[derive(serde::Deserialize)]
+struct AddBindingRequest {
+    label: String,
+    is_primary: bool,
+    protocol: crate::models::AgentProtocol,
+}
+
+#[derive(serde::Deserialize)]
+pub struct DispatchRequest {
+    pub task: String,
+    pub cwd: Option<String>,
+    pub binding_id: Option<String>,
+}
+
+async fn create_employee(Json(req): Json<CreateEmployeeRequest>) -> Result<Json<Value>, StatusCode> {
+    let employee = services::employee::create(
+        &req.name,
+        &req.display_name,
+        &req.role,
+        &req.avatar_color,
+    )
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(employee)))
+}
+
+async fn get_employee(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let employee = services::employee::get(&id)
+        .await
+        .map_err(map_not_found)?;
+    let soul_files = services::employee::read_soul_files(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({
+        "employee": employee,
+        "soul_files": soul_files,
+    })))
+}
+
+async fn update_employee(
+    Path(id): Path<String>,
+    Json(req): Json<UpdateEmployeeRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let employee = services::employee::update(
+        &id,
+        req.display_name.as_deref(),
+        req.role.as_deref(),
+        req.avatar_color.as_deref(),
+    )
+    .await
+    .map_err(map_not_found)?;
+    Ok(Json(json!(employee)))
+}
+
+async fn delete_employee(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    services::employee::delete(&id)
+        .await
+        .map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn get_soul_files(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let soul_files = services::employee::read_soul_files(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(soul_files)))
+}
+
+async fn update_soul_files(
+    Path(id): Path<String>,
+    Json(req): Json<SoulFiles>,
+) -> Result<Json<Value>, StatusCode> {
+    services::employee::write_soul_files(&id, &req)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn add_binding(
+    Path(id): Path<String>,
+    Json(req): Json<AddBindingRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let binding = crate::models::AgentBinding {
+        id: uuid::Uuid::new_v4().to_string(),
+        label: req.label,
+        is_primary: req.is_primary,
+        protocol: req.protocol,
+    };
+    let employee = services::employee::add_binding(&id, binding)
+        .await
+        .map_err(map_not_found)?;
+    Ok(Json(json!(employee)))
+}
+
+async fn update_binding(
+    Path((id, bid)): Path<(String, String)>,
+    Json(req): Json<UpdateBindingRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let employee = services::employee::update_binding(
+        &id,
+        &bid,
+        req.label.as_deref(),
+        req.is_primary,
+    )
+    .await
+    .map_err(map_not_found)?;
+    Ok(Json(json!(employee)))
+}
+
+async fn delete_binding(
+    Path((id, bid)): Path<(String, String)>,
+) -> Result<Json<Value>, StatusCode> {
+    let employee = services::employee::delete_binding(&id, &bid)
+        .await
+        .map_err(map_not_found)?;
+    Ok(Json(json!(employee)))
+}
+
+pub async fn dispatch_employee(
+    axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
+    Path(id): Path<String>,
+    Json(req): Json<DispatchRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let employee = services::employee::get(&id)
+        .await
+        .map_err(map_not_found)?;
+
+    let binding = if let Some(bid) = &req.binding_id {
+        employee.bindings
+            .iter()
+            .find(|b| b.id == *bid)
+            .ok_or(StatusCode::NOT_FOUND)?
+            .clone()
+    } else {
+        employee.bindings
+            .iter()
+            .find(|b| b.is_primary)
+            .or_else(|| employee.bindings.first())
+            .ok_or(StatusCode::BAD_REQUEST)?
+            .clone()
+    };
+    
+    let soul_files = services::employee::read_soul_files(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let task_label = format!("Dispatch to {}", employee.display_name);
+    let task = queue.submit("dispatch", &task_label);
+    let task_id = task.id.clone();
+    let q = queue.clone();
+    let emp_name = employee.display_name.clone();
+    let task_id_spawn = task_id.clone();
+    let cwd_clone = req.cwd.clone();
+    let task_str = req.task.clone();
+
+    tokio::spawn(async move {
+        q.update_status(&task_id_spawn, TaskStatus::Running,
+            Some(format!("Dispatching to {}...", emp_name)));
+
+        match services::employee_dispatch::dispatch(
+            &binding.protocol,
+            &soul_files,
+            &task_str,
+            cwd_clone.as_deref(),
+        ).await {
+            Ok(result) => {
+                services::logs::push("info", "dispatch",
+                    &format!("Dispatched to {} - exit code {}", emp_name, result.exit_code));
+                q.update_status(&task_id_spawn, TaskStatus::Completed,
+                    Some(result.output));
+            }
+            Err(e) => {
+                services::logs::push("error", "dispatch",
+                    &format!("Dispatch failed: {}", e));
+                q.update_status(&task_id_spawn, TaskStatus::Failed,
+                    Some(e.to_string()));
+            }
+        }
+    });
+
+    Ok(Json(json!({ "task_id": task_id })))
+}
+
+async fn test_employee_binding(
+    Path((id, bid)): Path<(String, String)>,
+) -> Result<Json<Value>, StatusCode> {
+    let employee = services::employee::get(&id)
+        .await
+        .map_err(map_not_found)?;
+
+    let binding = employee.bindings
+        .iter()
+        .find(|b| b.id == bid)
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let start = std::time::Instant::now();
+
+    match &binding.protocol {
+        crate::models::AgentProtocol::LocalProcess { executable, .. } => {
+            let exists = tokio::process::Command::new("which")
+                .arg(executable.as_str())
+                .output()
+                .await
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+            if exists {
+                Ok(Json(json!({ "ok": true, "type": "local_process", "executable": executable })))
+            } else {
+                Ok(Json(json!({ "ok": false, "type": "local_process", "error": format!("'{}' not found in PATH", executable) })))
+            }
+        }
+        crate::models::AgentProtocol::OpenAiCompatible { endpoint, api_key, .. } => {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(5))
+                .danger_accept_invalid_certs(true)
+                .build()
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            let base = endpoint.trim_end_matches('/');
+            let mut req = client.get(format!("{}/v1/models", base));
+            if let Some(key) = api_key {
+                req = req.header("Authorization", format!("Bearer {}", key));
+            }
+
+            match req.send().await {
+                Ok(resp) => {
+                    let latency = start.elapsed().as_millis();
+                    if resp.status().is_success() {
+                        Ok(Json(json!({ "ok": true, "type": "openai_compatible", "latency_ms": latency })))
+                    } else {
+                        Ok(Json(json!({ "ok": false, "type": "openai_compatible", "error": format!("HTTP {}", resp.status()) })))
+                    }
+                }
+                Err(e) => Ok(Json(json!({ "ok": false, "type": "openai_compatible", "error": e.to_string() }))),
+            }
+        }
+        crate::models::AgentProtocol::SshExec { host, port, user, key_path, .. } => {
+            let result = tokio::process::Command::new("ssh")
+                .arg("-i").arg(key_path.as_str())
+                .arg("-p").arg(port.to_string())
+                .arg("-o").arg("ConnectTimeout=5")
+                .arg("-o").arg("BatchMode=yes")
+                .arg("-o").arg("StrictHostKeyChecking=accept-new")
+                .arg(format!("{}@{}", user, host))
+                .arg("echo ok")
+                .output()
+                .await;
+
+            let latency = start.elapsed().as_millis();
+            match result {
+                Ok(out) if out.status.success() => {
+                    Ok(Json(json!({ "ok": true, "type": "ssh_exec", "latency_ms": latency })))
+                }
+                Ok(out) => {
+                    let err = String::from_utf8_lossy(&out.stderr).to_string();
+                    Ok(Json(json!({ "ok": false, "type": "ssh_exec", "error": err })))
+                }
+                Err(e) => Ok(Json(json!({ "ok": false, "type": "ssh_exec", "error": e.to_string() }))),
+            }
+        }
+    }
 }

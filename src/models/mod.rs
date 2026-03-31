@@ -285,3 +285,82 @@ pub struct UpdateRemoteAgentRequest {
     pub api_key: Option<String>,
     pub tags: Option<Vec<String>>,
 }
+
+// ── AI Employee ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Employee {
+    pub id: String,
+    pub name: String,
+    pub display_name: String,
+    pub role: String,
+    pub avatar_color: String,
+    pub bindings: Vec<AgentBinding>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EmployeesState {
+    pub employees: Vec<Employee>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentBinding {
+    pub id: String,
+    pub label: String,
+    pub is_primary: bool,
+    pub protocol: AgentProtocol,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AgentProtocol {
+    LocalProcess {
+        executable: String,
+        soul_arg: String,
+        extra_args: Vec<String>,
+    },
+    OpenAiCompatible {
+        endpoint: String,
+        api_key: Option<String>,
+        model: String,
+        stream: bool,
+    },
+    SshExec {
+        host: String,
+        port: u16,
+        user: String,
+        key_path: String,
+        executable: String,
+        soul_arg: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SoulFiles {
+    pub soul: String,
+    pub skills: String,
+    pub rules: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateEmployeeRequest {
+    pub name: String,
+    pub display_name: String,
+    pub role: String,
+    pub avatar_color: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct UpdateEmployeeRequest {
+    pub display_name: Option<String>,
+    pub role: Option<String>,
+    pub avatar_color: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateBindingRequest {
+    pub label: Option<String>,
+    pub is_primary: Option<bool>,
+}
