@@ -41,6 +41,7 @@ pub fn activate(id: &str) -> Result<()> {
     save(&state)
 }
 
+#[allow(dead_code)]
 pub fn deactivate_all() -> Result<()> {
     let mut state = load()?;
     for p in &mut state.prompts {
