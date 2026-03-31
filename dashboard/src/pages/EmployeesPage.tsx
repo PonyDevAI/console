@@ -279,6 +279,7 @@ function EmployeeEditModal({ open, employee, onClose, onUpdate, onUpdateSoulFile
   const [showAddBinding, setShowAddBinding] = useState(false);
   const [loadingSoul, setLoadingSoul] = useState(true);
   const [testingBinding, setTestingBinding] = useState<string | null>(null);
+  const [editingBinding, setEditingBinding] = useState<AgentBinding | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; latency_ms?: number; error?: string }>>({});
 
   useEffect(() => {
@@ -356,6 +357,13 @@ function EmployeeEditModal({ open, employee, onClose, onUpdate, onUpdateSoulFile
                     >
                       {testingBinding === binding.id ? "测试中..." : "测试"}
                     </button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setEditingBinding(binding)}
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </Button>
                     {!binding.is_primary && (<Button size="sm" variant="ghost" onClick={() => onUpdateBinding(employee.id, binding.id, { is_primary: true })}>设为主绑定</Button>)}
                     <Button size="sm" variant="ghost" onClick={() => onDeleteBinding(employee.id, binding.id)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
@@ -366,27 +374,76 @@ function EmployeeEditModal({ open, employee, onClose, onUpdate, onUpdateSoulFile
         )}
       </div>
       {showAddBinding && <AddBindingModal open={showAddBinding} onClose={() => setShowAddBinding(false)} onSubmit={(data) => { onAddBinding(employee.id, data); setShowAddBinding(false); }} />}
+      {editingBinding && (
+        <AddBindingModal
+          open={!!editingBinding}
+          onClose={() => setEditingBinding(null)}
+          initialData={{
+            label: editingBinding.label,
+            is_primary: editingBinding.is_primary,
+            protocol: editingBinding.protocol,
+          }}
+          onSubmit={(data) => {
+            onUpdateBinding(employee.id, editingBinding.id, {
+              label: data.label,
+              is_primary: data.is_primary,
+              protocol: data.protocol,
+            });
+            setEditingBinding(null);
+          }}
+        />
+      )}
     </Modal>
   );
 }
 
-function AddBindingModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (data: BindingFormData) => void }) {
-  const [protocolType, setProtocolType] = useState<"local_process" | "open_ai_compatible" | "ssh_exec">("local_process");
-  const [label, setLabel] = useState("");
-  const [isPrimary, setIsPrimary] = useState(true);
-  const [executable, setExecutable] = useState("claude");
-  const [soulArg, setSoulArg] = useState("--system-prompt");
+function AddBindingModal({
+  open,
+  onClose,
+  onSubmit,
+  initialData,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: BindingFormData) => void;
+  initialData?: BindingFormData;
+}) {
+  const proto = initialData?.protocol;
+
+  const [protocolType, setProtocolType] = useState<"local_process" | "open_ai_compatible" | "ssh_exec">(
+    proto?.type ?? "local_process"
+  );
+  const [label, setLabel] = useState(initialData?.label ?? "");
+  const [isPrimary, setIsPrimary] = useState(initialData?.is_primary ?? true);
+
+  const [executable, setExecutable] = useState(
+    proto?.type === "local_process" ? proto.executable : "claude"
+  );
+  const [soulArg, setSoulArg] = useState(
+    proto?.type === "local_process" ? proto.soul_arg : "--system-prompt"
+  );
+
+  const [endpoint, setEndpoint] = useState(
+    proto?.type === "open_ai_compatible" ? proto.endpoint : ""
+  );
+  const [apiKey, setApiKey] = useState(
+    proto?.type === "open_ai_compatible" ? (proto.api_key ?? "") : ""
+  );
+  const [model, setModel] = useState(
+    proto?.type === "open_ai_compatible" ? proto.model : ""
+  );
+  const [stream, setStream] = useState(
+    proto?.type === "open_ai_compatible" ? proto.stream : true
+  );
+
+  const [host, setHost] = useState(proto?.type === "ssh_exec" ? proto.host : "");
+  const [port, setPort] = useState(proto?.type === "ssh_exec" ? String(proto.port) : "22");
+  const [user, setUser] = useState(proto?.type === "ssh_exec" ? proto.user : "root");
+  const [keyPath, setKeyPath] = useState(proto?.type === "ssh_exec" ? proto.key_path : "~/.ssh/id_rsa");
+
   const [remoteAgents, setRemoteAgents] = useState<RemoteAgent[]>([]);
   const [workers, setWorkers] = useState<WorkerInfo[]>([]);
   const [loadingWorkers, setLoadingWorkers] = useState(false);
-  const [endpoint, setEndpoint] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
-  const [stream, setStream] = useState(true);
-  const [host, setHost] = useState("");
-  const [port, setPort] = useState("22");
-  const [user, setUser] = useState("root");
-  const [keyPath, setKeyPath] = useState("~/.ssh/id_rsa");
 
   useEffect(() => {
     getRemoteAgents().then(data => setRemoteAgents(data.agents ?? []));
@@ -418,7 +475,7 @@ function AddBindingModal({ open, onClose, onSubmit }: { open: boolean; onClose: 
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="添加 Agent 绑定" footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>取消</Button><Button onClick={handleSubmit}>添加</Button></div>}>
+    <Modal open={open} onClose={onClose} title={initialData ? "编辑绑定" : "添加 Agent 绑定"} footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={onClose}>取消</Button><Button onClick={handleSubmit}>{initialData ? "保存" : "添加"}</Button></div>}>
       <div className="space-y-4">
         <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">协议类型</label><select value={protocolType} onChange={(e) => setProtocolType(e.target.value as any)} className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm"><option value="local_process">本地进程</option><option value="open_ai_compatible">OpenAI 兼容</option><option value="ssh_exec">SSH 执行</option></select></div>
         <div><label className="block text-sm font-medium text-[var(--text-strong)] mb-1">绑定标签</label><input type="text" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. 主 Agent" className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm" /></div>

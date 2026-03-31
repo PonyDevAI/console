@@ -1050,6 +1050,7 @@ async fn update_binding(
         &bid,
         req.label.as_deref(),
         req.is_primary,
+        req.protocol,
     )
     .await
     .map_err(map_not_found)?;

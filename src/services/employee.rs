@@ -197,6 +197,7 @@ pub async fn update_binding(
     binding_id: &str,
     label: Option<&str>,
     is_primary: Option<bool>,
+    protocol: Option<crate::models::AgentProtocol>,
 ) -> Result<Employee> {
     let mut state = get_state().await?;
     
@@ -226,6 +227,14 @@ pub async fn update_binding(
         for b in &mut employee.bindings {
             if b.id == binding_id {
                 b.is_primary = ip;
+            }
+        }
+    }
+    
+    if let Some(p) = protocol {
+        for b in &mut employee.bindings {
+            if b.id == binding_id {
+                b.protocol = p.clone();
             }
         }
     }

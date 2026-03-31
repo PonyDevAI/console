@@ -222,6 +222,7 @@ export type AgentBindingRequest = {
 export type UpdateBindingRequest = {
   label?: string;
   is_primary?: boolean;
+  protocol?: AgentProtocol;
 };
 
 export type DispatchRequest = {

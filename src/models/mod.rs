@@ -365,10 +365,11 @@ pub struct UpdateEmployeeRequest {
     pub avatar_color: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateBindingRequest {
     pub label: Option<String>,
     pub is_primary: Option<bool>,
+    pub protocol: Option<AgentProtocol>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
