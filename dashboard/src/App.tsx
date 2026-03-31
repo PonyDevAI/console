@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   ListTodo,
   Menu,
+  MessageSquare,
   RefreshCw,
   ScrollText,
   Server,
@@ -31,6 +32,7 @@ import PromptsPage from "./pages/PromptsPage";
 import SettingsPage from "./pages/SettingsPage";
 import SkillPage from "./pages/SkillPage";
 import AgentsPage from "./pages/AgentsPage";
+import WorkspacePage from "./pages/WorkspacePage";
 import { TaskProvider, useTasks } from "./contexts/TaskContext";
 
 type NavItem = {
@@ -52,6 +54,7 @@ const navGroups: NavGroup[] = [
       { to: "/", label: "仪表盘", icon: LayoutDashboard },
       { to: "/agents", label: "Agent 管理", icon: Bot },
       { to: "/employees", label: "AI 员工", icon: Users },
+      { to: "/workspace", label: "协作空间", icon: MessageSquare },
     ],
   },
   {
@@ -352,6 +355,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
+          <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/providers" element={<ProviderPage />} />
           <Route path="/mcp" element={<McpPage />} />
           <Route path="/skills" element={<SkillPage />} />

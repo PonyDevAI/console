@@ -268,3 +268,52 @@ export interface BackupMeta {
   created_at: string;
   size_bytes: number;
 }
+
+// ── Session / Chat ──
+
+export interface SessionParticipant {
+  employee_id: string;
+  display_name: string;
+  avatar_color: string;
+}
+
+export interface Session {
+  id: string;
+  title: string;
+  participants: SessionParticipant[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SessionMessage {
+  id: string;
+  session_id: string;
+  kind: "chat" | "system" | "proposal";
+  role: "user" | "assistant";
+  author_id?: string;
+  author_label: string;
+  content: string;
+  mentions: string[];
+  created_at: string;
+}
+
+export type ProposalStatus = "pending" | "executing" | "reviewing" | "done" | "cancelled";
+
+export interface TaskProposal {
+  id: string;
+  session_id: string;
+  title: string;
+  description: string;
+  assigned_employee_id: string;
+  status: ProposalStatus;
+  dispatch_task_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SessionEvent =
+  | { type: "message_created"; message_id: string; author_label: string; author_id?: string; kind: string; role: string; content: string; mentions: string[]; created_at: string }
+  | { type: "message_delta"; message_id: string; delta: string }
+  | { type: "message_done"; message_id: string; content: string }
+  | { type: "message_error"; message_id: string; error: string }
+  | { type: "proposal_updated"; proposal_id: string; status: string };

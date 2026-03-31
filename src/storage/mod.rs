@@ -93,6 +93,26 @@ impl ConsolePaths {
         self.employee_dir(id).join("history.json")
     }
 
+    pub fn sessions_dir(&self) -> PathBuf {
+        self.root.join("sessions")
+    }
+
+    pub fn session_dir(&self, id: &str) -> PathBuf {
+        self.sessions_dir().join(id)
+    }
+
+    pub fn session_meta_file(&self) -> PathBuf {
+        self.sessions_dir().join("meta.json")
+    }
+
+    pub fn session_messages_file(&self, id: &str) -> PathBuf {
+        self.session_dir(id).join("messages.json")
+    }
+
+    pub fn session_proposals_file(&self, id: &str) -> PathBuf {
+        self.session_dir(id).join("proposals.json")
+    }
+
     /// Create all required directories.
     pub fn ensure_dirs(&self) -> Result<()> {
         let dirs = [
@@ -104,6 +124,7 @@ impl ConsolePaths {
             &self.backups_dir(),
             &self.cache_dir(),
             &self.employees_dir(),
+            &self.sessions_dir(),
         ];
         for d in dirs {
             fs::create_dir_all(d)?;
@@ -164,6 +185,13 @@ impl ConsolePaths {
         let employees = self.employees_file();
         if !employees.exists() {
             write_json(&employees, &crate::models::EmployeesState::default())?;
+        }
+        let sessions_meta = self.session_meta_file();
+        if !sessions_meta.exists() {
+            if let Some(p) = sessions_meta.parent() {
+                fs::create_dir_all(p)?;
+            }
+            write_json(&sessions_meta, &crate::models::SessionMeta::default())?;
         }
         Ok(())
     }

@@ -4,10 +4,18 @@ mod sse;
 use anyhow::Result;
 use axum::Router;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::services::task_queue::TaskQueue;
+use crate::services::session_stream::SharedSessionRegistry;
+
+static SESSION_REGISTRY: OnceLock<SharedSessionRegistry> = OnceLock::new();
+
+pub fn session_registry() -> &'static SharedSessionRegistry {
+    SESSION_REGISTRY.get_or_init(|| crate::services::session_stream::new_registry())
+}
 
 pub async fn serve(addr: &str) -> Result<()> {
     let paths = crate::storage::ConsolePaths::default();
@@ -52,6 +60,20 @@ pub async fn serve(addr: &str) -> Result<()> {
     let app = Router::new()
         .merge(stateful_routes)
         .nest("/api", stateless_routes)
+        .route("/api/sessions", axum::routing::get(routes::list_sessions))
+        .route("/api/sessions", axum::routing::post(routes::create_session))
+        .route("/api/sessions/:id", axum::routing::get(routes::get_session))
+        .route("/api/sessions/:id", axum::routing::delete(routes::delete_session))
+        .route("/api/sessions/:id/messages", axum::routing::get(routes::list_session_messages))
+        .route("/api/sessions/:id/messages", axum::routing::post(routes::post_session_message))
+        .route("/api/sessions/:id/stream", axum::routing::get(routes::session_stream))
+        .route("/api/sessions/:id/title", axum::routing::patch(routes::update_session_title))
+        .route("/api/sessions/:id/participants", axum::routing::patch(routes::update_session_participants))
+        .route("/api/sessions/:id/proposals", axum::routing::get(routes::list_proposals))
+        .route("/api/sessions/:id/proposals", axum::routing::post(routes::create_proposal))
+        .route("/api/sessions/:id/proposals/:pid/confirm", axum::routing::post(routes::confirm_proposal))
+        .route("/api/sessions/:id/proposals/:pid/cancel", axum::routing::post(routes::cancel_proposal))
+        .route("/api/sessions/:id/proposals/:pid/done", axum::routing::post(routes::done_proposal))
         .fallback_service(static_files)
         .layer(CorsLayer::permissive());
 

@@ -1353,3 +1353,526 @@ async fn delete_backup(
         .map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
+
+// ── Session Handlers ──
+
+pub async fn list_sessions() -> Result<Json<Value>, StatusCode> {
+    let sessions = services::session::list()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "sessions": sessions })))
+}
+
+pub async fn create_session(
+    Json(req): Json<crate::models::CreateSessionRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let session = services::session::create(&req.title, &req.participant_ids)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!(session)))
+}
+
+pub async fn get_session(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    let session = services::session::get(&id).map_err(map_not_found)?;
+    let messages = services::session::list_messages(&id).unwrap_or_default();
+    Ok(Json(json!({ "session": session, "messages": messages })))
+}
+
+pub async fn delete_session(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    services::session::delete(&id).map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+pub async fn list_session_messages(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    let messages = services::session::list_messages(&id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "messages": messages })))
+}
+
+pub async fn post_session_message(
+    Path(id): Path<String>,
+    Json(req): Json<crate::models::PostMessageRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let _session = services::session::get(&id).map_err(map_not_found)?;
+
+    let user_msg = crate::models::SessionMessage {
+        id: uuid::Uuid::new_v4().to_string(),
+        session_id: id.clone(),
+        kind: crate::models::MessageKind::Chat,
+        role: crate::models::MessageRole::User,
+        author_id: None,
+        author_label: "You".to_string(),
+        content: req.content.clone(),
+        mentions: req.mentions.clone(),
+        created_at: chrono::Utc::now(),
+    };
+    services::session::append_message(&id, user_msg.clone())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let registry = crate::api::session_registry();
+    registry.publish(&id, crate::services::session_stream::SessionEvent::MessageCreated {
+        message_id: user_msg.id.clone(),
+        author_label: user_msg.author_label.clone(),
+        author_id: None,
+        kind: "chat".into(),
+        role: "user".into(),
+        content: user_msg.content.clone(),
+        mentions: user_msg.mentions.clone(),
+        created_at: user_msg.created_at.to_rfc3339(),
+    });
+
+    if !req.mentions.is_empty() {
+        let session_id = id.clone();
+        let mentions = req.mentions.clone();
+        let content = req.content.clone();
+        let registry = registry.clone();
+
+        tokio::spawn(async move {
+            for emp_id in &mentions {
+                let emp = match services::employee::get(emp_id).await {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+
+                let binding = match emp.bindings.iter().find(|b| b.is_primary)
+                    .or_else(|| emp.bindings.first()) {
+                    Some(b) => b.clone(),
+                    None => continue,
+                };
+
+                let soul_files = services::employee::read_soul_files(emp_id)
+                    .unwrap_or_default();
+
+                let message_id = uuid::Uuid::new_v4().to_string();
+
+                registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageCreated {
+                    message_id: message_id.clone(),
+                    author_label: emp.display_name.clone(),
+                    author_id: Some(emp_id.clone()),
+                    kind: "chat".into(),
+                    role: "assistant".into(),
+                    content: String::new(),
+                    mentions: vec![],
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                });
+
+                let history = services::session::list_messages(&session_id)
+                    .unwrap_or_default();
+
+                let system_prompt = services::employee_dispatch::build_system_prompt(&soul_files);
+                let mut full_content = String::new();
+
+                match &binding.protocol {
+                    crate::models::AgentProtocol::OpenAiCompatible {
+                        endpoint, api_key, model, ..
+                    } => {
+                        let mut messages_payload = vec![];
+                        if !system_prompt.is_empty() {
+                            messages_payload.push(serde_json::json!({
+                                "role": "system",
+                                "content": system_prompt
+                            }));
+                        }
+                        let chat_history: Vec<_> = history.iter().filter(|m| m.kind == crate::models::MessageKind::Chat).collect();
+                        for msg in chat_history.iter().rev().take(20).rev() {
+                            let role = match msg.role {
+                                crate::models::MessageRole::User => "user",
+                                crate::models::MessageRole::Assistant => "assistant",
+                            };
+                            messages_payload.push(serde_json::json!({
+                                "role": role,
+                                "content": msg.content
+                            }));
+                        }
+
+                        let client = reqwest::Client::builder()
+                            .timeout(std::time::Duration::from_secs(120))
+                            .danger_accept_invalid_certs(true)
+                            .build().unwrap();
+
+                        let base = endpoint.trim_end_matches('/');
+                        let mut req_builder = client.post(format!("{}/v1/chat/completions", base))
+                            .json(&serde_json::json!({
+                                "model": model,
+                                "messages": messages_payload,
+                                "stream": true
+                            }));
+
+                        if let Some(key) = api_key {
+                            req_builder = req_builder.header("Authorization", format!("Bearer {}", key));
+                        }
+
+                        if let Ok(resp) = req_builder.send().await {
+                            use futures::StreamExt;
+                            let mut stream = resp.bytes_stream();
+                            let mut done = false;
+                            while !done {
+                                match stream.next().await {
+                                    Some(Ok(chunk)) => {
+                                        let text = String::from_utf8_lossy(&chunk);
+                                        for line in text.lines() {
+                                            if let Some(data) = line.strip_prefix("data: ") {
+                                                if data == "[DONE]" { done = true; break; }
+                                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                                    if let Some(delta) = json
+                                                        .get("choices").and_then(|c| c.get(0))
+                                                        .and_then(|c| c.get("delta"))
+                                                        .and_then(|d| d.get("content"))
+                                                        .and_then(|c| c.as_str())
+                                                    {
+                                                        full_content.push_str(delta);
+                                                        registry.publish(&session_id,
+                                                            crate::services::session_stream::SessionEvent::MessageDelta {
+                                                                message_id: message_id.clone(),
+                                                                delta: delta.to_string(),
+                                                            });
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => break,
+                                }
+                            }
+                        }
+                    }
+                    crate::models::AgentProtocol::LocalProcess { executable, soul_arg, extra_args } => {
+                        let chat_history: Vec<_> = history.iter().filter(|m| m.kind == crate::models::MessageKind::Chat).collect();
+                        let history_text = chat_history.iter().rev().take(10).rev()
+                            .map(|m| format!("[{}] {}", m.author_label, m.content))
+                            .collect::<Vec<_>>().join("\n");
+
+                        let combined_prompt = if history_text.is_empty() {
+                            system_prompt
+                        } else {
+                            format!("{}\n\n## 对话历史\n{}", system_prompt, history_text)
+                        };
+
+                        let mut cmd = tokio::process::Command::new(executable.as_str());
+                        if !combined_prompt.is_empty() {
+                            cmd.arg(soul_arg.as_str()).arg(&combined_prompt);
+                        }
+                        for arg in extra_args { cmd.arg(arg); }
+                        cmd.arg(&content);
+                        cmd.stdout(std::process::Stdio::piped());
+
+                        if let Ok(mut child) = cmd.spawn() {
+                            if let Some(stdout) = child.stdout.take() {
+                                use tokio::io::AsyncBufReadExt;
+                                let mut reader = tokio::io::BufReader::new(stdout).lines();
+                                while let Ok(Some(line)) = reader.next_line().await {
+                                    let delta = format!("{}\n", line);
+                                    full_content.push_str(&delta);
+                                    registry.publish(&session_id,
+                                        crate::services::session_stream::SessionEvent::MessageDelta {
+                                            message_id: message_id.clone(),
+                                            delta,
+                                        });
+                                }
+                            }
+                            let _ = child.wait().await;
+                        }
+                    }
+                    _ => {
+                        full_content = "（SSH 协议暂不支持聊天模式）".to_string();
+                    }
+                }
+
+                registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageDone {
+                    message_id: message_id.clone(),
+                    content: full_content.clone(),
+                });
+
+                let agent_msg = crate::models::SessionMessage {
+                    id: message_id,
+                    session_id: session_id.clone(),
+                    kind: crate::models::MessageKind::Chat,
+                    role: crate::models::MessageRole::Assistant,
+                    author_id: Some(emp_id.clone()),
+                    author_label: emp.display_name.clone(),
+                    content: full_content,
+                    mentions: vec![],
+                    created_at: chrono::Utc::now(),
+                };
+                let _ = services::session::append_message(&session_id, agent_msg);
+            }
+        });
+    }
+
+    Ok(Json(json!({ "message_id": user_msg.id })))
+}
+
+pub async fn session_stream(
+    Path(id): Path<String>,
+) -> axum::response::sse::Sse<impl futures::stream::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>> {
+    let registry = crate::api::session_registry();
+    let mut rx = registry.subscribe(&id);
+
+    let stream = async_stream::stream! {
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    if let Ok(data) = serde_json::to_string(&event) {
+                        yield Ok(axum::response::sse::Event::default().data(data));
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            }
+        }
+    };
+
+    axum::response::sse::Sse::new(stream)
+        .keep_alive(axum::response::sse::KeepAlive::new()
+            .interval(std::time::Duration::from_secs(15)))
+}
+
+// ── Session Title & Participants ──
+
+pub async fn update_session_title(
+    Path(id): Path<String>,
+    Json(req): Json<crate::models::UpdateSessionTitleRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let session = services::session::update_title(&id, &req.title).map_err(map_not_found)?;
+    Ok(Json(json!(session)))
+}
+
+pub async fn update_session_participants(
+    Path(id): Path<String>,
+    Json(req): Json<crate::models::UpdateParticipantsRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let session = services::session::update_participants(&id, &req.add, &req.remove)
+        .await
+        .map_err(map_not_found)?;
+    Ok(Json(json!(session)))
+}
+
+// ── Proposal Handlers ──
+
+pub async fn list_proposals(
+    Path(session_id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
+    let proposals = services::proposal::list(&session_id)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(json!({ "proposals": proposals })))
+}
+
+pub async fn create_proposal(
+    Path(session_id): Path<String>,
+    Json(req): Json<crate::models::CreateProposalRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let proposal = services::proposal::create(
+        &session_id, &req.title, &req.description, &req.assigned_employee_id,
+    ).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let registry = crate::api::session_registry();
+    let content = serde_json::to_string(&proposal).unwrap_or_default();
+    registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageCreated {
+        message_id: proposal.id.clone(),
+        author_label: "System".to_string(),
+        author_id: None,
+        kind: "proposal".into(),
+        role: "user".into(),
+        content,
+        mentions: vec![],
+        created_at: proposal.created_at.to_rfc3339(),
+    });
+
+    let _ = services::session::append_message(&session_id, crate::models::SessionMessage {
+        id: proposal.id.clone(),
+        session_id: session_id.clone(),
+        kind: crate::models::MessageKind::Proposal,
+        role: crate::models::MessageRole::User,
+        author_id: None,
+        author_label: "System".to_string(),
+        content: serde_json::to_string(&proposal).unwrap_or_default(),
+        mentions: vec![],
+        created_at: proposal.created_at,
+    });
+
+    Ok(Json(json!(proposal)))
+}
+
+pub async fn confirm_proposal(
+    Path((session_id, proposal_id)): Path<(String, String)>,
+) -> Result<Json<Value>, StatusCode> {
+    let proposal = services::proposal::get(&session_id, &proposal_id)
+        .map_err(map_not_found)?;
+
+    if proposal.status != crate::models::ProposalStatus::Pending {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Executing)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let registry = crate::api::session_registry();
+
+    let sid = session_id.clone();
+    let pid = proposal_id.clone();
+    let reg = registry.clone();
+    let task_content = proposal.description.clone();
+    let emp_id = proposal.assigned_employee_id.clone();
+
+    tokio::spawn(async move {
+        let emp = match services::employee::get(&emp_id).await {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        let binding = match emp.bindings.iter().find(|b| b.is_primary)
+            .or_else(|| emp.bindings.first()) {
+            Some(b) => b.clone(),
+            None => return,
+        };
+        let soul_files = services::employee::read_soul_files(&emp_id).unwrap_or_default();
+        let system_prompt = services::employee_dispatch::build_system_prompt(&soul_files);
+        let message_id = uuid::Uuid::new_v4().to_string();
+
+        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageCreated {
+            message_id: message_id.clone(),
+            author_label: emp.display_name.clone(),
+            author_id: Some(emp_id.clone()),
+            kind: "chat".into(),
+            role: "assistant".into(),
+            content: String::new(),
+            mentions: vec![],
+            created_at: chrono::Utc::now().to_rfc3339(),
+        });
+
+        let mut full_content = String::new();
+
+        match &binding.protocol {
+            crate::models::AgentProtocol::OpenAiCompatible { endpoint, api_key, model, .. } => {
+                let mut messages_payload = vec![];
+                if !system_prompt.is_empty() {
+                    messages_payload.push(serde_json::json!({"role": "system", "content": system_prompt}));
+                }
+                messages_payload.push(serde_json::json!({"role": "user", "content": task_content}));
+
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(300))
+                    .danger_accept_invalid_certs(true)
+                    .build().unwrap();
+
+                let base = endpoint.trim_end_matches('/');
+                let mut req_builder = client.post(format!("{}/v1/chat/completions", base))
+                    .json(&serde_json::json!({"model": model, "messages": messages_payload, "stream": true}));
+                if let Some(key) = api_key {
+                    req_builder = req_builder.header("Authorization", format!("Bearer {}", key));
+                }
+
+                if let Ok(resp) = req_builder.send().await {
+                    use futures::StreamExt;
+                    let mut stream = resp.bytes_stream();
+                    let mut done = false;
+                    while !done {
+                        match stream.next().await {
+                            Some(Ok(chunk)) => {
+                                let text = String::from_utf8_lossy(&chunk);
+                                for line in text.lines() {
+                                    if let Some(data) = line.strip_prefix("data: ") {
+                                        if data == "[DONE]" { done = true; break; }
+                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                            if let Some(delta) = json
+                                                .get("choices").and_then(|c| c.get(0))
+                                                .and_then(|c| c.get("delta"))
+                                                .and_then(|d| d.get("content"))
+                                                .and_then(|c| c.as_str())
+                                            {
+                                                full_content.push_str(delta);
+                                                reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDelta {
+                                                    message_id: message_id.clone(),
+                                                    delta: delta.to_string(),
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+            }
+            crate::models::AgentProtocol::LocalProcess { executable, soul_arg, extra_args } => {
+                let mut cmd = tokio::process::Command::new(executable.as_str());
+                if !system_prompt.is_empty() {
+                    cmd.arg(soul_arg.as_str()).arg(&system_prompt);
+                }
+                for arg in extra_args { cmd.arg(arg); }
+                cmd.arg(&task_content);
+                cmd.stdout(std::process::Stdio::piped());
+
+                if let Ok(mut child) = cmd.spawn() {
+                    if let Some(stdout) = child.stdout.take() {
+                        use tokio::io::AsyncBufReadExt;
+                        let mut reader = tokio::io::BufReader::new(stdout).lines();
+                        while let Ok(Some(line)) = reader.next_line().await {
+                            let delta = format!("{}\n", line);
+                            full_content.push_str(&delta);
+                            reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDelta {
+                                message_id: message_id.clone(),
+                                delta,
+                            });
+                        }
+                    }
+                    let _ = child.wait().await;
+                }
+            }
+            _ => { full_content = "（SSH 协议暂不支持）".to_string(); }
+        }
+
+        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
+            message_id: message_id.clone(),
+            content: full_content.clone(),
+        });
+
+        let agent_msg = crate::models::SessionMessage {
+            id: message_id,
+            session_id: sid.clone(),
+            kind: crate::models::MessageKind::Chat,
+            role: crate::models::MessageRole::Assistant,
+            author_id: Some(emp_id.clone()),
+            author_label: emp.display_name.clone(),
+            content: full_content,
+            mentions: vec![],
+            created_at: chrono::Utc::now(),
+        };
+        let _ = services::session::append_message(&sid, agent_msg);
+
+        let _ = services::proposal::update_status(&sid, &pid, crate::models::ProposalStatus::Reviewing);
+
+        reg.publish(&sid, crate::services::session_stream::SessionEvent::ProposalUpdated {
+            proposal_id: pid.clone(),
+            status: "reviewing".to_string(),
+        });
+    });
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+pub async fn cancel_proposal(
+    Path((session_id, proposal_id)): Path<(String, String)>,
+) -> Result<Json<Value>, StatusCode> {
+    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Cancelled)
+        .map_err(map_not_found)?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+pub async fn done_proposal(
+    Path((session_id, proposal_id)): Path<(String, String)>,
+) -> Result<Json<Value>, StatusCode> {
+    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Done)
+        .map_err(map_not_found)?;
+    let registry = crate::api::session_registry();
+    registry.publish(&session_id, crate::services::session_stream::SessionEvent::ProposalUpdated {
+        proposal_id: proposal_id.clone(),
+        status: "done".to_string(),
+    });
+    Ok(Json(json!({ "ok": true })))
+}

@@ -13,3 +13,6 @@ pub mod remote_agent;
 pub mod employee;
 pub mod employee_dispatch;
 pub mod backup;
+pub mod session;
+pub mod session_stream;
+pub mod proposal;

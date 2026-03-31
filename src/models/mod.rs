@@ -405,3 +405,116 @@ pub struct BackupSnapshot {
     pub meta: BackupMeta,
     pub files: std::collections::HashMap<String, serde_json::Value>,
 }
+
+// ── Session / Chat ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageKind {
+    Chat,
+    System,
+    Proposal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageRole {
+    User,
+    Assistant,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionMessage {
+    pub id: String,
+    pub session_id: String,
+    pub kind: MessageKind,
+    pub role: MessageRole,
+    pub author_id: Option<String>,
+    pub author_label: String,
+    pub content: String,
+    pub mentions: Vec<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionParticipant {
+    pub employee_id: String,
+    pub display_name: String,
+    pub avatar_color: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Session {
+    pub id: String,
+    pub title: String,
+    pub participants: Vec<SessionParticipant>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SessionMeta {
+    pub sessions: Vec<Session>,
+}
+
+// ── Requests ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSessionRequest {
+    pub title: String,
+    pub participant_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostMessageRequest {
+    pub content: String,
+    pub mentions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSessionTitleRequest {
+    pub title: String,
+}
+
+// ── Task Proposal ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ProposalStatus {
+    Pending,
+    Executing,
+    Reviewing,
+    Done,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskProposal {
+    pub id: String,
+    pub session_id: String,
+    pub title: String,
+    pub description: String,
+    pub assigned_employee_id: String,
+    pub status: ProposalStatus,
+    pub dispatch_task_id: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProposalsState {
+    pub proposals: Vec<TaskProposal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateProposalRequest {
+    pub title: String,
+    pub description: String,
+    pub assigned_employee_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UpdateParticipantsRequest {
+    pub add: Vec<String>,
+    pub remove: Vec<String>,
+}

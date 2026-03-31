@@ -29,6 +29,10 @@ import type {
   DispatchHistory,
   PromptPreset,
   BackupMeta,
+  Session,
+  SessionMessage,
+  SessionEvent,
+  TaskProposal,
 } from "./types";
 
 const BASE = "/api";
@@ -613,4 +617,94 @@ export async function deleteBackup(id: string) {
   await ensureReady();
   if (useMock) return;
   return del(`/backups/${id}`);
+}
+
+// ── Session / Chat ──
+
+export async function getSessions() {
+  await ensureReady();
+  if (useMock) return { sessions: [] as Session[] };
+  return get<{ sessions: Session[] }>('/sessions');
+}
+
+export async function createSession(data: { title: string; participant_ids: string[] }) {
+  await ensureReady();
+  if (useMock) return {} as Session;
+  return post<Session>('/sessions', data);
+}
+
+export async function getSession(id: string) {
+  await ensureReady();
+  if (useMock) return { session: {} as Session, messages: [] as SessionMessage[] };
+  return get<{ session: Session; messages: SessionMessage[] }>(`/sessions/${id}`);
+}
+
+export async function deleteSession(id: string) {
+  await ensureReady();
+  if (useMock) return;
+  return del(`/sessions/${id}`);
+}
+
+export async function postSessionMessage(id: string, data: { content: string; mentions: string[] }) {
+  await ensureReady();
+  if (useMock) return { message_id: "mock" };
+  return post<{ message_id: string }>(`/sessions/${id}/messages`, data);
+}
+
+export function openSessionStream(id: string, onEvent: (e: SessionEvent) => void): () => void {
+  const url = `${getBaseUrl()}/api/sessions/${id}/stream`;
+  const es = new EventSource(url);
+  es.onmessage = (e) => {
+    try { onEvent(JSON.parse(e.data) as SessionEvent); } catch {}
+  };
+  return () => es.close();
+}
+
+export async function updateSessionTitle(id: string, title: string) {
+  await ensureReady();
+  if (useMock) return;
+  return fetch(`${getBaseUrl()}/api/sessions/${id}/title`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function updateSessionParticipants(id: string, data: { add: string[]; remove: string[] }) {
+  await ensureReady();
+  if (useMock) return {} as Session;
+  return fetch(`${getBaseUrl()}/api/sessions/${id}/participants`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).then((r) => r.json());
+}
+
+export async function createProposal(sessionId: string, data: {
+  title: string;
+  description: string;
+  assigned_employee_id: string;
+}) {
+  await ensureReady();
+  if (useMock) return {} as TaskProposal;
+  return post<TaskProposal>(`/sessions/${sessionId}/proposals`, data);
+}
+
+export async function confirmProposal(sessionId: string, proposalId: string) {
+  await ensureReady();
+  return post(`/sessions/${sessionId}/proposals/${proposalId}/confirm`, {});
+}
+
+export async function cancelProposal(sessionId: string, proposalId: string) {
+  await ensureReady();
+  return post(`/sessions/${sessionId}/proposals/${proposalId}/cancel`, {});
+}
+
+export async function doneProposal(sessionId: string, proposalId: string) {
+  await ensureReady();
+  return post(`/sessions/${sessionId}/proposals/${proposalId}/done`, {});
+}
+
+function getBaseUrl() {
+  return location.origin;
 }
