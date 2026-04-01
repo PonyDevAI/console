@@ -74,6 +74,9 @@ pub async fn serve(addr: &str) -> Result<()> {
         .route("/api/sessions/:id/proposals/:pid/confirm", axum::routing::post(routes::confirm_proposal))
         .route("/api/sessions/:id/proposals/:pid/cancel", axum::routing::post(routes::cancel_proposal))
         .route("/api/sessions/:id/proposals/:pid/done", axum::routing::post(routes::done_proposal))
+        .route("/api/sessions/:id/proposals/:pid/review", axum::routing::post(routes::review_proposal))
+        .route("/api/sessions/:id/proposals/:pid/revise", axum::routing::post(routes::revise_proposal))
+        .route("/api/proposals", axum::routing::get(routes::list_all_proposals))
         .fallback_service(static_files)
         .layer(CorsLayer::permissive());
 

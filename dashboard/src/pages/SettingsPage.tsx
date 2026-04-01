@@ -1,192 +1,158 @@
-import { CircleHelp, Palette, SlidersHorizontal } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { getCliTools, getSettings, updateSettings } from "../api";
-import Button from "../components/Button";
-import Callout from "../components/Callout";
-import Card from "../components/Card";
-import { Input, Select } from "../components/FormFields";
-import PageHeader from "../components/PageHeader";
-import Spinner from "../components/Spinner";
-import Tabs from "../components/Tabs";
-import { toast } from "../components/Toast";
-import type { Settings } from "../types";
+import { useState } from "react";
+import { cn } from "../lib/utils";
+import { Box, Cloud, Server, Wrench, FileText, Repeat, ScrollText, Users } from "lucide-react";
 
-const tabs = [
-  { id: "general", label: "通用", icon: SlidersHorizontal },
-  { id: "appearance", label: "外观", icon: Palette },
-  { id: "about", label: "关于", icon: CircleHelp },
+type SettingsSection = {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+};
+
+const sections: SettingsSection[] = [
+  { id: "versions", label: "版本管理", icon: <Box className="h-4 w-4" /> },
+  { id: "agents", label: "AI 员工", icon: <Users className="h-4 w-4" /> },
+  { id: "providers", label: "Provider 管理", icon: <Cloud className="h-4 w-4" /> },
+  { id: "mcp", label: "MCP Servers", icon: <Server className="h-4 w-4" /> },
+  { id: "skills", label: "Skills", icon: <Wrench className="h-4 w-4" /> },
+  { id: "prompts", label: "系统提示词", icon: <FileText className="h-4 w-4" /> },
+  { id: "sync", label: "配置同步", icon: <Repeat className="h-4 w-4" /> },
+  { id: "logs", label: "日志 / 调试", icon: <ScrollText className="h-4 w-4" /> },
 ];
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("general");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [tools, setTools] = useState<string[]>([]);
-  const [saved, setSaved] = useState<Settings | null>(null);
-  const [draft, setDraft] = useState<Settings | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    Promise.all([getSettings(), getCliTools()])
-      .then(([settings, cliData]) => {
-        if (!mounted) return;
-        const names = (cliData.tools ?? []).map((tool) => tool.name);
-        setTools(names);
-        setSaved(settings);
-        setDraft(settings);
-      })
-      .catch((err: unknown) => {
-        toast(err instanceof Error ? err.message : "加载设置失败", "error");
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const dirty = useMemo(() => JSON.stringify(saved) !== JSON.stringify(draft), [saved, draft]);
-
-  const onSave = async () => {
-    if (!draft) return;
-    setSaving(true);
-    try {
-      const next = await updateSettings(draft);
-      setSaved(next);
-      setDraft(next);
-      toast("设置已保存", "success");
-    } catch (err: unknown) {
-      toast(err instanceof Error ? err.message : "保存设置失败", "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading || !draft) return <Spinner />;
+  const [activeSection, setActiveSection] = useState("versions");
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="设置" description="系统和界面偏好配置" />
-
-      {dirty ? <Callout variant="warning">您有未保存的更改</Callout> : null}
-
-      <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
-
-      {activeTab === "general" ? (
-        <Card>
-          <div className="space-y-4">
-            <Input
-              label="存储路径"
-              value={draft.storage_path}
-              onChange={(event) => setDraft((prev) => (prev ? { ...prev, storage_path: event.target.value } : prev))}
-            />
-            <Select
-              label="默认工作器"
-              value={draft.default_worker}
-              onChange={(event) =>
-                setDraft((prev) => (prev ? { ...prev, default_worker: event.target.value } : prev))
-              }
+    <div className="flex h-full overflow-hidden bg-[var(--bg-elevated)]">
+      <div className="w-52 shrink-0 border-r border-gray-100 bg-gray-50/50 p-3">
+        <div className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          设置
+        </div>
+        <nav className="space-y-0.5">
+          {sections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => setActiveSection(section.id)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] font-medium transition-colors",
+                activeSection === section.id
+                  ? "bg-white text-gray-900"
+                  : "text-gray-600 hover:bg-white/60 hover:text-gray-900",
+              )}
             >
-              {tools.map((tool) => (
-                <option key={tool} value={tool}>
-                  {tool}
-                </option>
-              ))}
-            </Select>
-            <label className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-2 text-sm">
-              自动检查更新
-              <input
-                type="checkbox"
-                checked={draft.auto_check_updates}
-                onChange={(event) =>
-                  setDraft((prev) =>
-                    prev ? { ...prev, auto_check_updates: event.target.checked } : prev,
-                  )
-                }
-              />
-            </label>
-            <label className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-2 text-sm">
-              变更时同步
-              <input
-                type="checkbox"
-                checked={draft.sync_on_change}
-                onChange={(event) =>
-                  setDraft((prev) => (prev ? { ...prev, sync_on_change: event.target.checked } : prev))
-                }
-              />
-            </label>
-          </div>
-        </Card>
-      ) : null}
-
-      {activeTab === "appearance" ? (
-        <Card>
-          <div className="space-y-4">
-            <Select
-              label="主题"
-              value={draft.theme}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, theme: event.target.value as Settings["theme"] } : prev,
-                )
-              }
-            >
-              <option value="dark">深色</option>
-              <option value="light">浅色</option>
-              <option value="system">跟随系统</option>
-            </Select>
-            <Select
-              label="日志级别"
-              value={draft.log_level}
-              onChange={(event) =>
-                setDraft((prev) =>
-                  prev ? { ...prev, log_level: event.target.value as Settings["log_level"] } : prev,
-                )
-              }
-            >
-              <option value="debug">debug</option>
-              <option value="info">info</option>
-              <option value="warn">warn</option>
-              <option value="error">error</option>
-            </Select>
-          </div>
-        </Card>
-      ) : null}
-
-      {activeTab === "about" ? (
-        <Card>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
-              <span className="text-[var(--muted)]">版本</span>
-              <span className="font-medium text-[var(--text)]">0.1.0</span>
-            </div>
-            <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
-              <span className="text-[var(--muted)]">构建</span>
-              <span className="font-medium text-[var(--text)]">dev-local</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[var(--muted)]">源码仓库</span>
-              <a
-                className="text-[var(--accent)] hover:underline cursor-pointer"
-                href="https://github.com"
-                target="_blank"
-                rel="noreferrer"
-              >
-                代码仓库
-              </a>
-            </div>
-          </div>
-        </Card>
-      ) : null}
-
-      <div className="flex justify-end">
-        <Button onClick={() => void onSave()} disabled={!dirty || saving}>
-          {saving ? "保存中..." : "保存"}
-        </Button>
+              <span className={cn(activeSection === section.id ? "text-gray-900" : "text-gray-500")}>
+                {section.icon}
+              </span>
+              {section.label}
+            </button>
+          ))}
+        </nav>
       </div>
+
+      <div className="flex-1 overflow-y-auto p-5">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-4">
+            <h1 className="text-xl font-semibold text-gray-900">
+              {sections.find((s) => s.id === activeSection)?.label}
+            </h1>
+            <p className="mt-1 text-[13px] text-gray-500">
+              管理 Console 的{sections.find((s) => s.id === activeSection)?.label.toLowerCase()}配置
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            {activeSection === "versions" && <VersionsSection />}
+            {activeSection === "agents" && <AgentsSection />}
+            {activeSection === "providers" && <ProvidersSection />}
+            {activeSection === "mcp" && <McpSection />}
+            {activeSection === "skills" && <SkillsSection />}
+            {activeSection === "prompts" && <PromptsSection />}
+            {activeSection === "sync" && <SyncSection />}
+            {activeSection === "logs" && <LogsSection />}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VersionsSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        版本管理页面 - 管理各 CLI 工具的安装、升级和卸载
+      </p>
+    </div>
+  );
+}
+
+function AgentsSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        AI 员工配置页面 - 配置和管理 AI Agent/员工角色和权限
+      </p>
+    </div>
+  );
+}
+
+function ProvidersSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        Provider 管理页面 - 配置和管理 AI 模型供应商和 API Keys
+      </p>
+    </div>
+  );
+}
+
+function McpSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        MCP Servers 管理页面 - 配置 MCP 服务器及其在各 CLI 工具中的启用状态
+      </p>
+    </div>
+  );
+}
+
+function SkillsSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        Skills 管理页面 - 管理技能仓库和安装状态
+      </p>
+    </div>
+  );
+}
+
+function PromptsSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        系统提示词管理页面 - 配置和管理系统提示词模板
+      </p>
+    </div>
+  );
+}
+
+function SyncSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        配置同步页面 - 将 Console 的统一配置同步到各 CLI 工具的原生配置文件
+      </p>
+    </div>
+  );
+}
+
+function LogsSection() {
+  return (
+    <div>
+      <p className="text-[13px] text-gray-600">
+        日志和调试信息页面 - 查看系统日志和调试信息
+      </p>
     </div>
   );
 }

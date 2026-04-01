@@ -484,6 +484,7 @@ pub enum ProposalStatus {
     Pending,
     Executing,
     Reviewing,
+    Revising,
     Done,
     Cancelled,
 }

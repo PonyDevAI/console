@@ -1,185 +1,244 @@
-import { Activity, ArrowUpCircle, Cpu, Server } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { getHealth, getLogs, getMcpServers, getProviders } from "../api";
-import Button from "../components/Button";
-import Callout from "../components/Callout";
-import Card from "../components/Card";
-import EmptyState from "../components/EmptyState";
-import Spinner from "../components/Spinner";
-import PageHeader from "../components/PageHeader";
-import StatGrid from "../components/StatGrid";
-import StatusBadge from "../components/StatusBadge";
-import type { LogEntry } from "../types";
+import { Terminal, CheckCircle2, AlertCircle, Cloud, Server, Wrench, Activity, Box, FileText, Users } from "lucide-react";
 import useCliTools from "../hooks/useCliTools";
 
 export default function Dashboard() {
-  const { tools, loading, scanning, error, scan } = useCliTools();
-  const [providersCount, setProvidersCount] = useState(0);
-  const [mcpCount, setMcpCount] = useState(0);
-  const [connected, setConnected] = useState(true);
-  const [recentLogs, setRecentLogs] = useState<LogEntry[]>([]);
-  const [metaLoading, setMetaLoading] = useState(true);
+  const { tools, loading, scanning, scan } = useCliTools();
 
-  useEffect(() => {
-    let mounted = true;
-
-    Promise.all([getHealth(), getProviders(), getMcpServers(), getLogs({ limit: 5 })])
-      .then(([_, providersData, mcpData, logData]) => {
-        if (!mounted) return;
-        setConnected(true);
-        setProvidersCount(providersData.providers?.length ?? 0);
-        setMcpCount(mcpData.servers?.length ?? 0);
-        setRecentLogs(logData.logs ?? []);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setConnected(false);
-      })
-      .finally(() => {
-        if (!mounted) return;
-        setMetaLoading(false);
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const installedTools = useMemo(() => tools.filter((tool) => tool.installed).length, [tools]);
-
-  const stats = [
-    {
-      label: "健康状态",
-      value: connected ? "1" : "0",
-      icon: Activity,
-      color: "text-[var(--success)]",
-    },
-    {
-      label: "CLI 工具",
-      value: `${installedTools}/${tools.length}`,
-      icon: ArrowUpCircle,
-      color: "text-[var(--accent)]",
-      href: "/versions",
-    },
-    {
-      label: "供应商",
-      value: `${providersCount}`,
-      icon: Cpu,
-      color: "text-[var(--info)]",
-      href: "/providers",
-    },
-    {
-      label: "MCP 服务器",
-      value: `${mcpCount}`,
-      icon: Server,
-      color: "text-[var(--warning)]",
-      href: "/mcp",
-    },
-  ];
-
-  const updateNeeded = tools.filter(
-    (tool) =>
-      tool.installed &&
-      tool.local_version &&
-      tool.remote_version &&
-      tool.local_version !== tool.remote_version,
-  );
-  const mcpFailures = recentLogs.filter((entry) => entry.level === "error" && entry.source === "mcp");
-
-  if (loading || metaLoading) return <Spinner />;
+  const installedCount = tools.filter((tool) => tool.installed).length;
+  const totalTools = tools.length;
 
   return (
-    <div className="space-y-4">
-      <PageHeader title="仪表盘" description="AI 编程工具总览" />
-      {error ? (
-        <div className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-subtle)] px-3 py-2 text-sm text-[var(--danger)]">
-          {error}
+    <div className="flex h-full flex-col overflow-hidden bg-white">
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
+        {/* Header - no Console category label */}
+        <div className="mb-1">
+          <h1 className="text-[15px] font-medium text-gray-900">概览</h1>
+          <p className="text-[13px] text-gray-500">
+            Console 平台状态总览
+          </p>
         </div>
-      ) : null}
 
-      <StatGrid stats={stats} />
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            icon={<Terminal className="h-4 w-4" />}
+            label="CLI 工具"
+            value={`${installedCount}/${totalTools}`}
+            subtext="已安装"
+          />
+          <StatCard
+            icon={<Cloud className="h-4 w-4" />}
+            label="Providers"
+            value="—"
+            subtext="配置中"
+          />
+          <StatCard
+            icon={<Server className="h-4 w-4" />}
+            label="MCP Servers"
+            value="—"
+            subtext="已启用"
+          />
+          <StatCard
+            icon={<Wrench className="h-4 w-4" />}
+            label="Skills"
+            value="—"
+            subtext="已安装"
+          />
+        </div>
 
-      <div className="space-y-2">
-        {updateNeeded.length > 0 ? (
-          <Callout variant="warning" title="注意">
-            {updateNeeded.length} 个工具有可用更新：{updateNeeded.map((tool) => tool.display_name).join(", ")}。
-          </Callout>
-        ) : null}
-        {mcpFailures.length > 0 ? (
-          <Callout variant="danger" title="注意">
-            {mcpFailures[0].message}
-          </Callout>
-        ) : null}
-      </div>
-
-      <Card header="最近活动">
-        {recentLogs.length === 0 ? (
-          <EmptyState message="暂无最近活动。" />
-        ) : (
-          <div className="space-y-2">
-            {recentLogs.map((entry) => (
-              <div
-                key={entry.id}
-                className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] px-3 py-2"
-              >
-                <div className="min-w-0 flex-1 text-sm text-[var(--text)]">
-                  <span className="mr-2 text-xs text-[var(--muted)]">{new Date(entry.timestamp).toLocaleTimeString()}</span>
-                  <span className="truncate">{entry.message}</span>
-                </div>
-                <StatusBadge
-                  label={entry.level.toUpperCase()}
-                  variant={entry.level === "error" ? "danger" : entry.level === "warn" ? "warning" : "info"}
-                />
+        {/* CLI Tools Status */}
+        <div>
+          <h2 className="mb-2 text-[13px] font-semibold text-gray-900">CLI 工具状态</h2>
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {tools.length === 0 && loading ? (
+              <div className="p-6 text-center text-[13px] text-gray-500">
+                正在扫描已安装的 CLI 工具...
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card header="CLI 工具">
-          {tools.length === 0 ? (
-            <EmptyState message="未检测到 CLI 工具。" />
-          ) : (
-            <div className="space-y-2">
-              {tools.map((tool) => (
-                <div
-                  key={tool.name}
-                  className="flex items-center justify-between rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] px-3 py-2"
+            ) : tools.length === 0 ? (
+              <div className="p-6 text-center">
+                <button
+                  type="button"
+                  onClick={scan}
+                  disabled={scanning}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-black disabled:opacity-50"
                 >
-                  <div>
-                    <div className="text-sm text-[var(--text-strong)]">{tool.display_name}</div>
-                    <div className="text-xs text-[var(--muted)]">v{tool.local_version ?? "-"}</div>
+                  <Terminal className="h-4 w-4" strokeWidth={1.8} />
+                  {scanning ? "扫描中..." : "扫描已安装工具"}
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {tools.map((tool) => (
+                  <div
+                    key={tool.name}
+                    className="flex items-center justify-between px-4 py-2.5"
+                  >
+                    <div className="flex items-center gap-3">
+                      {tool.installed ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" strokeWidth={1.8} />
+                      ) : (
+                        <AlertCircle className="h-4 w-4 text-gray-300" strokeWidth={1.8} />
+                      )}
+                      <div>
+                        <div className="text-[13px] font-medium text-gray-900">
+                          {tool.display_name || tool.name}
+                        </div>
+                        {tool.installed && tool.local_version && (
+                          <div className="text-[11px] text-gray-400">
+                            v{tool.local_version}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      {tool.installed ? (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                          已安装
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                          未安装
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <StatusBadge
-                    label={tool.installed ? "已安装" : "未安装"}
-                    variant={tool.installed ? "success" : "muted"}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Card header="快捷操作">
-          <div className="space-y-2">
-            <Button onClick={scan} disabled={scanning} className="w-full justify-start">
-              {scanning ? "扫描中..." : "扫描工具"}
-            </Button>
-            <Link to="/providers" className="block">
-              <Button variant="secondary" className="w-full justify-start">
-                管理供应商
-              </Button>
-            </Link>
-            <Link to="/mcp" className="block">
-              <Button variant="secondary" className="w-full justify-start">
-                管理 MCP 服务器
-              </Button>
-            </Link>
+                ))}
+              </div>
+            )}
           </div>
-        </Card>
+        </div>
+
+        {/* Configuration Overview */}
+        <div>
+          <h2 className="mb-2 text-[13px] font-semibold text-gray-900">配置概览</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <ConfigCard
+              icon={<Cloud className="h-4 w-4" />}
+              label="Provider 配置"
+              status="未配置"
+              statusColor="gray"
+            />
+            <ConfigCard
+              icon={<Server className="h-4 w-4" />}
+              label="MCP Servers"
+              status="未配置"
+              statusColor="gray"
+            />
+            <ConfigCard
+              icon={<Users className="h-4 w-4" />}
+              label="AI 员工"
+              status="未配置"
+              statusColor="gray"
+            />
+            <ConfigCard
+              icon={<FileText className="h-4 w-4" />}
+              label="系统提示词"
+              status="未配置"
+              statusColor="gray"
+            />
+          </div>
+        </div>
+
+        {/* Health Status */}
+        <div>
+          <h2 className="mb-2 text-[13px] font-semibold text-gray-900">健康状态</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <HealthCard
+              icon={<Activity className="h-4 w-4" />}
+              label="后端服务"
+              status="正常"
+              statusColor="emerald"
+            />
+            <HealthCard
+              icon={<Box className="h-4 w-4" />}
+              label="配置同步"
+              status="正常"
+              statusColor="emerald"
+            />
+            <HealthCard
+              icon={<Terminal className="h-4 w-4" />}
+              label="版本状态"
+              status="最新"
+              statusColor="emerald"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1" />
       </div>
+    </div>
+  );
+}
+
+type StatCardProps = {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  subtext: string;
+};
+
+function StatCard({ icon, label, value, subtext }: StatCardProps) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-4">
+      <div className="mb-2 flex items-center gap-2 text-gray-500">{icon}</div>
+      <div className="text-[22px] font-semibold text-gray-900">{value}</div>
+      <div className="text-[11px] text-gray-500">{subtext}</div>
+      <div className="text-[11px] font-medium text-gray-400">{label}</div>
+    </div>
+  );
+}
+
+type ConfigCardProps = {
+  icon: React.ReactNode;
+  label: string;
+  status: string;
+  statusColor: "emerald" | "amber" | "red" | "gray";
+};
+
+function ConfigCard({ icon, label, status, statusColor }: ConfigCardProps) {
+  const colorMap = {
+    emerald: "text-emerald-600 bg-emerald-50",
+    amber: "text-amber-600 bg-amber-50",
+    red: "text-red-600 bg-red-50",
+    gray: "text-gray-600 bg-gray-100",
+  };
+
+  return (
+    <div className="flex items-center justify-between overflow-hidden rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex items-center gap-2">
+        <div className="text-gray-500">{icon}</div>
+        <span className="text-[13px] font-medium text-gray-900">{label}</span>
+      </div>
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${colorMap[statusColor]}`}>
+        {status}
+      </span>
+    </div>
+  );
+}
+
+type HealthCardProps = {
+  icon: React.ReactNode;
+  label: string;
+  status: string;
+  statusColor: "emerald" | "amber" | "red";
+};
+
+function HealthCard({ icon, label, status, statusColor }: HealthCardProps) {
+  const colorMap = {
+    emerald: "text-emerald-600 bg-emerald-50",
+    amber: "text-amber-600 bg-amber-50",
+    red: "text-red-600 bg-red-50",
+  };
+
+  return (
+    <div className="flex items-center justify-between overflow-hidden rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex items-center gap-2">
+        <div className="text-gray-500">{icon}</div>
+        <span className="text-[13px] font-medium text-gray-900">{label}</span>
+      </div>
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${colorMap[statusColor]}`}>
+        {status}
+      </span>
     </div>
   );
 }

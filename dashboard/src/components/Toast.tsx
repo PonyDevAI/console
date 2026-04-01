@@ -1,5 +1,5 @@
 import { CheckCircle2, Info, XCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { cn } from "../lib/utils";
 
 type ToastVariant = "success" | "error" | "info";
@@ -17,6 +17,13 @@ const listeners = new Set<Listener>();
 export function toast(message: string, variant: ToastVariant = "info") {
   const id = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
   listeners.forEach((listener) => listener({ id, message, variant }));
+}
+
+export function useToast() {
+  const addToast = useCallback((message: string, variant: ToastVariant = "info") => {
+    toast(message, variant);
+  }, []);
+  return { addToast };
 }
 
 export function ToastContainer() {

@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, SwitchMode};
 use crate::models::{CreateRemoteAgentRequest, RemoteAgentsState, UpdateRemoteAgentRequest};
-use crate::models::{CreateEmployeeRequest, SoulFiles, UpdateEmployeeRequest, UpdateBindingRequest};
+use crate::models::{CreateEmployeeRequest, SoulFiles, UpdateEmployeeRequest};
 use crate::services;
 use crate::services::task_queue::{TaskQueue, TaskStatus};
 
@@ -988,6 +988,23 @@ struct UpdatePromptRequest {
 }
 
 #[derive(serde::Deserialize)]
+struct UpdateBindingRequest {
+    label: Option<String>,
+    is_primary: Option<bool>,
+    protocol: Option<crate::models::AgentProtocol>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReviewProposalRequest {
+    reviewer_employee_id: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReviseProposalRequest {
+    description: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
 struct CreateBackupRequest {
     label: Option<String>,
 }
@@ -1875,4 +1892,216 @@ pub async fn done_proposal(
         status: "done".to_string(),
     });
     Ok(Json(json!({ "ok": true })))
+}
+
+// 请求 review：@mention 一个 reviewer agent，让它评审执行结果
+pub async fn review_proposal(
+    Path((session_id, proposal_id)): Path<(String, String)>,
+    Json(req): Json<ReviewProposalRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let proposal = services::proposal::get(&session_id, &proposal_id)
+        .map_err(map_not_found)?;
+
+    if proposal.status != crate::models::ProposalStatus::Reviewing {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let registry = crate::api::session_registry();
+    let sid = session_id.clone();
+    let pid = proposal_id.clone();
+    let reviewer_id = req.reviewer_employee_id.clone();
+    let reg = registry.clone();
+    let task_desc = proposal.description.clone();
+
+    tokio::spawn(async move {
+        let emp = match services::employee::get(&reviewer_id).await {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        let binding = match emp.bindings.iter().find(|b| b.is_primary)
+            .or_else(|| emp.bindings.first()) {
+            Some(b) => b.clone(),
+            None => return,
+        };
+        let soul_files = services::employee::read_soul_files(&reviewer_id).unwrap_or_default();
+        let system_prompt = services::employee_dispatch::build_system_prompt(&soul_files);
+
+        let history = services::session::list_messages(&sid).unwrap_or_default();
+        let execution_result = history.iter()
+            .filter(|m| m.role == crate::models::MessageRole::Assistant && m.kind == crate::models::MessageKind::Chat)
+            .last()
+            .map(|m| m.content.as_str())
+            .unwrap_or("（无执行结果）");
+
+        let review_prompt = format!(
+            "请对以下任务的执行结果进行 review，指出问题并给出改进建议。\n\n## 原始任务\n{}\n\n## 执行结果\n{}",
+            task_desc, execution_result
+        );
+
+        let message_id = uuid::Uuid::new_v4().to_string();
+        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageCreated {
+            message_id: message_id.clone(),
+            author_label: emp.display_name.clone(),
+            author_id: Some(reviewer_id.clone()),
+            kind: "chat".into(),
+            role: "assistant".into(),
+            content: String::new(),
+            mentions: vec![],
+            created_at: chrono::Utc::now().to_rfc3339(),
+        });
+
+        let mut full_content = String::new();
+
+        match &binding.protocol {
+            crate::models::AgentProtocol::OpenAiCompatible { endpoint, api_key, model, .. } => {
+                let mut messages_payload = vec![];
+                if !system_prompt.is_empty() {
+                    messages_payload.push(serde_json::json!({"role": "system", "content": system_prompt}));
+                }
+                messages_payload.push(serde_json::json!({"role": "user", "content": review_prompt}));
+
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(300))
+                    .danger_accept_invalid_certs(true)
+                    .build().unwrap();
+
+                let base = endpoint.trim_end_matches('/');
+                let mut req_builder = client.post(format!("{}/v1/chat/completions", base))
+                    .json(&serde_json::json!({"model": model, "messages": messages_payload, "stream": true}));
+                if let Some(key) = api_key {
+                    req_builder = req_builder.header("Authorization", format!("Bearer {}", key));
+                }
+
+                if let Ok(resp) = req_builder.send().await {
+                    use futures::StreamExt;
+                    let mut stream = resp.bytes_stream();
+                    let mut done = false;
+                    while !done {
+                        match stream.next().await {
+                            Some(Ok(chunk)) => {
+                                let text = String::from_utf8_lossy(&chunk);
+                                for line in text.lines() {
+                                    if let Some(data) = line.strip_prefix("data: ") {
+                                        if data == "[DONE]" { done = true; break; }
+                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                            if let Some(delta) = json
+                                                .get("choices").and_then(|c| c.get(0))
+                                                .and_then(|c| c.get("delta"))
+                                                .and_then(|d| d.get("content"))
+                                                .and_then(|c| c.as_str())
+                                            {
+                                                full_content.push_str(delta);
+                                                reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDelta {
+                                                    message_id: message_id.clone(),
+                                                    delta: delta.to_string(),
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+            }
+            crate::models::AgentProtocol::LocalProcess { executable, soul_arg, extra_args } => {
+                let mut cmd = tokio::process::Command::new(executable.as_str());
+                if !system_prompt.is_empty() {
+                    cmd.arg(soul_arg.as_str()).arg(&system_prompt);
+                }
+                for arg in extra_args { cmd.arg(arg); }
+                cmd.arg(&review_prompt);
+                cmd.stdout(std::process::Stdio::piped());
+
+                if let Ok(mut child) = cmd.spawn() {
+                    if let Some(stdout) = child.stdout.take() {
+                        use tokio::io::AsyncBufReadExt;
+                        let mut reader = tokio::io::BufReader::new(stdout).lines();
+                        while let Ok(Some(line)) = reader.next_line().await {
+                            let delta = format!("{}\n", line);
+                            full_content.push_str(&delta);
+                            reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDelta {
+                                message_id: message_id.clone(), delta,
+                            });
+                        }
+                    }
+                    let _ = child.wait().await;
+                }
+            }
+            _ => { full_content = "（SSH 暂不支持）".to_string(); }
+        }
+
+        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
+            message_id: message_id.clone(),
+            content: full_content.clone(),
+        });
+
+        let agent_msg = crate::models::SessionMessage {
+            id: message_id,
+            session_id: sid.clone(),
+            kind: crate::models::MessageKind::Chat,
+            role: crate::models::MessageRole::Assistant,
+            author_id: Some(reviewer_id.clone()),
+            author_label: emp.display_name.clone(),
+            content: full_content,
+            mentions: vec![],
+            created_at: chrono::Utc::now(),
+        };
+        let _ = services::session::append_message(&sid, agent_msg);
+    });
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+// 重新执行：proposal 从 reviewing 回到 pending，用新 description 重跑
+pub async fn revise_proposal(
+    Path((session_id, proposal_id)): Path<(String, String)>,
+    Json(req): Json<ReviseProposalRequest>,
+) -> Result<Json<Value>, StatusCode> {
+    let proposal = services::proposal::get(&session_id, &proposal_id)
+        .map_err(map_not_found)?;
+
+    if proposal.status != crate::models::ProposalStatus::Reviewing {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    if let Some(new_desc) = &req.description {
+        services::proposal::update_description(&session_id, &proposal_id, new_desc)
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+
+    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Pending)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let registry = crate::api::session_registry();
+    registry.publish(&session_id, crate::services::session_stream::SessionEvent::ProposalUpdated {
+        proposal_id: proposal_id.clone(),
+        status: "pending".to_string(),
+    });
+
+    Ok(Json(json!({ "ok": true })))
+}
+
+// 跨会话聚合所有 proposals
+pub async fn list_all_proposals() -> Result<Json<Value>, StatusCode> {
+    let sessions = services::session::list()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let mut all_proposals = vec![];
+    for session in &sessions {
+        let mut proposals = services::proposal::list(&session.id).unwrap_or_default();
+        for p in proposals.drain(..) {
+            let mut val = serde_json::to_value(&p).unwrap_or_default();
+            val["session_title"] = serde_json::Value::String(session.title.clone());
+            all_proposals.push(val);
+        }
+    }
+
+    all_proposals.sort_by(|a, b| {
+        b.get("created_at").and_then(|v| v.as_str()).unwrap_or("")
+            .cmp(a.get("created_at").and_then(|v| v.as_str()).unwrap_or(""))
+    });
+
+    Ok(Json(json!({ "proposals": all_proposals })))
 }

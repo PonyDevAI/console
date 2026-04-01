@@ -705,6 +705,24 @@ export async function doneProposal(sessionId: string, proposalId: string) {
   return post(`/sessions/${sessionId}/proposals/${proposalId}/done`, {});
 }
 
+export async function reviewProposal(sessionId: string, proposalId: string, reviewerEmployeeId: string) {
+  await ensureReady();
+  return post(`/sessions/${sessionId}/proposals/${proposalId}/review`, {
+    reviewer_employee_id: reviewerEmployeeId,
+  });
+}
+
+export async function reviseProposal(sessionId: string, proposalId: string, description?: string) {
+  await ensureReady();
+  return post(`/sessions/${sessionId}/proposals/${proposalId}/revise`, { description });
+}
+
+export async function getAllProposals() {
+  await ensureReady();
+  if (useMock) return { proposals: [] };
+  return get<{ proposals: (TaskProposal & { session_title: string })[] }>('/proposals');
+}
+
 function getBaseUrl() {
   return location.origin;
 }

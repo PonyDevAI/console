@@ -81,3 +81,12 @@ pub fn set_dispatch_task_id(session_id: &str, proposal_id: &str, task_id: &str) 
     }
     save(session_id, &state)
 }
+
+pub fn update_description(session_id: &str, proposal_id: &str, description: &str) -> Result<()> {
+    let mut state = load(session_id)?;
+    if let Some(p) = state.proposals.iter_mut().find(|p| p.id == proposal_id) {
+        p.description = description.to_string();
+        p.updated_at = Utc::now();
+    }
+    save(session_id, &state)
+}

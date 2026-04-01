@@ -297,7 +297,7 @@ export interface SessionMessage {
   created_at: string;
 }
 
-export type ProposalStatus = "pending" | "executing" | "reviewing" | "done" | "cancelled";
+export type ProposalStatus = "pending" | "executing" | "reviewing" | "revising" | "done" | "cancelled";
 
 export interface TaskProposal {
   id: string;
@@ -309,6 +309,10 @@ export interface TaskProposal {
   dispatch_task_id?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProposalWithSession extends TaskProposal {
+  session_title: string;
 }
 
 export type SessionEvent =
