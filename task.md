@@ -1,739 +1,462 @@
-# Task: Console Web UI 全量重构（对齐 Codex macOS 风格）
+# Task: Thread Runtime UI + Agent Runtime MVP
 
 负责人：`@opencode`
 
-目标：将当前 `/dashboard` Web UI 重构为**接近 Codex macOS** 的信息架构与视觉风格，但内容语义必须符合 **Console** 项目定位（本地 AI CLI 管理平台）。
+目标：在 Console 中落地一套可执行的 **Thread Runtime UI + Agent Runtime MVP**，让新线程页具备接近 macOS Codex 的线程工作区体验，并通过独立的 Agent Runtime 调用本地 `codex` / `claude` CLI。
 
 ---
 
 ## 0. 必须先看
 
-### 参考设计图（本次最终版）
-
-- `/Users/luoxiang/workspace/bull/console/.codex-artifacts/pencil-console-ui-v6/QEhV4.png`
-
-### 必须遵守的项目原则
+### 必读文档
 
 - `/Users/luoxiang/workspace/bull/console/AGENTS.md`
-- 保持 **管理平面优先**，不要做成聊天产品
-- Web UI 是主入口，但要借鉴 Codex macOS 的壳层结构与密度
-- 所有配置入口统一收敛到 **设置**
+- `/Users/luoxiang/workspace/bull/console/docs/AGENT_RUNTIME.md`
+- `/Users/luoxiang/workspace/bull/console/docs/THREAD_RUNTIME_UI_PLAN.md`
+
+### 必须遵守的架构边界
+
+1. **Agent Runtime 独立于现有系统 task queue**
+2. **现有 task queue 继续只服务管理平面系统任务**
+3. **Thread API 是 Web UI 的包装层，不直接碰 CLI**
+4. **Runtime Adapter 与现有 config adapter 分离**
+5. **不要把 employee/proposal/session 体系硬复用到 thread chat MVP**
 
 ---
 
-## 1. 这次重构的核心目标
+## 1. 本次要实现的最终效果
 
-不是局部修样式，而是**重做 dashboard 的应用壳层（app shell）与导航模型**。
+### 1.1 页面效果
 
-需要达到：
-
-1. **整体布局**接近 Codex macOS
-2. **左侧栏结构**改成：
-   - 顶部仅品牌名：`Console`
-   - `Console` 分组：
-     - 概览
-     - 新线程
-     - 技能和应用
-     - 自动化
-     - 任务看板
-   - `工程` 分组：
-     - 按项目（目录名 / 项目名）分组
-     - 每个项目可展开
-     - 项目下展示线程 / 对话记录
-   - 最底部固定：`设置`
-3. 原本分散的管理页入口（Providers / MCP / Skills / Prompts / Sync / Logs 等）**不要继续在主侧栏平铺暴露**
-4. 所有配置能力统一进入 `设置` 页面后再分区呈现
-5. 首页主区视觉参考设计图，做成 **Console 概览欢迎页**
-6. **右侧主内容区必须是完整的圆角白色 panel**，不是铺满到底的普通白底内容区
-
----
-
-## 1.1 当前实现的已知偏差（下一轮必须修正）
-
-以下问题是基于当前已产出的实现与参考设计图对比后确认的，必须逐项修正：
-
-### A. 页面职责错误
-
-1. **当前“概览”页做成了“新线程”页的视觉**
-   - 现在 `/` 使用了 hero + 卡片 + composer 的页面结构
-   - 这套结构应该属于 **新线程页**
-   - **概览页** 应该是统计/总览页，不应直接复用 Pencil 的新线程主视觉
-
-2. **新线程页反而过于简单**
-   - 当前 `NewThreadPage` 只是一个简单空态卡片
-   - 不符合参考设计图
-   - 必须把当前主视觉式页面迁移/重构到 `新线程` 页面
-
-### B. 主内容区壳层错误
-
-3. **右侧白色主区域还没有做成完整独立 panel**
-   - 当前虽然有白底和圆角，但视觉上仍像“普通内容区”
-   - 必须做成一个独立的白色工作面板
-   - 不能做成“灰色页面背景 + 白色内容卡片”的常规后台布局
-   - 右侧主体本身就应该是白色主工作区
-   - 这个白色主工作区应**铺满整个右侧区域**
-   - 顶部的展开按钮、任务、版本、健康等状态信息，也都属于这个白色主工作区内部
-
-4. **左上、左下圆角没有正确呈现**
-    - 这是当前实现和 Pencil 图最大的结构差异之一
-    - 白色主 panel **只需要左上角、左下角圆角**
-    - 右上角、右下角**不需要圆角**
-    - 尤其左上角和左下角，不能被 layout 吞掉
-    - 主 panel 贴近 sidebar 的那一侧，上边和下边都必须能明确看到圆角
-
-5. **右上状态区被裁切/显示不全**
-   - 当前任务、版本、健康 pill 被挤压，文案显示不完整
-   - 顶部右侧状态区必须完整展示
-   - 不能用过小宽度、错误 overflow 或错误 padding 导致截断
-
-6. **折叠态 sidebar 图标未正确居中**
-   - 当前 sidebar 缩小后，各个菜单图标没有稳定居中
-   - 折叠态下每个导航项都应在固定方形命中区内完全居中
-   - 图标、选中背景、点击区域三者要同心
-
-7. **sidebar 选中状态颜色不对**
-   - 当前选中态颜色和 Pencil 设计图不一致
-   - 必须回到更接近 Pencil 图的浅色选中底，而不是现在这版偏白/偏通用的高亮
-   - 选中态的底色、边界感、阴影强度都要重新校准
-
-8. **移动端适配缺失**
-   - sidebar 目前没有形成可用的移动端行为
-   - 必须补齐移动端适配
-   - 至少需要：小屏时 sidebar 可抽屉化 / 覆盖式打开关闭，而不是一直占据左侧固定宽度
-
-9. **白色内容区域左上/左下圆角丢失**
-   - 之前要求的左上、左下圆角在当前实现里又丢了
-   - 必须恢复
-   - 且要明确可见，不要被外层容器或 overflow 吞掉
-
-10. **右侧白色主区域实现方式错误，导致 sidebar 被覆盖/看起来消失**
-   - 当前实现把右侧白色主区域做成了类似 `absolute inset-0` 的覆盖层
-   - 这会破坏左右两栏的正常布局关系
-   - 结果是 sidebar 被白色层压住、遮住，视觉上像“sidebar 没了”
-   - 白色主内容区必须作为 **sidebar 右侧的正常 flex 区域** 存在，不能再用全屏绝对定位覆盖实现
-
-11. **sidebar 出现重复渲染**
-   - 当前页面中出现了两套 sidebar / 设置入口同时显示的问题
-   - 这通常意味着桌面 sidebar 与移动端 sidebar overlay 同时参与了桌面渲染
-   - 必须确保：
-     - 桌面态只渲染一套 sidebar
-     - 移动端 overlay 只在移动端打开时渲染
-     - 不能在桌面态重复出现两份导航
-
-12. **白色主内容区左上/左下圆角切面仍未实现**
-   - 当前右侧白色区域左边仍然是平直边
-   - 没有形成 Pencil 设计图里的左上/左下圆角切面
-   - 必须恢复该形态，并确保在视觉上明确可见
-
-13. **sidebar 折叠态菜单按钮未水平居中**
-   - 当前折叠后的菜单按钮虽然显示为图标模式，但没有在 sidebar 缩小宽度内严格左右居中
-   - 必须确保每个按钮在折叠态下的命中区域相对 sidebar 水平居中
-   - 不能出现偏左或视觉重心不居中的情况
-
-14. **顶部缩小按钮 / 任务 / 版本 / 健康与白色区域关系不对，且文案可能显示不全**
-   - 顶部这些元素必须明确属于右侧白色主内容区内部
-   - 它们不应悬浮在白色区域外的背景层上
-   - 任务、版本文案必须完整显示，不得截断、省略或被过度压缩
-
-15. **右侧白色主内容区没有铺满 sidebar 右边全部剩余空间**
-   - 当前实现中，白色区域只占了中间一块，右边露出一大片背景色
-   - 这与 Pencil 设计图不符
-   - 右侧白色主内容区必须铺满 sidebar 右边的全部剩余空间
-   - 不允许出现“中间白块 + 右边露底色”的情况
-   - 白色背景必须挂在右侧最外层主容器上，而不是只挂在内部内容列上
-
-16. **右侧白色主区域被错误拆成多个白块，导致左上/左下圆角无法形成完整切面**
-   - 当前实现里，顶部 header 是一个白块，下面内容 main 又是另一个白块
-   - 圆角只加在了其中一个子块上，而不是加在包住整个右侧区域的同一个白色主 panel 上
-   - 这会直接导致左上圆角消失、左下圆角不完整，视觉上仍然是一条平直边
-   - 必须改成：
-     - 一个统一的右侧白色主 panel
-     - 顶部 header 和内容区都包裹在这个 panel 内
-     - 左上/左下圆角加在这个统一 panel 上
-   - 禁止把 header 和内容区拆成两个彼此独立的白底块来实现
-
-17. **概览页主内容区顶部不应显示多余的 `Console` 分类标题**
-   - 概览页主内容区顶部只保留页面标题与必要说明
-   - 不要在主内容区重复展示 sidebar 中已经出现的 `Console` 分类标签
-
-18. **新线程页的输入框/操作区必须固定在底部**
-   - 新线程页要明显参考 Codex macOS 的新线程工作区
-   - 输入框（composer）必须固定在主内容区底部
-   - 上方为欢迎区、推荐卡片、引导内容
-   - 不应让输入框漂浮在页面中部
-
-19. **主导航需要增加 `任务看板`**
-   - `任务看板` 需要作为与概览 / 新线程 / 技能和应用 / 自动化同级的主导航入口
-
-20. **设置页需要增加 `AI 员工` 配置入口**
-   - 设置页内除版本、Provider、MCP、Skills、系统提示词等外
-   - 还必须增加 `AI 员工` 配置入口
-   - 用于承接此前员工/agent 管理相关的配置能力
-
-21. **新线程页右侧内容区需要按 macOS Codex 的线程工作区结构实现**
-   - 新线程页右侧主内容区应更接近 macOS Codex 的线程页布局
-   - 默认状态下：
-     - 上方没有聊天记录
-     - 中间显示启动区/欢迎区
-     - 中心可选择当前目录/工程（类似图中的目录选择器）
-     - 下方展示推荐操作卡片
-     - 底部固定输入框（composer）
-   - 进入聊天后：
-     - 上方区域变为聊天消息流
-     - 底部输入框仍固定在底部
-   - 也就是说：**上面是聊天区，底部是固定输入框；无聊天时中间可选目录**
-
-22. **新线程页目录选择器需要接近 macOS Codex 的项目选择体验**
-   - 初始空态时，中间主标题下方展示当前工程/目录名
-   - 点击后可展开目录/项目选择浮层
-   - 浮层内支持搜索项目
-   - 浮层内列出项目列表，并能明确当前选中项
-   - 列表底部可提供“添加新项目”入口
-   - 整体视觉需接近用户提供的 Codex 参考图
-
-### C. 侧边栏交互与样式错误
-
-5. **选中状态不符合 Codex macOS / Pencil**
-   - 当前选中态太像常规 web admin
-   - 必须更小、更轻、更紧凑
-   - 阴影要更弱
-   - 高度、padding、圆角都要重新收敛
-
-6. **收缩按钮位置需要恢复到主内容区顶部左侧**
-   - 本轮按最新要求，不放在 sidebar 品牌右侧
-   - 收起/展开按钮应恢复到之前的位置：右侧内容区顶部左侧
-
-7. **折叠态品牌错误**
-   - 折叠后不应继续显示完整 `Console`
-   - 只显示品牌首字母图标（例如 C 的小图标）
-
-8. **顶部品牌区还原不够**
-   - 展开态应为：品牌名
-   - 折叠态应为：仅品牌图标
-   - sidebar 内不要再额外挂一个品牌右侧折叠按钮
-
-### D. 路由与语义未分清
-
-9. **Console 概览 与 工程概览 语义要分开**
-   - `Console / 概览` = 平台级概览
-   - `工程 / 某项目 / 概览` = 项目级概览
-   - 两者不能继续共用完全相同页面
-
-10. **工程线程页与项目概览页不能复用同一个页面壳子**
-    - `/projects/:projectId/overview`
-    - `/projects/:projectId/threads/:threadId`
-    - 至少要在结构和语义上区分
-
-### E. 视觉密度仍然不足
-
-11. **左侧整体密度仍偏 Web 后台，不够像 Codex**
-    - 导航项高度还偏大
-    - 分组标题存在感偏强
-    - 项目/线程的行节奏还不够紧
-
-12. **顶部工具栏仍然偏 Web admin**
-    - 需要弱化 topbar 的主导感
-    - 把壳层重点回收到 sidebar + 主 panel
-
-13. **主区留白与 panel 层级关系还不够准确**
-    - 需要更明确的“外层背景 / sidebar / 主白色 panel”三层关系
-
----
-
-## 1.2 下一轮的强制修正项（按优先级）
-
-下一轮不要再泛泛优化，必须优先完成以下事项：
-
-1. **把当前 Dashboard 的主视觉结构迁移到 `NewThreadPage`**
-2. **重做真正的 `Overview` 页面**，做成统计/总览页
-3. **右侧主内容区改成白色 panel**，仅左上/左下圆角必须清晰可见
-4. **去掉右侧内容区外的灰色背景感**，不要做成“白卡片浮在灰底上”
-5. **把折叠按钮恢复到右侧内容区顶部左侧**
-6. **修复右上状态区显示不全问题**
-7. **折叠态只显示品牌首字母图标，且菜单图标必须居中**
-8. **重做 sidebar 选中态颜色与样式**
-9. **补齐 sidebar 移动端适配**
-10. **恢复白色主内容区左上/左下圆角**
-11. **修复白色主区域覆盖 sidebar 的布局实现**
-12. **修复 sidebar 重复渲染**
-13. **修复折叠态 sidebar 菜单按钮水平居中**
-14. **确保顶部缩小/任务/版本/健康明确位于白色主区域内，且文案完整**
-15. **确保右侧白色主内容区铺满 sidebar 右边全部剩余空间**
-16. **修复右侧白色主 panel 被拆层的问题**
-17. **概览页去掉多余的 `Console` 分类标题**
-18. **新线程页输入区固定到底部，接近 Codex macOS 工作区**
-19. **主导航增加 `任务看板`**
-20. **设置页增加 `AI 员工` 配置入口**
-21. **区分 Console 概览、工程概览、线程页**
-22. **不要继续修改无关后端逻辑**
-23. **确保右侧白色 panel 铺满整个右侧区域**，顶部工具信息也在 panel 内部
-
----
-
-## 2. 信息架构要求
-
-### 2.1 左侧导航必须改成以下模型
+新线程页 / 线程页必须改成以下结构：
 
 #### 顶部
 
-- 只保留品牌名 `Console`
-- 不要保留当前的双行品牌副标题
-- 不要保留顶部多余装饰
-- 不要在主导航区顶部额外显示小号 `CONSOLE` 分类字样
+- 左侧仅显示当前线程标题
+- 不放模型、目录、权限、分支、停止按钮
 
-#### 主导航（上半部分）
+#### 中间
 
-- 概览
-- 新线程
-- 技能和应用
-- 自动化
-- 任务看板
+- 空状态欢迎区 / 聊天消息流
 
-这些项密度要更接近 Codex macOS：
+#### 底部固定输入工作台
 
-- 行高更小
-- 纵向间距更小
-- 选中态高度更小
-- 圆角更克制
-- 图标尺寸偏小
+输入主体卡片必须包含：
 
-#### 工程（位于主导航下方）
+- 添加文件按钮
+- 输入框
+- 模型选择器
+- 推理等级选择器
+- 语音按钮（可占位）
+- 发送按钮
+- 运行中时显示停止按钮
 
-工程是一个单独分组，不是顶部一级导航。
+输入卡片下方的上下文栏必须包含：
+
+- 当前目录 / workspace
+- 权限模式
+- 当前 git 分支
+- 运行状态
+
+### 1.2 交互效果
+
+- 首次发送前可选择目录、模型、推理等级、权限模式
+- 首次发送时自动创建 thread
+- 发送后调用后端 Thread API
+- assistant 回复通过 SSE 流式更新
+- 运行中可停止
+- 重新打开线程时可恢复历史消息
+
+---
+
+## 2. 本次明确不要做错的点
+
+1. **不要复用当前系统 `task_queue` 作为 Runtime 队列**
+2. **不要把顶部做成控制条**
+3. **不要把 git 分支和权限模式混成一个字段**
+4. **不要让 Thread API 直接调用 CLI**
+5. **不要把 `src/adapters/` 和 `src/runtime/adapters/` 混在一起**
+6. **不要先做复杂多 agent / employee / proposal 复用**
+7. **不要把页面继续停留在 mock 响应**
+
+---
+
+## 3. 后端任务
+
+### 3.1 新建 Runtime 模块
+
+创建目录：
+
+```text
+src/runtime/
+  mod.rs
+  models.rs
+  errors.rs
+  registry.rs
+  gateway.rs
+  manager.rs
+  stream.rs
+  adapters/
+    mod.rs
+    codex.rs
+    claude.rs
+```
 
 要求：
 
-- 展示项目列表（项目名/目录名）
-- 支持展开/折叠态
-- 展开后显示该项目下的线程记录
-- 当前项目与当前线程有明确选中态
-- 没有真实后端数据时，可先用 mock/local state 占位，但结构必须可扩展
+- 定义 RuntimeRequest / RuntimeRun / RuntimeRunStatus / RuntimeEvent
+- 定义 RuntimeTarget / RuntimeRole / RuntimeAttachment
+- 定义 RuntimeAdapter trait
+- 建立 RuntimeManager
+- 建立 RuntimeGateway
 
-最少做出以下交互结构：
-
-- `console`（展开）
-  - 概览
-  - 新线程 #12
-  - 同步 MCP 到 Codex
-- `cloud-router`（收起）
-
-#### 底部
-
-- 设置固定在左下角
-- 比当前版本更贴底一些
-
----
-
-## 3. 页面结构要求
-
-### 3.1 概览页（首页）
-
-注意：**概览页不是 Pencil 图中的“开始构建”页面。**
-
-概览页应该是统计/总览页，至少包含：
-
-- CLI 工具状态概览
-- Provider / MCP / Skills 总览
-- 最近工程 / 最近同步活动
-- 健康状态与版本状态摘要
-
-不要把以下内容直接放在概览页：
-
-- 大 hero 标题
-- 新线程引导卡
-- 底部 composer 式输入区
-
-这些更适合 `新线程` 页面。
-
-另外：
-
-- 概览页主内容区顶部不要重复显示 `Console` 分类标签
-- 侧边栏里已经表达过分类，主内容区不应再次重复
-
-另外：
-
-- 概览页主内容区顶部不要重复显示 `Console` 分类标签
-- 侧边栏里已经表达过分类，主内容区不应再次重复
-
-### 3.2 新线程页
-
-参考设计图主区结构：
-
-- 顶部小标题：`概览`
-- 中心欢迎区：
-  - 主标题：`开始构建你的 Console 工作台`
-  - 副标题：说明支持 Claude / Codex / Gemini / Cursor 的版本、Provider、MCP、Skills、系统提示词管理
-- 下方 3 个能力卡片
-- 底部一个类似 Codex 的输入/操作条（但语义是 Console 管理操作，不是聊天导向）
-- 输入框 / composer 必须固定在主内容区底部
-- 交互形态需明显接近 Codex macOS 的新线程页
-- 输入区样式需进一步接近用户提供的参考图：
-  - 大号圆角白色输入容器
-  - 底部左侧有 `+`、模型选择、语言选择等控制
-  - 右侧有语音/发送按钮
-  - 整体固定在底部，像 Codex 的聊天 composer
-- 主标题下方需要支持当前目录/工程选择
-- 点击目录名可展开项目选择浮层
-- 浮层支持搜索、项目列表、当前选中态、添加新项目入口
-
-这个页面的语义是 **新线程 / 启动一个管理任务**，不是平台统计概览。
-
-### 3.3 设置页
-
-本次重构里，**设置页是关键页面**，要承接原本分散的管理能力。
-
-设置页内至少整合这些 section：
-
-- 版本管理
-- AI 员工
-- Provider 管理
-- MCP Servers
-- Skills
-- 系统提示词
-- 配置同步
-- 日志 / 调试信息（如果保留）
-
-可以使用：
-
-- 左侧二级 settings nav
-- 或单页 section anchors
-- 或 tabs
-
-但必须保证：
-
-- 主侧栏不再承担所有管理入口
-- 配置能力统一收敛到设置页
-
-### 3.4 技能和应用 / 自动化
-
-这三个页面先不要求完整产品化，但至少要：
-
-- 接入新的壳层与导航
-- 页面标题、空态、层级风格统一
-- 不要保留旧后台管理面板风格
-
----
-
-## 4. 视觉风格要求
-
-目标是：**像 Codex macOS 的 Web 化版本**，但不是一比一抄袭。
-
-### 风格关键词
-
-- 极简
-- 轻量
-- 留白大
-- 低噪音
-- 柔和边框
-- 轻背景分层
-- 紧凑但不拥挤
-
-### 具体要求
-
-- 左侧栏背景：浅蓝灰 / 淡冷色块，接近设计图
-- 主内容区：白色或接近白色
-- 右侧主内容区必须是**独立白色面板**
-- 右侧主内容区必须**铺满整个右侧区域**
-- 该面板只需要**左上角、左下角圆角**
-- 右上角、右下角不要做圆角
-- 靠 sidebar 的左侧要能明确看到圆角过渡
-- 不要出现“灰色主背景里再放一张白卡片”的效果
-- 右侧视觉主体应直接表现为白色工作区
-- 贴着 sidebar 的上边和下边，需要看到白色 panel 的圆角
-- 展开按钮、任务、版本、健康等顶部信息必须位于这个白色 panel 内部，而不是悬浮在 panel 外
-- 顶部右侧的任务、版本、健康必须完整显示，不能被裁切成省略状态
-- 选中态：轻底色，不要过重
-- sidebar 折叠态图标必须在命中区域内完全居中
-- sidebar 折叠态按钮整体也必须在 sidebar 宽度内水平居中
-- sidebar 选中态颜色要贴近 Pencil 设计图
-- 需要有移动端适配策略：小屏下 sidebar 不应始终占据固定左栏
-- 禁止使用 `absolute inset-0` 之类的覆盖式白色主层破坏两栏布局
-- 白色主内容区必须是 sidebar 右侧的正常布局区域（flex item），而不是全屏遮罩层
-- 桌面态不能渲染两套 sidebar
-- 白色主内容区左侧必须形成明确的左上/左下圆角切面
-- 顶部缩小按钮、任务、版本、健康必须属于白色主区域内部的顶部栏
-- 顶部状态文案不得被截断
-- 白色背景必须挂在右侧最外层主容器
-- 右侧主内容区必须使用正常的 `flex: 1 / min-width: 0` 一类布局铺满剩余空间
-- 不允许右侧露出大面积背景底色
-- header 和内容区必须包在同一个白色主 panel 内
-- 左上/左下圆角必须加在这个统一 panel 上，而不是只加在内容子块上
-- 禁止把顶部 header 和下方 main 拆成两个独立白块实现
-- 边框：很淡
-- 圆角：中小圆角，克制
-- 阴影：弱化
-- 图标尺寸：偏小
-- 字体层级：接近 macOS 桌面工具，不要“后台管理系统大标题风”
-
-### 密度要求
-
-左侧栏必须比当前现状更紧凑，接近设计图：
-
-- nav item padding 更小
-- selected item 高度更小
-- 项目线程行更小
-- 分组之间的间距更小
-- 分组标题更弱
-- 不要做成传统后台系统侧边菜单
-
----
-
-## 5. 路由与页面映射建议
-
-可以调整 `/dashboard/src/App.tsx` 的导航与路由组织，但尽量不要做无必要的大规模业务删除。
-
-建议映射：
-
-- `/` → 概览（平台级统计总览）
-- `/new-thread` → 新线程（Pencil 参考图对应主页面）
-- `/skills-and-apps` → 技能和应用
-- `/automations` → 自动化
-- `/task-board` → 任务看板
-- `/settings` → 设置
-
-工程区域中的线程项可先映射到：
-
-- `/projects/:projectId/overview`
-- `/projects/:projectId/threads/:threadId`
+### 3.2 RuntimeManager
 
 要求：
 
-- `/projects/:projectId/overview` 不得简单复用 `/`
-- `/projects/:projectId/threads/:threadId` 不得简单复用 概览页
+- 管理 active runs
+- 管理 run 状态
+- 提供按 run / thread 的广播订阅
+- 支持 cancel
+- 支持清理结束 run
 
-如果当前没有完整后端支持：
+### 3.3 CodexRuntimeAdapter / ClaudeRuntimeAdapter
 
-- 可以先用 mock 数据驱动 UI
-- 但路由结构、组件边界要为后续真实接入留好位置
+要求：
 
----
+- 各自独立实现
+- 可接收：
+  - workspace
+  - model
+  - reasoning_effort
+  - permission_mode
+  - messages
+  - attachments
+- 先做 MVP：
+  - 能真正启动 CLI
+  - 能收集文本输出
+  - 能转成 RuntimeEvent
 
-## 6. 推荐修改范围
+说明：
 
-重点文件（优先）：
+- 首期允许 best-effort 输出解析
+- 先打通“能跑、能流、能停”
 
-- `/Users/luoxiang/workspace/bull/console/dashboard/src/App.tsx`
-- `/Users/luoxiang/workspace/bull/console/dashboard/src/index.css`
-- `/Users/luoxiang/workspace/bull/console/dashboard/src/pages/Dashboard.tsx`
-- `/Users/luoxiang/workspace/bull/console/dashboard/src/pages/SettingsPage.tsx`
+### 3.4 新建 Thread Service
 
-建议新增/重组组件（文件名可调整）：
+新增：
 
-- `dashboard/src/components/app-shell/*`
-  - Sidebar
-  - SidebarSection
-  - ProjectTree
-  - TopBar
-  - ContentShell
-- `dashboard/src/components/settings/*`
-  - SettingsNav
-  - SettingsSection
+```text
+src/services/thread.rs
+```
 
-可以删除或下线旧导航分组逻辑，只要新结构清晰。
+要求：
 
----
+- create_thread
+- list_threads
+- get_thread
+- delete_thread
+- list_messages
+- append_user_message
+- create_assistant_placeholder
+- append_assistant_delta
+- mark_assistant_done
+- mark_assistant_error
+- start_thread_run
 
-## 7. 实现约束
+### 3.5 新增 Thread 存储
 
-1. **优先重构 app shell 与 IA**
-2. 不要只是在现有后台 UI 上“换皮”
-3. 不要把所有旧入口原样塞回主侧栏
-4. 不要引入重型状态管理库
-5. 尽量复用现有组件，但如果现有组件明显不适合新壳层，可以替换
-6. 样式统一，不要新旧风格并存
-7. TypeScript 代码优先，不要继续扩散 `.js`
-8. 本轮重点是 **dashboard 前端 UI 重构**，不要修改无关的 Rust 后端逻辑
-9. 收起/展开按钮放在右侧内容区顶部左侧，不要放进 sidebar 品牌区
-10. 折叠态品牌只允许显示图标，不显示完整文字
+使用文件存储，目录结构：
 
----
+```text
+~/.console/
+  threads/
+    meta.json
+    <thread_id>/
+      thread.json
+      messages.json
+      runs.json
+```
 
-## 8. 交付标准
+需要扩展：
 
-完成后必须满足：
+- `src/storage/mod.rs`
 
-### 功能/结构
+新增对应路径方法。
 
-- [ ] 左侧栏结构符合本 task 描述
-- [ ] 顶部只保留品牌名
-- [ ] 主导航区顶部不再显示小号 `CONSOLE`
-- [ ] 工程位于主导航下方
-- [ ] 工程支持展开项目和展示线程
-- [ ] 设置位于左下角，且比现在更贴底
-- [ ] 所有配置能力统一从设置页进入
-- [ ] 主导航包含：概览 / 新线程 / 技能和应用 / 自动化 / 任务看板
-- [ ] 右侧主内容区是白色 panel，且铺满整个右侧
-- [ ] 左上/左下圆角清晰可见，不是被布局吞掉
-- [ ] 右上/右下不做圆角
-- [ ] 新线程页承接 Pencil 参考图主视觉
-- [ ] 概览页是统计页而不是新线程页
-- [ ] 概览页主内容区顶部不再显示多余的 `Console` 分类标题
-- [ ] 新线程页输入区固定在底部，形态接近 Codex macOS
-- [ ] 新线程页输入区样式接近用户提供的 Codex composer 参考图
-- [ ] 新线程页主标题下方支持当前目录/工程选择
-- [ ] 新线程页目录选择器支持浮层搜索与选中项目切换
-- [ ] 收起/展开按钮位于右侧内容区顶部左侧
-- [ ] 折叠态仅显示品牌首字母图标
-- [ ] 折叠态下 sidebar 各菜单图标完全居中
-- [ ] 折叠态下 sidebar 菜单按钮整体水平居中
-- [ ] 选中态明显更接近 Codex macOS / Pencil，而不是通用 admin panel
-- [ ] sidebar 选中态颜色与 Pencil 设计图一致或接近
-- [ ] sidebar 已适配移动端
-- [ ] 右侧没有明显灰色主背景，视觉主体直接是白色主工作区
-- [ ] 白色主工作区贴着 sidebar 的上/下边能看到圆角
-- [ ] 白色主工作区铺满整个右侧区域
-- [ ] 展开按钮、任务、版本、健康都位于白色主工作区内部
-- [ ] 顶部右侧任务、版本、健康完整显示，不被截断
-- [ ] 顶部缩小按钮也位于白色主工作区内部
-- [ ] sidebar 不会被白色主内容区覆盖或遮住
-- [ ] 右侧白色主内容区通过正常布局实现，而不是 absolute 覆盖层
-- [ ] 桌面态只渲染一套 sidebar，不会出现重复导航
-- [ ] 白色主内容区左上/左下圆角切面清晰可见
-- [ ] 白色主内容区铺满 sidebar 右边全部剩余空间
-- [ ] 右边不会露出大面积背景色
-- [ ] header 与内容区包裹在同一个白色主 panel 内
-- [ ] 左上/左下圆角加在统一主 panel 上，而不是子内容块上
+### 3.6 新增 Thread API
 
-### 视觉
+新增 Web UI 用接口：
 
-- [ ] 整体视觉明显接近参考图
-- [ ] 左侧导航密度明显更接近 Codex macOS
-- [ ] 选中态高度更小
-- [ ] 间距更小、更克制
-- [ ] 不再是传统 admin panel 风格
+- `POST /api/threads`
+- `GET /api/threads`
+- `GET /api/threads/:id`
+- `DELETE /api/threads/:id`
+- `GET /api/threads/:id/messages`
+- `POST /api/threads/:id/messages`
+- `GET /api/threads/:id/stream`
+- `POST /api/threads/:id/runs/:run_id/cancel`
+- `PATCH /api/threads/:id/title`
 
-### 工程质量
+### 3.7 可选：Workspace Inspect API
 
-- [ ] `pnpm build` 通过
-- [ ] 若引入新组件，命名清晰
-- [ ] 删除无用旧导航代码
-- [ ] 保持代码可维护
+建议新增：
+
+- `POST /api/workspaces/inspect`
+
+输入：
+
+```json
+{ "path": "/Users/luoxiang/workspace/bull/console" }
+```
+
+输出：
+
+- path
+- display_name
+- git_branch
+- is_git_repo
+
+用于 UI 展示目录与分支。
 
 ---
 
-## 8.1 当前 UI vs Pencil 设计图 对照验收清单
+## 4. 前端任务
 
-下面这份清单用于逐项核对当前实现是否真正对齐 Pencil 设计图。完成修复后请逐项自检。
+### 4.1 页面重构
 
-### A. 整体壳层
+重点文件：
 
-- [ ] 左侧是浅蓝色 sidebar
-- [ ] 右侧是一整块白色主工作区
-- [ ] 右侧白色主工作区铺满 sidebar 右边全部剩余空间
-- [ ] 页面不会出现“中间白块 + 右边露底色”
-- [ ] 页面不会出现“灰底里再套一张白卡片”
+- `/Users/luoxiang/workspace/bull/console/dashboard/src/pages/NewThreadPage.tsx`
+- `/Users/luoxiang/workspace/bull/console/dashboard/src/pages/ProjectThreadPage.tsx`
 
-### B. 白色主工作区结构
+要求：
 
-- [ ] 白色主工作区是单一统一 panel
-- [ ] 顶部栏和内容区都包在这个统一 panel 内
-- [ ] 白色主 panel 只保留左上/左下圆角
-- [ ] 白色主 panel 的右上/右下不做圆角
-- [ ] 左上/左下圆角在视觉上清晰可见
+- 顶部只显示线程标题
+- 底部固定输入工作台
+- 输入工作台承载所有运行参数
+- 中间消息区支持流式对话
 
-### C. 顶部栏
+### 4.2 组件拆分
 
-- [ ] 缩小/展开按钮位于右侧白色主工作区顶部左侧
-- [ ] 任务、版本、健康位于右侧白色主工作区顶部右侧
-- [ ] 任务 / 版本 / 健康文案完整可见
-- [ ] 顶部栏整体看起来属于白色主工作区内部
+建议新增：
 
-### D. Sidebar 展开态
+```text
+dashboard/src/components/thread/
+  ThreadHeader.tsx
+  ThreadMessageList.tsx
+  ThreadComposer.tsx
+  ThreadRuntimeBar.tsx
+  WorkspacePicker.tsx
+  RuntimeProfilePicker.tsx
+  ReasoningPicker.tsx
+  PermissionModePicker.tsx
+  AttachmentChips.tsx
+```
 
-- [ ] 品牌区只保留 `Console`
-- [ ] 主导航区顶部不再显示小号 `CONSOLE`
-- [ ] Console 分组结构正确：概览 / 新线程 / 技能和应用 / 自动化 / 任务看板
-- [ ] 工程分组位于主导航下方
-- [ ] 设置位于底部
-- [ ] 选中态颜色接近 Pencil 设计图
-- [ ] 导航项高度和间距足够紧凑
+### 4.3 页面交互
 
-### E. Sidebar 折叠态
+要求：
 
-- [ ] 折叠后只显示品牌首字母图标
-- [ ] 折叠态菜单图标在按钮内居中
-- [ ] 折叠态按钮整体在 sidebar 宽度内水平居中
-- [ ] 折叠态选中态颜色和样式接近 Pencil 设计图
+- 首次发送前若没有 threadId，则先创建 thread
+- 建立 SSE 连接
+- 发送消息后出现 assistant 占位消息
+- assistant 消息通过 delta 更新
+- 运行中发送按钮变停止按钮
 
-### F. 工程树
+### 4.4 前端状态模型
 
-- [ ] 工程按项目分组展示
-- [ ] 项目支持展开/折叠
-- [ ] 项目下线程层级清晰
-- [ ] 项目 / 线程 / 当前线程有不同层级感
+至少要有：
 
-### G. 页面职责
+- threadId
+- title
+- workspacePath
+- runtimeOption
+- reasoningEffort
+- permissionMode
+- gitBranch
+- attachments
+- activeRunId
+- isSubmitting
+- messages
 
-- [ ] 概览页是统计总览页
-- [ ] 概览页不重复显示 `Console` 分类标题
-- [ ] 新线程页承接 Pencil 图的 hero + cards + composer 结构
-- [ ] 新线程页 composer 固定在底部
-- [ ] 新线程页 composer 的布局和控件结构接近用户提供的参考图
-- [ ] 新线程页空态时中间可切换目录/工程
-- [ ] 新线程页进入聊天后，上方变为聊天流，底部 composer 保持固定
-- [ ] 项目概览页不复用平台概览页
-- [ ] 线程页不复用项目概览页
+### 4.5 Runtime Profiles
 
-### H. 响应式
+首期先写死：
 
-- [ ] 桌面态只渲染一套 sidebar
-- [ ] 移动端 sidebar 可抽屉化打开/关闭
-- [ ] 移动端不会与桌面 sidebar 重复渲染
+- `Codex · GPT-5.4`
+- `Claude · Sonnet 4.6`
 
-### I. 视觉气质
+后续再改 API 驱动。
 
-- [ ] 整体更像 Codex macOS 的 web 化版本，而不是传统后台管理系统
-- [ ] 留白、边框、圆角、状态块风格统一
-- [ ] 不存在明显偏离 Pencil 设计图的结构性错误
+### 4.6 输入工作台 UI 约束
+
+必须做到：
+
+- 顶部不再出现模型和目录
+- 输入卡片固定在底部
+- 卡片下方有上下文状态栏
+- git branch 单独展示
+- 权限模式单独展示
+- 语音按钮可先占位
 
 ---
 
-## 9. 完成后输出
+## 5. 数据模型要求
 
-完成后请给出：
+### 5.1 后端 Thread 模型
+
+至少包含：
+
+- Thread
+- ThreadRuntimeProfile
+- ThreadMessage
+- ThreadAttachment
+- ThreadRunRef
+
+### 5.2 后端 Runtime 模型
+
+至少包含：
+
+- RuntimeRequest
+- RuntimeMessage
+- RuntimeAttachment
+- RuntimeRun
+- RuntimeRunStatus
+- RuntimeEvent
+
+### 5.3 前端类型
+
+更新：
+
+- `/Users/luoxiang/workspace/bull/console/dashboard/src/types.ts`
+
+新增：
+
+- Thread
+- ThreadMessage
+- ThreadRuntimeConfig
+- RuntimeOption
+- WorkspaceInspectResult
+
+---
+
+## 6. 流式与停止
+
+### 6.1 流式
+
+必须通过 SSE 实现：
+
+- thread stream
+- message delta
+- message done
+- run failed
+- run cancelled
+
+### 6.2 停止
+
+必须支持：
+
+- 前端点停止
+- 后端找到对应 run
+- RuntimeManager 调 cancel handle
+- adapter 尽量终止子进程
+
+---
+
+## 7. 验收标准
+
+### 7.1 后端
+
+- 可以创建 thread
+- 可以发送消息
+- 可以真正触发 codex / claude runtime adapter
+- 可以流式返回文本
+- 可以停止 run
+- thread 数据能持久化
+
+### 7.2 前端
+
+- 顶部只有标题
+- 底部输入工作台布局正确
+- 可选目录
+- 可选模型
+- 可选推理等级
+- 可见权限模式
+- 可见 git 分支
+- 可发送
+- 可流式显示
+- 可停止
+
+### 7.3 架构
+
+- Runtime 独立于 task queue
+- Runtime Adapter 与 config adapter 分离
+- Thread API 不直接操作 CLI
+
+---
+
+## 8. 开发顺序
+
+请按以下顺序执行，不要乱序：
+
+### 第一阶段：后端 Runtime 内核
+
+1. 建 `src/runtime/*`
+2. 完成 Runtime 数据模型
+3. 完成 RuntimeManager
+4. 完成 RuntimeGateway
+5. 完成 Codex / Claude adapter MVP
+
+### 第二阶段：Thread 后端
+
+6. 建 thread 存储路径
+7. 建 `src/services/thread.rs`
+8. 建 threads API
+9. 建 thread SSE
+10. 建 cancel API
+
+### 第三阶段：前端线程工作区
+
+11. 重构 `NewThreadPage.tsx`
+12. 重构 `ProjectThreadPage.tsx`
+13. 新增 thread 组件
+14. 接入 threads API
+15. 接入 SSE
+16. 接入 stop
+
+### 第四阶段：补充体验
+
+17. workspace inspect / git branch 展示
+18. attachment chips
+19. 线程恢复与历史加载
+
+---
+
+## 9. 输出要求
+
+完成后请提供：
 
 1. 变更文件列表
-2. 关键结构调整说明
-3. 与旧 UI 相比的主要变化
-4. 是否还有未接入真实数据的 mock 部分
+2. 实现说明
+3. 当前已实现范围
+4. 未完成项 / 已知限制
+5. 本地验证方式
+
+不要只给 diff，不要只给泛泛总结。
 
 ---
 
-## 10. 执行建议（顺序）
+## 10. 最终说明
 
-建议按这个顺序做：
+本任务的目标不是“继续做 mock 聊天页”，而是：
 
-1. 重做 `App.tsx` 的 app shell
-2. 恢复右侧内容区顶部左侧的折叠按钮，并修正折叠态品牌图标
-3. 改左侧栏 IA 与样式密度、选中态
-4. 先让右侧白色主工作区铺满整个右侧区域
-5. 消除右侧内容区外的灰色背景感
-6. 把右侧主内容区改成白色 panel，并确保仅左上/左下圆角可见
-7. 确保展开按钮、任务、版本、健康都进入白色 panel 内部，且右上状态完整显示
-8. 修正折叠态 sidebar：图标居中、选中态正确
-9. 补齐 sidebar 的移动端适配
-10. 移除覆盖式白色主层，恢复 sidebar + 主内容区的正常两栏布局
-11. 修复桌面态 sidebar 重复渲染
-12. 恢复白色主内容区左上/左下圆角切面
-13. 修复折叠态 sidebar 按钮水平居中
-14. 确保顶部缩小按钮、任务、版本、健康都进入白色主区域顶部栏，且文案完整显示
-15. 修复右侧白色主内容区宽度塌缩问题，确保铺满 sidebar 右边全部剩余空间
-16. 合并右侧顶部栏与内容区到同一个白色主 panel，并把左上/左下圆角挂在该 panel 上
-17. 将当前 hero/composer 主视觉迁移到 `NewThreadPage`
-18. 把 `NewThreadPage` 的 composer 固定到底部，向 Codex macOS 形态靠拢
-19. 按用户提供的参考图重做 `NewThreadPage` 底部 composer 细节
-20. 在 `NewThreadPage` 中加入目录/工程选择器与搜索浮层
-21. 让 `NewThreadPage` 支持“空态中间选目录 / 有消息后上方聊天流”的双态结构
-22. 重做真正的 `Overview` 统计页，并移除主区顶部多余的 `Console` 分类标题
-23. 在主导航中新增 `任务看板`
-24. 落地设置页并收拢旧配置入口，补充 `AI 员工`
-25. 接入工程树 / 线程 mock 数据与语义区分
-26. 全局样式清理
-27. `pnpm build`
+> **把新线程页升级为一个真实的 Thread Runtime 工作区，底层由独立 Agent Runtime 驱动。**
 
----
+这套结构后续还要服务：
 
-## 11. 一句话要求
+- Project Thread Page
+- Remote API
+- OpenAI-compatible API
 
-把当前 Console dashboard 重构成一个**像 Codex macOS 的 Web 版本地 AI CLI 管理台**：  
-**壳层像 Codex，信息架构符合 Console，配置统一进设置，工程按项目分组并可展开线程。**
+因此必须按文档分层实现，不要走捷径把逻辑揉在页面里。

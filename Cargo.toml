@@ -28,3 +28,6 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 async-stream = "0.3"
 futures = "0.3"
 base64 = "0.22"
+async-trait = "0.1"
+http-body-util = "0.1"
+hyper = "1"

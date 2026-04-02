@@ -1,20 +1,35 @@
 mod routes;
 mod sse;
+mod threads;
 
 use anyhow::Result;
 use axum::Router;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::services::task_queue::TaskQueue;
 use crate::services::session_stream::SharedSessionRegistry;
+use crate::runtime::{RuntimeGateway, RuntimeManager};
+use crate::runtime::adapters::{codex::CodexRuntimeAdapter, claude::ClaudeRuntimeAdapter};
+use crate::runtime::registry::RuntimeRegistry;
 
 static SESSION_REGISTRY: OnceLock<SharedSessionRegistry> = OnceLock::new();
 
 pub fn session_registry() -> &'static SharedSessionRegistry {
     SESSION_REGISTRY.get_or_init(|| crate::services::session_stream::new_registry())
+}
+
+fn build_runtime() -> (Arc<RuntimeGateway>, Arc<RuntimeManager>) {
+    let mut registry = RuntimeRegistry::new();
+    registry.register(std::sync::Arc::new(CodexRuntimeAdapter::new()));
+    registry.register(std::sync::Arc::new(ClaudeRuntimeAdapter::new()));
+    
+    let manager = Arc::new(RuntimeManager::new());
+    let gateway = Arc::new(RuntimeGateway::new(registry, manager.clone()));
+    
+    (gateway, manager)
 }
 
 pub async fn serve(addr: &str) -> Result<()> {
@@ -32,6 +47,13 @@ pub async fn serve(addr: &str) -> Result<()> {
     let static_files = ServeDir::new(&dist_dir).fallback(spa_fallback);
 
     let queue = TaskQueue::new();
+
+    // Build runtime
+    let (runtime_gateway, runtime_manager) = build_runtime();
+    let thread_state = Arc::new(threads::ThreadState::new(
+        runtime_gateway,
+        runtime_manager.clone(),
+    ));
 
     // Periodic cleanup of finished tasks (every 10 minutes, remove tasks older than 1 hour)
     {
@@ -56,10 +78,14 @@ pub async fn serve(addr: &str) -> Result<()> {
         .with_state(queue.clone());
 
     let stateless_routes = routes::api_routes();
+    
+    // Thread routes
+    let thread_routes = threads::thread_routes(thread_state);
 
     let app = Router::new()
         .merge(stateful_routes)
         .nest("/api", stateless_routes)
+        .nest("/api", thread_routes)
         .route("/api/sessions", axum::routing::get(routes::list_sessions))
         .route("/api/sessions", axum::routing::post(routes::create_session))
         .route("/api/sessions/:id", axum::routing::get(routes::get_session))

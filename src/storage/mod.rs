@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Paths under ~/.console/
+#[derive(Clone)]
 pub struct ConsolePaths {
     pub root: PathBuf,
 }
@@ -113,6 +114,31 @@ impl ConsolePaths {
         self.session_dir(id).join("proposals.json")
     }
 
+    // Thread storage paths
+    pub fn threads_dir(&self) -> PathBuf {
+        self.root.join("threads")
+    }
+
+    pub fn thread_meta_file(&self) -> PathBuf {
+        self.threads_dir().join("meta.json")
+    }
+
+    pub fn thread_dir(&self, id: &str) -> PathBuf {
+        self.threads_dir().join(id)
+    }
+
+    pub fn thread_info_file(&self, id: &str) -> PathBuf {
+        self.thread_dir(id).join("thread.json")
+    }
+
+    pub fn thread_messages_file(&self, id: &str) -> PathBuf {
+        self.thread_dir(id).join("messages.json")
+    }
+
+    pub fn thread_runs_file(&self, id: &str) -> PathBuf {
+        self.thread_dir(id).join("runs.json")
+    }
+
     /// Create all required directories.
     pub fn ensure_dirs(&self) -> Result<()> {
         let dirs = [
@@ -125,6 +151,7 @@ impl ConsolePaths {
             &self.cache_dir(),
             &self.employees_dir(),
             &self.sessions_dir(),
+            &self.threads_dir(),
         ];
         for d in dirs {
             fs::create_dir_all(d)?;
@@ -193,6 +220,16 @@ impl ConsolePaths {
             }
             write_json(&sessions_meta, &crate::models::SessionMeta::default())?;
         }
+
+        // Initialize threads meta file
+        let threads_meta = self.thread_meta_file();
+        if !threads_meta.exists() {
+            if let Some(p) = threads_meta.parent() {
+                fs::create_dir_all(p)?;
+            }
+            write_json(&threads_meta, &serde_json::json!({ "threads": [] }))?;
+        }
+
         Ok(())
     }
 }

@@ -321,3 +321,90 @@ export type SessionEvent =
   | { type: "message_done"; message_id: string; content: string }
   | { type: "message_error"; message_id: string; error: string }
   | { type: "proposal_updated"; proposal_id: string; status: string };
+
+// ── Thread & Agent Runtime ──
+
+export type Thread = {
+  id: string;
+  title: string;
+  workspace: string;
+  runtime: ThreadRuntimeProfile;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ThreadRuntimeProfile = {
+  adapter: string;
+  model: string;
+  reasoning_effort: string;
+  permission_mode: string;
+};
+
+export type ThreadAttachment = {
+  name: string;
+  path: string;
+};
+
+export type ThreadMessage = {
+  id: string;
+  thread_id: string;
+  role: string;
+  content: string;
+  status?: string;
+  error?: string;
+  attachments: ThreadAttachment[];
+  created_at: string;
+  run_id?: string;
+};
+
+export type ThreadRunRef = {
+  id: string;
+  thread_id: string;
+  assistant_message_id: string;
+  status: string;
+  adapter: string;
+  model: string;
+  started_at: string;
+  completed_at?: string;
+};
+
+export type RuntimeOption = {
+  id: string;
+  label: string;
+  adapter: "codex" | "claude";
+  model: string;
+};
+
+export type ThreadRuntimeConfig = {
+  adapter: "codex" | "claude";
+  model: string;
+  reasoningEffort: "low" | "medium" | "high";
+  permissionMode: "default" | "read_only" | "workspace_write" | "full_access";
+  workspacePath: string;
+  gitBranch?: string | null;
+};
+
+export type WorkspaceInspectResult = {
+  path: string;
+  display_name: string;
+  git_branch: string | null;
+  is_git_repo: boolean;
+};
+
+export type RuntimeEvent =
+  | { type: "run_started"; run_id: string }
+  | { type: "message_delta"; run_id: string; text: string }
+  | { type: "run_status"; run_id: string; message: string }
+  | { type: "run_completed"; run_id: string; output: string }
+  | { type: "run_failed"; run_id: string; error: string }
+  | { type: "run_cancelled"; run_id: string };
+
+export type ThreadEvent =
+  | { type: "message_created"; message_id: string; role: string; content: string; created_at: string }
+  | { type: "message_delta"; message_id: string; delta: string }
+  | { type: "message_done"; message_id: string; content: string }
+  | { type: "message_error"; message_id: string; error: string }
+  | { type: "run_started"; run_id: string }
+  | { type: "run_completed"; run_id: string }
+  | { type: "run_failed"; run_id: string; error: string }
+  | { type: "run_cancelled"; run_id: string };

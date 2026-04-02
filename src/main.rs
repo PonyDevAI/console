@@ -5,6 +5,7 @@ mod adapters;
 mod sync;
 mod storage;
 mod models;
+mod runtime;
 
 use clap::Parser;
 
