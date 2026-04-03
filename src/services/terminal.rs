@@ -171,7 +171,25 @@ impl TerminalService {
 
         let mut cmd = CommandBuilder::new(&shell_path);
         cmd.cwd(&cwd_path);
-        cmd.arg("-i");
+
+        let shell_name = shell_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        match shell_name {
+            "zsh" => {
+                cmd.arg("-l");
+                cmd.arg("-i");
+            }
+            "bash" => {
+                cmd.arg("-l");
+                cmd.arg("-i");
+            }
+            _ => {
+                cmd.arg("-i");
+            }
+        }
 
         tracing::info!(
             session_id = %session_id,

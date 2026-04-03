@@ -1,13 +1,11 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "xterm";
-import { FitAddon } from "@xterm/addon-fit";
 import "xterm/css/xterm.css";
 import type { TerminalClientMessage, TerminalServerMessage } from "../../types";
 import { getTerminalWebSocketUrl } from "../../api";
 
 type TerminalViewProps = {
   sessionId: string | null;
-  status: "disconnected" | "connecting" | "connected" | "error";
   onStatusChange: (status: "disconnected" | "connecting" | "connected" | "error") => void;
   onError: (message: string) => void;
   onSessionClosed?: () => void;
@@ -15,14 +13,12 @@ type TerminalViewProps = {
 
 export default function TerminalView({
   sessionId,
-  status,
   onStatusChange,
   onError,
   onSessionClosed,
 }: TerminalViewProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const terminalInstanceRef = useRef<Terminal | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const hadErrorRef = useRef(false);
 
@@ -39,49 +35,16 @@ export default function TerminalView({
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
     });
 
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
     terminal.open(terminalRef.current);
-
-    requestAnimationFrame(() => {
-      fitAddon.fit();
-    });
-
     terminalInstanceRef.current = terminal;
-    fitAddonRef.current = fitAddon;
-
-    const observer = new ResizeObserver(() => {
-      requestAnimationFrame(() => {
-        try {
-          fitAddon.fit();
-          const ws = wsRef.current;
-          if (ws && ws.readyState === WebSocket.OPEN && terminal.cols && terminal.rows) {
-            const resizeMsg: TerminalClientMessage = {
-              type: "resize",
-              cols: terminal.cols,
-              rows: terminal.rows,
-            };
-            ws.send(JSON.stringify(resizeMsg));
-          }
-        } catch (e) {
-          // fit 失败静默忽略（terminal 可能已 dispose）
-        }
-      });
-    });
-
-    if (terminalRef.current) {
-      observer.observe(terminalRef.current);
-    }
 
     return () => {
-      observer.disconnect();
       try {
         terminal.dispose();
       } catch (e) {
         console.warn("Terminal dispose failed:", e);
       }
       terminalInstanceRef.current = null;
-      fitAddonRef.current = null;
     };
   }, []);
 
@@ -95,20 +58,10 @@ export default function TerminalView({
 
     if (terminalInstanceRef.current) {
       terminalInstanceRef.current.clear();
-      terminalInstanceRef.current.write("[Connecting...]\r\n");
     }
 
     ws.onopen = () => {
       onStatusChange("connected");
-      const terminal = terminalInstanceRef.current;
-      if (terminal && terminal.cols && terminal.rows) {
-        const resizeMsg: TerminalClientMessage = {
-          type: "resize",
-          cols: terminal.cols,
-          rows: terminal.rows,
-        };
-        ws.send(JSON.stringify(resizeMsg));
-      }
     };
 
     ws.onmessage = (event) => {

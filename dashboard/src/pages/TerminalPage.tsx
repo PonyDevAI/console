@@ -99,7 +99,6 @@ export default function TerminalPage() {
       )}
       <TerminalView
         sessionId={sessionId}
-        status={status}
         onStatusChange={handleStatusChange}
         onError={handleError}
         onSessionClosed={handleSessionClosed}
