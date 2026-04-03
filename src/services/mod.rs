@@ -17,3 +17,4 @@ pub mod session;
 pub mod session_stream;
 pub mod proposal;
 pub mod thread;
+pub mod terminal;

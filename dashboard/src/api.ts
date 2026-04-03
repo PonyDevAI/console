@@ -33,6 +33,8 @@ import type {
   SessionMessage,
   SessionEvent,
   TaskProposal,
+  CreateTerminalSessionRequest,
+  CreateTerminalSessionResponse,
 } from "./types";
 
 const BASE = "/api";
@@ -725,4 +727,26 @@ export async function getAllProposals() {
 
 function getBaseUrl() {
   return location.origin;
+}
+
+// ── Terminal ──
+export async function createTerminalSession(data: CreateTerminalSessionRequest) {
+  await ensureReady();
+  if (useMock) return { session_id: "mock-session-id" };
+  return post<CreateTerminalSessionResponse>("/terminal/sessions", data);
+}
+
+export async function createLocalTerminalSession(cols: number, rows: number, cwd?: string, shell?: string) {
+  return createTerminalSession({ type: "local", cols, rows, cwd, shell });
+}
+
+export async function closeTerminalSession(sessionId: string) {
+  await ensureReady();
+  if (useMock) return { ok: true };
+  return del<{ ok: boolean }>(`/terminal/sessions/${sessionId}`);
+}
+
+export function getTerminalWebSocketUrl(sessionId: string): string {
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${location.host}/api/terminal/sessions/${sessionId}/ws`;
 }

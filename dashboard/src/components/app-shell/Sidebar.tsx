@@ -1,4 +1,4 @@
-import { ChevronRight, Settings, Home, Plus, Folder, Bot, Sparkles, ListTodo } from "lucide-react";
+import { ChevronRight, Settings, Home, Plus, Folder, Bot, Sparkles, ListTodo, Terminal } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "../../lib/utils";
 import type { Project } from "./ProjectTree";
@@ -17,6 +17,7 @@ const consoleNavItems = [
   { to: "/skills-and-apps", label: "技能和应用", icon: Bot },
   { to: "/automations", label: "自动化", icon: Sparkles },
   { to: "/task-board", label: "任务看板", icon: ListTodo },
+  { to: "/terminal", label: "终端", icon: Terminal },
 ];
 
 export default function Sidebar({

@@ -408,3 +408,24 @@ export type ThreadEvent =
   | { type: "run_completed"; run_id: string }
   | { type: "run_failed"; run_id: string; error: string }
   | { type: "run_cancelled"; run_id: string };
+
+// ── Terminal ──
+export type CreateTerminalSessionRequest =
+  | { type: "local"; cols: number; rows: number; cwd?: string; shell?: string }
+  | { type: "ssh"; host: string; port: number; user: string; key_path: string; cols: number; rows: number };
+
+export type CreateTerminalSessionResponse = {
+  session_id: string;
+};
+
+export type TerminalClientMessage =
+  | { type: "input"; data: string }
+  | { type: "resize"; cols: number; rows: number }
+  | { type: "close" };
+
+export type TerminalServerMessage =
+  | { type: "output"; data: string }
+  | { type: "exit"; code: number | null }
+  | { type: "error"; message: string };
+
+export type TerminalConnectionStatus = "disconnected" | "connecting" | "connected" | "error";

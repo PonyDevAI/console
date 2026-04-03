@@ -6,6 +6,7 @@ type TopBarProps = {
   versionInfo?: { current: string; updateAvailable?: boolean };
   connected?: boolean;
   collapsed?: boolean;
+  dark?: boolean;
   onToggleSidebar?: () => void;
   onToggleMobile?: () => void;
 };
@@ -15,6 +16,7 @@ export default function TopBar({
   versionInfo,
   connected = true,
   collapsed = false,
+  dark = false,
   onToggleSidebar,
   onToggleMobile,
 }: TopBarProps) {
@@ -26,7 +28,7 @@ export default function TopBar({
         <button
           type="button"
           onClick={onToggleMobile}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 md:hidden"
+          className={cn("flex h-7 w-7 items-center justify-center rounded-md transition-colors md:hidden", dark ? "text-gray-400 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700")}
           aria-label="打开菜单"
         >
           <Menu className="h-4 w-4" strokeWidth={1.8} />
@@ -36,7 +38,7 @@ export default function TopBar({
         <button
           type="button"
           onClick={onToggleSidebar}
-          className="hidden h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 md:flex"
+          className={cn("hidden h-7 w-7 items-center justify-center rounded-md transition-colors md:flex", dark ? "text-gray-400 hover:bg-white/10 hover:text-white" : "text-gray-400 hover:bg-gray-100 hover:text-gray-700")}
           aria-label={collapsed ? "展开侧边栏" : "折叠侧边栏"}
         >
           <PanelLeftClose className={cn("h-4 w-4 transition-transform", collapsed && "-scale-x-100")} strokeWidth={1.8} />

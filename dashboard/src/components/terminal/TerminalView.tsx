@@ -1,23 +1,3 @@
-# Task: Terminal 自适应宽高
-
-## 现状分析
-
-- `TerminalView.tsx` 已修好 initialized 自销毁 bug（effect 用 `[]`，只在 mount 执行一次）
-- `@xterm/addon-fit` 已安装但未使用
-- 后端 WebSocket 已支持 `{ type: "resize", cols, rows }` 消息
-- 当前终端固定 80x24，不跟随容器尺寸
-
-## 目标
-
-终端填满右侧内容区域，随窗口/容器大小变化自动 resize（FitAddon + ResizeObserver）。
-
----
-
-## 修改文件：`dashboard/src/components/terminal/TerminalView.tsx`
-
-### 完整重写内容如下：
-
-```tsx
 import { useEffect, useRef } from "react";
 import { Terminal } from "xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -46,13 +26,12 @@ export default function TerminalView({
   const wsRef = useRef<WebSocket | null>(null);
   const hadErrorRef = useRef(false);
 
-  // 初始化 terminal — 只在 mount 执行一次
   useEffect(() => {
     if (!terminalRef.current) return;
 
     const terminal = new Terminal({
       theme: {
-        background: "#1a1a2e",
+        background: "#000000",
         foreground: "#eee",
       },
       cursorBlink: true,
@@ -64,7 +43,6 @@ export default function TerminalView({
     terminal.loadAddon(fitAddon);
     terminal.open(terminalRef.current);
 
-    // 首次 fit，延迟一帧确保容器已布局
     requestAnimationFrame(() => {
       fitAddon.fit();
     });
@@ -72,7 +50,6 @@ export default function TerminalView({
     terminalInstanceRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // ResizeObserver：容器尺寸变化时重新 fit + 通知后端
     const observer = new ResizeObserver(() => {
       requestAnimationFrame(() => {
         try {
@@ -108,7 +85,6 @@ export default function TerminalView({
     };
   }, []);
 
-  // WebSocket 连接 — sessionId 变化时重连
   useEffect(() => {
     if (!sessionId) return;
 
@@ -124,7 +100,6 @@ export default function TerminalView({
 
     ws.onopen = () => {
       onStatusChange("connected");
-      // 连接建立后立即同步当前终端尺寸到后端
       const terminal = terminalInstanceRef.current;
       if (terminal && terminal.cols && terminal.rows) {
         const resizeMsg: TerminalClientMessage = {
@@ -201,21 +176,3 @@ export default function TerminalView({
     </div>
   );
 }
-```
-
----
-
-## 修改文件：`dashboard/src/pages/TerminalPage.tsx`
-
-`createLocalTerminalSession` 调用改为传入容器实际尺寸（用 80x24 作初始值即可，WebSocket onopen 后会立即同步实际 cols/rows）：
-
-不需要改动，保持原样即可。
-
----
-
-## 完成标准
-
-1. `pnpm build` 无错误
-2. 终端填满内容区域，不再固定 80 列
-3. 拖拽浏览器窗口改变大小时，终端自动 reflow，prompt 不折行
-4. WebSocket 建立后自动 resize 同步到 PTY

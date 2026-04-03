@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Sidebar from "./components/app-shell/Sidebar";
 import TopBar from "./components/app-shell/TopBar";
 import { defaultProjects, type Project } from "./components/app-shell/ProjectTree";
@@ -9,6 +9,7 @@ import NewThreadPage from "./pages/NewThreadPage";
 import SkillsAndAppsPage from "./pages/SkillsAndAppsPage";
 import AutomationsPage from "./pages/AutomationsPage";
 import TaskBoardPage from "./pages/TaskBoardPage";
+import TerminalPage from "./pages/TerminalPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import ProjectOverviewPage from "./pages/ProjectOverviewPage";
@@ -23,6 +24,8 @@ export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { tasks } = useTasks();
 
+  const location = useLocation();
+  const isTerminal = location.pathname === "/terminal";
   const allTasks = Array.from(tasks.values()).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const activeTasks = allTasks.filter(t => t.status === 'pending' || t.status === 'running');
   const activeCount = activeTasks.length;
@@ -98,16 +101,18 @@ export default function App() {
             versionInfo={versionInfo ? { current: versionInfo.current, updateAvailable: versionInfo.updateAvailable } : undefined}
             connected={connected}
             collapsed={collapsed}
+
             onToggleSidebar={() => setCollapsed(!collapsed)}
             onToggleMobile={() => setMobileOpen(!mobileOpen)}
           />
-          <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="flex min-w-0 flex-1 flex-col overflow-hidden" style={isTerminal ? { backgroundColor: "#000000" } : undefined}>
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/new-thread" element={<NewThreadPage />} />
               <Route path="/skills-and-apps" element={<SkillsAndAppsPage />} />
               <Route path="/automations" element={<AutomationsPage />} />
               <Route path="/task-board" element={<TaskBoardPage />} />
+              <Route path="/terminal" element={<TerminalPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/projects/:projectId/overview" element={<ProjectOverviewPage />} />
               <Route path="/projects/:projectId/threads/:threadId" element={<ProjectThreadPage />} />

@@ -1,6 +1,7 @@
 mod routes;
 mod sse;
 mod threads;
+mod terminal;
 
 use anyhow::Result;
 use axum::Router;
@@ -82,10 +83,17 @@ pub async fn serve(addr: &str) -> Result<()> {
     // Thread routes
     let thread_routes = threads::thread_routes(thread_state);
 
+    // Terminal routes
+    let terminal_state = terminal::TerminalApiState {
+        terminal_service: Arc::new(crate::services::terminal::TerminalService::new()),
+    };
+    let terminal_routes = terminal::router().with_state(terminal_state);
+
     let app = Router::new()
         .merge(stateful_routes)
         .nest("/api", stateless_routes)
         .nest("/api", thread_routes)
+        .nest("/api/terminal", terminal_routes)
         .route("/api/sessions", axum::routing::get(routes::list_sessions))
         .route("/api/sessions", axum::routing::post(routes::create_session))
         .route("/api/sessions/:id", axum::routing::get(routes::get_session))
