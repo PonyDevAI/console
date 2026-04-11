@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use tokio::sync::Mutex;
 
-use crate::models::{AgentBinding, DispatchHistory, DispatchRecord, Employee, EmployeesState, SoulFiles};
+use crate::models::{AgentBinding, DispatchHistory, DispatchRecord, Employee, EmployeesState, PersonaFiles, SoulFiles, EmployeeStatus, EmployeeType};
 use crate::storage::{read_json, write_json, ConsolePaths};
 use std::fs;
 
@@ -44,37 +44,54 @@ pub async fn list() -> Result<Vec<Employee>> {
 
 pub async fn create(
     name: &str,
-    display_name: &str,
-    role: &str,
-    avatar_color: &str,
+    display_name: Option<&str>,
+    agent_id: &str,
+    model: Option<&str>,
+    avatar_color: Option<&str>,
+    tags: Vec<String>,
+    role: Option<&str>,
+    employee_type: Option<EmployeeType>,
+    source_id: Option<&str>,
+    remote_agent_name: Option<&str>,
 ) -> Result<Employee> {
     let mut state = get_state().await?;
     
     let id = uuid::Uuid::new_v4().to_string();
     let now = Utc::now();
+    let display_name = display_name.unwrap_or(name).to_string();
+    let avatar_color = avatar_color.unwrap_or("#3B82F6").to_string();
     
     let employee = Employee {
         id: id.clone(),
         name: name.to_string(),
-        display_name: display_name.to_string(),
-        role: role.to_string(),
-        avatar_color: avatar_color.to_string(),
-        bindings: vec![],
+        display_name,
+        agent_id: Some(agent_id.to_string()),
+        model: model.map(String::from),
+        status: EmployeeStatus::Unknown,
+        avatar_color,
+        tags,
         created_at: now,
         updated_at: now,
         last_dispatched_at: None,
         dispatch_count: 0,
         dispatch_success_count: 0,
+        bindings: None,
+        role: role.map(String::from),
+        employee_type,
+        source_id: source_id.map(String::from),
+        remote_agent_name: remote_agent_name.map(String::from),
     };
     
     let paths = ConsolePaths::default();
     let emp_dir = paths.employee_dir(&id);
     fs::create_dir_all(&emp_dir)?;
     
+    let identity_file = paths.employee_identity_file(&id);
     let soul_file = paths.employee_soul_file(&id);
     let skills_file = paths.employee_skills_file(&id);
     let rules_file = paths.employee_rules_file(&id);
     
+    fs::write(&identity_file, "")?;
     fs::write(&soul_file, "")?;
     fs::write(&skills_file, "")?;
     fs::write(&rules_file, "")?;
@@ -97,8 +114,13 @@ pub async fn get(id: &str) -> Result<Employee> {
 pub async fn update(
     id: &str,
     display_name: Option<&str>,
-    role: Option<&str>,
+    agent_id: Option<&str>,
+    model: Option<&str>,
     avatar_color: Option<&str>,
+    tags: Option<Vec<String>>,
+    role: Option<&str>,
+    source_id: Option<&str>,
+    remote_agent_name: Option<&str>,
 ) -> Result<Employee> {
     let mut state = get_state().await?;
     
@@ -110,11 +132,26 @@ pub async fn update(
     if let Some(dn) = display_name {
         employee.display_name = dn.to_string();
     }
-    if let Some(r) = role {
-        employee.role = r.to_string();
+    if let Some(aid) = agent_id {
+        employee.agent_id = Some(aid.to_string());
     }
     if let Some(ac) = avatar_color {
         employee.avatar_color = ac.to_string();
+    }
+    if let Some(t) = tags {
+        employee.tags = t;
+    }
+    if let Some(r) = role {
+        employee.role = Some(r.to_string());
+    }
+    if let Some(sid) = source_id {
+        employee.source_id = Some(sid.to_string());
+    }
+    if let Some(ran) = remote_agent_name {
+        employee.remote_agent_name = Some(ran.to_string());
+    }
+    if let Some(m) = model {
+        employee.model = Some(m.to_string());
     }
     employee.updated_at = Utc::now();
     
@@ -169,6 +206,34 @@ pub fn write_soul_files(id: &str, soul_files: &SoulFiles) -> Result<()> {
     Ok(())
 }
 
+pub fn read_persona_files(id: &str) -> Result<PersonaFiles> {
+    let paths = ConsolePaths::default();
+    
+    let identity = fs::read_to_string(paths.employee_identity_file(id))
+        .unwrap_or_default();
+    let soul = fs::read_to_string(paths.employee_soul_file(id))
+        .unwrap_or_default();
+    let skills = fs::read_to_string(paths.employee_skills_file(id))
+        .unwrap_or_default();
+    let rules = fs::read_to_string(paths.employee_rules_file(id))
+        .unwrap_or_default();
+    
+    Ok(PersonaFiles { identity, soul, skills, rules })
+}
+
+pub fn write_persona_files(id: &str, persona: &PersonaFiles) -> Result<()> {
+    let paths = ConsolePaths::default();
+    let emp_dir = paths.employee_dir(id);
+    fs::create_dir_all(&emp_dir)?;
+    
+    fs::write(paths.employee_identity_file(id), &persona.identity)?;
+    fs::write(paths.employee_soul_file(id), &persona.soul)?;
+    fs::write(paths.employee_skills_file(id), &persona.skills)?;
+    fs::write(paths.employee_rules_file(id), &persona.rules)?;
+    
+    Ok(())
+}
+
 pub async fn add_binding(id: &str, binding: AgentBinding) -> Result<Employee> {
     let mut state = get_state().await?;
     
@@ -177,13 +242,21 @@ pub async fn add_binding(id: &str, binding: AgentBinding) -> Result<Employee> {
         .find(|e| e.id == id)
         .ok_or_else(|| anyhow::anyhow!("Employee not found"))?;
     
+    if employee.bindings.is_none() {
+        employee.bindings = Some(vec![]);
+    }
+    
     if binding.is_primary {
-        for b in &mut employee.bindings {
-            b.is_primary = false;
+        if let Some(ref mut bindings) = employee.bindings {
+            for b in bindings.iter_mut() {
+                b.is_primary = false;
+            }
         }
     }
     
-    employee.bindings.push(binding);
+    if let Some(ref mut bindings) = employee.bindings {
+        bindings.push(binding);
+    }
     employee.updated_at = Utc::now();
     
     let updated = employee.clone();
@@ -206,35 +279,44 @@ pub async fn update_binding(
         .find(|e| e.id == id)
         .ok_or_else(|| anyhow::anyhow!("Employee not found"))?;
     
-    let binding_exists = employee.bindings.iter().any(|b| b.id == binding_id);
+    let bindings = employee.bindings.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("No bindings"))?;
+    
+    let binding_exists = bindings.iter().any(|b| b.id == binding_id);
     if !binding_exists {
         anyhow::bail!("Binding not found");
     }
     
     if let Some(l) = label {
-        for b in &mut employee.bindings {
-            if b.id == binding_id {
-                b.label = l.to_string();
+        if let Some(ref mut bindings) = employee.bindings {
+            for b in bindings.iter_mut() {
+                if b.id == binding_id {
+                    b.label = l.to_string();
+                }
             }
         }
     }
     if let Some(ip) = is_primary {
-        if ip {
-            for b in &mut employee.bindings {
-                b.is_primary = false;
+        if let Some(ref mut bindings) = employee.bindings {
+            if ip {
+                for b in bindings.iter_mut() {
+                    b.is_primary = false;
+                }
             }
-        }
-        for b in &mut employee.bindings {
-            if b.id == binding_id {
-                b.is_primary = ip;
+            for b in bindings.iter_mut() {
+                if b.id == binding_id {
+                    b.is_primary = ip;
+                }
             }
         }
     }
     
     if let Some(p) = protocol {
-        for b in &mut employee.bindings {
-            if b.id == binding_id {
-                b.protocol = p.clone();
+        if let Some(ref mut bindings) = employee.bindings {
+            for b in bindings.iter_mut() {
+                if b.id == binding_id {
+                    b.protocol = p.clone();
+                }
             }
         }
     }
@@ -255,10 +337,13 @@ pub async fn delete_binding(id: &str, binding_id: &str) -> Result<Employee> {
         .find(|e| e.id == id)
         .ok_or_else(|| anyhow::anyhow!("Employee not found"))?;
     
-    let initial_len = employee.bindings.len();
-    employee.bindings.retain(|b| b.id != binding_id);
+    let bindings = employee.bindings.as_mut()
+        .ok_or_else(|| anyhow::anyhow!("No bindings"))?;
     
-    if employee.bindings.len() == initial_len {
+    let initial_len = bindings.len();
+    bindings.retain(|b| b.id != binding_id);
+    
+    if bindings.len() == initial_len {
         anyhow::bail!("Binding not found");
     }
     
@@ -304,4 +389,143 @@ pub async fn record_dispatch_result(id: &str, success: bool) -> Result<()> {
         emp.updated_at = chrono::Utc::now();
     }
     set_state(state).await
+}
+
+pub fn compute_employee_status(employee: &Employee) -> crate::models::EmployeeStatus {
+    let agent_id = match &employee.agent_id {
+        Some(id) => id.clone(),
+        None => {
+            let resolved = resolve_agent_id_for_employee(employee);
+            if resolved == "unresolved" {
+                return crate::models::EmployeeStatus::Unknown;
+            }
+            resolved
+        }
+    };
+    
+    let is_remote_agent = agent_id.contains('/');
+    
+    if is_remote_agent {
+        let source_id = agent_id.split('/').next().unwrap_or("");
+        
+        let sources = match crate::services::agent_source::list_agent_sources() {
+            Ok(s) => s,
+            Err(_) => return crate::models::EmployeeStatus::Unknown,
+        };
+        
+        let source = match sources.into_iter().find(|s| s.id == source_id) {
+            Some(s) => s,
+            None => return crate::models::EmployeeStatus::Unknown,
+        };
+        
+        if !source.healthy {
+            return crate::models::EmployeeStatus::Offline;
+        }
+        
+        let rt = tokio::runtime::Handle::current();
+        let remote_agents = match rt.block_on(crate::services::agent_registry::fetch_remote_agents_from_source(source_id)) {
+            Ok(agents) => agents,
+            Err(_) => return crate::models::EmployeeStatus::Offline,
+        };
+        
+        let agent_exists = remote_agents.iter().any(|a| a.id == agent_id);
+        if agent_exists {
+            crate::models::EmployeeStatus::Online
+        } else {
+            crate::models::EmployeeStatus::Offline
+        }
+    } else {
+        let agent = match crate::services::agent_registry::get_agent(&agent_id) {
+            Ok(Some(a)) => a,
+            _ => return crate::models::EmployeeStatus::Unknown,
+        };
+        
+        match agent.status {
+            crate::models::AgentStatus::Online => crate::models::EmployeeStatus::Online,
+            crate::models::AgentStatus::Offline => crate::models::EmployeeStatus::Offline,
+            crate::models::AgentStatus::Busy => crate::models::EmployeeStatus::Busy,
+            crate::models::AgentStatus::Unknown => crate::models::EmployeeStatus::Unknown,
+        }
+    }
+}
+
+pub async fn get_employee_with_status(id: &str) -> Result<Employee> {
+    let mut employee = get(id).await?;
+    employee.status = compute_employee_status(&employee);
+    Ok(employee)
+}
+
+pub fn list_employees_with_status() -> Result<Vec<Employee>> {
+    let state = load()?;
+    let mut employees = state.employees;
+    for emp in &mut employees {
+        emp.status = compute_employee_status(emp);
+    }
+    Ok(employees)
+}
+
+pub fn get_agent_for_employee(employee: &Employee) -> Result<Option<crate::models::Agent>> {
+    let agent_id = match &employee.agent_id {
+        Some(id) => id.clone(),
+        None => resolve_agent_id_for_employee(employee),
+    };
+    
+    if agent_id == "unresolved" {
+        return Ok(None);
+    }
+    
+    crate::services::agent_registry::get_agent(&agent_id)
+}
+
+pub fn get_source_for_employee(employee: &Employee) -> Result<crate::models::AgentSource> {
+    let agent_id = match &employee.agent_id {
+        Some(id) => id.clone(),
+        None => resolve_agent_id_for_employee(employee),
+    };
+    
+    if agent_id == "unresolved" {
+        anyhow::bail!("Employee has no valid agent_id and cannot be migrated");
+    }
+    
+    let agent = crate::services::agent_registry::get_agent(&agent_id)?
+        .ok_or_else(|| anyhow::anyhow!("Agent not found for employee"))?;
+    
+    crate::services::agent_source::get_source(&agent.source_id)
+}
+
+pub fn migrate_legacy_employee(emp: &Employee) -> Option<String> {
+    if let Some(ref agent_id) = emp.agent_id {
+        if !agent_id.is_empty() && agent_id != "unresolved" {
+            return Some(agent_id.clone());
+        }
+    }
+    
+    if let Some(ref source_id) = emp.source_id {
+        if let Some(ref remote_name) = emp.remote_agent_name {
+            if source_id.starts_with("openclaw") || source_id.starts_with("remote") {
+                return Some(format!("{}/{}", source_id, remote_name));
+            }
+        }
+        
+        let local_agent = match source_id.as_str() {
+            "claude" | "claude-local" => Some("claude-cli"),
+            "codex" | "codex-local" => Some("codex-cli"),
+            "opencode" | "opencode-local" => Some("opencode-cli"),
+            "gemini" | "gemini-local" => Some("gemini-cli"),
+            _ => None,
+        };
+        
+        if let Some(agent_id) = local_agent {
+            return Some(agent_id.to_string());
+        }
+    }
+    
+    None
+}
+
+pub fn resolve_agent_id_for_employee(emp: &Employee) -> String {
+    if let Some(agent_id) = migrate_legacy_employee(emp) {
+        return agent_id;
+    }
+    "unresolved".to_string()
 }

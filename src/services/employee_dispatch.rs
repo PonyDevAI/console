@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crate::models::{AgentProtocol, SoulFiles};
+use crate::models::{Agent, AgentProtocol, AgentSource, AgentSourceType, Employee, EmployeeType, PersonaFiles, SoulFiles};
 
 pub struct DispatchResult {
     pub output: String,
@@ -251,6 +251,294 @@ pub async fn dispatch(
                 task,
             )
             .await
+        }
+    }
+}
+
+pub fn build_system_prompt_from_persona(persona: &PersonaFiles) -> String {
+    let mut parts = Vec::new();
+    if !persona.identity.trim().is_empty() {
+        parts.push(format!("# 身份\n{}", persona.identity));
+    }
+    if !persona.soul.trim().is_empty() {
+        parts.push(persona.soul.clone());
+    }
+    if !persona.skills.trim().is_empty() {
+        parts.push(format!("## 技能\n{}", persona.skills));
+    }
+    if !persona.rules.trim().is_empty() {
+        parts.push(format!("## 规则\n{}", persona.rules));
+    }
+    parts.join("\n\n")
+}
+
+pub async fn dispatch_via_source(
+    source: &AgentSource,
+    employee: &Employee,
+    persona: &PersonaFiles,
+    task: &str,
+    cwd: Option<&str>,
+) -> Result<DispatchResult> {
+    let final_model = employee.model.clone()
+        .or_else(|| source.default_model.clone())
+        .unwrap_or_else(|| "gpt-4".to_string());
+
+    let system_prompt = build_system_prompt_from_persona(persona);
+
+    match source.source_type {
+        AgentSourceType::LocalCli => {
+            let executable = source.executable.as_deref().unwrap_or(&source.name);
+            let (soul_arg, extra_args) = get_local_cli_args(&source.name, Some(&final_model));
+            
+            if let Some(workdir) = cwd {
+                write_persona_to_cwd(&source.name, &system_prompt, workdir);
+            }
+            
+            dispatch_local_process(
+                executable,
+                &soul_arg,
+                &extra_args,
+                &system_prompt,
+                task,
+                cwd,
+            ).await
+        }
+        AgentSourceType::OpenAiCompatible => {
+            let endpoint = source.endpoint.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("OpenAI compatible source missing endpoint"))?;
+            
+            dispatch_openai_compatible(
+                endpoint,
+                source.api_key.as_deref(),
+                &final_model,
+                true,
+                &system_prompt,
+                task,
+            ).await
+        }
+        AgentSourceType::RemoteAgent => {
+            let endpoint = source.endpoint.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Remote agent source missing endpoint"))?;
+            let remote_name = employee.remote_agent_name.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Remote employee missing remote_agent_name"))?;
+            
+            dispatch_remote_agent(
+                endpoint,
+                source.api_key.as_deref(),
+                remote_name,
+                &final_model,
+                &system_prompt,
+                task,
+            ).await
+        }
+        AgentSourceType::RemoteOpenClawWs => {
+            Err(anyhow::anyhow!("OpenClaw execution not supported in this version"))
+        }
+    }
+}
+
+pub async fn dispatch_via_agent(
+    agent: &Agent,
+    source: &AgentSource,
+    employee: &Employee,
+    persona: &PersonaFiles,
+    task: &str,
+    cwd: Option<&str>,
+) -> Result<DispatchResult> {
+    let final_model = employee.model.clone()
+        .or_else(|| agent.default_model.clone())
+        .or_else(|| source.default_model.clone())
+        .unwrap_or_else(|| "gpt-4".to_string());
+
+    let system_prompt = build_system_prompt_from_persona(persona);
+
+    match source.source_type {
+        AgentSourceType::LocalCli => {
+            let executable = source.executable.as_deref().unwrap_or(&source.name);
+            let (soul_arg, extra_args) = get_local_cli_args(&source.name, Some(&final_model));
+            
+            if let Some(workdir) = cwd {
+                write_persona_to_cwd(&source.name, &system_prompt, workdir);
+            }
+            
+            dispatch_local_process(
+                executable,
+                &soul_arg,
+                &extra_args,
+                &system_prompt,
+                task,
+                cwd,
+            ).await
+        }
+        AgentSourceType::OpenAiCompatible => {
+            let endpoint = source.endpoint.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("OpenAI compatible source missing endpoint"))?;
+            
+            dispatch_openai_compatible(
+                endpoint,
+                source.api_key.as_deref(),
+                &final_model,
+                true,
+                &system_prompt,
+                task,
+            ).await
+        }
+        AgentSourceType::RemoteAgent => {
+            let endpoint = source.endpoint.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Remote agent source missing endpoint"))?;
+            let remote_name = agent.name.clone();
+            
+            dispatch_remote_agent(
+                endpoint,
+                source.api_key.as_deref(),
+                &remote_name,
+                &final_model,
+                &system_prompt,
+                task,
+            ).await
+        }
+        AgentSourceType::RemoteOpenClawWs => {
+            Err(anyhow::anyhow!("OpenClaw execution not supported in this version"))
+        }
+    }
+}
+
+fn get_local_cli_args(name: &str, model: Option<&str>) -> (String, Vec<String>) {
+    let (soul_arg, base_extra) = match name {
+        "claude" => ("--system".to_string(), vec!["--no-input".to_string()]),
+        "codex" => ("--system".to_string(), vec![]),
+        "opencode" => ("--system".to_string(), vec![]),
+        "gemini" => ("--system".to_string(), vec![]),
+        _ => ("--system".to_string(), vec![]),
+    };
+
+    let extra_args = match name {
+        "claude" => {
+            let mut args = base_extra;
+            if let Some(m) = model {
+                args.push("--model".to_string());
+                args.push(m.to_string());
+            }
+            args
+        }
+        "codex" => {
+            let mut args = base_extra;
+            if let Some(m) = model {
+                args.push("--model".to_string());
+                args.push(m.to_string());
+            }
+            args
+        }
+        "opencode" => {
+            let mut args = base_extra;
+            if let Some(m) = model {
+                args.push("--model".to_string());
+                args.push(m.to_string());
+            }
+            args
+        }
+        "gemini" => {
+            let mut args = base_extra;
+            if let Some(m) = model {
+                args.push("--model".to_string());
+                args.push(m.to_string());
+            }
+            args
+        }
+        _ => base_extra,
+    };
+
+    (soul_arg, extra_args)
+}
+
+async fn dispatch_remote_agent(
+    endpoint: &str,
+    api_key: Option<&str>,
+    remote_agent_name: &str,
+    model: &str,
+    system_prompt: &str,
+    task: &str,
+) -> Result<DispatchResult> {
+    let client = reqwest::Client::new();
+    
+    let base = endpoint.trim_end_matches('/');
+    let url = format!("{}/v1/chat/completions", base);
+    
+    let messages = vec![
+        serde_json::json!({"role": "system", "content": system_prompt}),
+        serde_json::json!({"role": "user", "content": task}),
+    ];
+    
+    let mut req_body = serde_json::json!({
+        "model": model,
+        "messages": messages,
+        "stream": true,
+        "assistant_id": remote_agent_name,
+    });
+    
+    let mut request = client.post(&url).json(&req_body);
+    
+    if let Some(key) = api_key {
+        request = request.header("Authorization", format!("Bearer {}", key));
+    }
+    
+    let response = request.send().await?;
+    
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        anyhow::bail!("Remote agent error: {} - {}", status, body);
+    }
+    
+    let text = response.text().await?;
+    let mut output = String::new();
+    
+    for line in text.lines() {
+        if let Some(data) = line.strip_prefix("data: ") {
+            if data == "[DONE]" {
+                break;
+            }
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                if let Some(content) = json
+                    .get("choices")
+                    .and_then(|c| c.as_array())
+                    .and_then(|a| a.first())
+                    .and_then(|c| c.get("delta"))
+                    .and_then(|d| d.get("content"))
+                    .and_then(|c| c.as_str())
+                {
+                    output.push_str(content);
+                }
+            }
+        }
+    }
+    
+    Ok(DispatchResult {
+        output,
+        exit_code: 0,
+    })
+}
+
+fn write_persona_to_cwd(executable: &str, system_prompt: &str, cwd: &str) {
+    use std::fs;
+    use std::path::Path;
+
+    let filename = match executable {
+        "claude" => Some("CLAUDE.md"),
+        "codex"  => Some("CODEX.md"),
+        "opencode" => Some("OPENCODE.md"),
+        "gemini" => Some("GEMINI.md"),
+        _ => None,
+    };
+
+    if let Some(fname) = filename {
+        let path = Path::new(cwd).join(fname);
+        if !path.exists() {
+            let content = format!(
+                "<!-- Generated by Console AI Employee. Do not edit manually. -->\n\n{}",
+                system_prompt
+            );
+            let _ = fs::write(&path, content);
         }
     }
 }

@@ -70,12 +70,13 @@ pub trait CliAdapter: Send + Sync {
         false
     }
 
+    /// List supported models for this CLI.
+    fn supported_models(&self) -> Result<Vec<String>> {
+        Ok(vec![])
+    }
+
     /// Write model config in this CLI's native format.
-    fn write_model_config(
-        &self,
-        _provider: &crate::models::Provider,
-        _model: &str,
-    ) -> Result<()> {
+    fn write_model_config(&self, _provider: &crate::models::Provider, _model: &str) -> Result<()> {
         Ok(())
     }
 
@@ -172,7 +173,9 @@ pub(crate) fn extract_version(raw: &str) -> String {
     raw.split_whitespace()
         .find(|token| {
             let t = token.strip_prefix('v').unwrap_or(token);
-            !t.is_empty() && t.chars().next().map_or(false, |c| c.is_ascii_digit()) && t.contains('.')
+            !t.is_empty()
+                && t.chars().next().map_or(false, |c| c.is_ascii_digit())
+                && t.contains('.')
         })
         .map(|v| v.strip_prefix('v').unwrap_or(v).to_string())
         .unwrap_or_else(|| raw.trim().to_string())

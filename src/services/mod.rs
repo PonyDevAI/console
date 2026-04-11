@@ -1,4 +1,6 @@
 pub mod version;
+pub mod agent_source;
+pub mod agent_registry;
 pub mod provider;
 pub mod model_assignment;
 pub mod mcp;
@@ -18,3 +20,4 @@ pub mod session_stream;
 pub mod proposal;
 pub mod thread;
 pub mod terminal;
+pub mod openclaw;

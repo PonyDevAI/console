@@ -43,6 +43,9 @@ impl ConsolePaths {
     pub fn cli_tools_file(&self) -> PathBuf {
         self.state_dir().join("cli_tools.json")
     }
+    pub fn agent_sources_file(&self) -> PathBuf {
+        self.state_dir().join("agent_sources.json")
+    }
     pub fn providers_file(&self) -> PathBuf {
         self.state_dir().join("providers.json")
     }
@@ -71,6 +74,9 @@ impl ConsolePaths {
     pub fn remote_agents_file(&self) -> PathBuf {
         self.state_dir().join("remote_agents.json")
     }
+    pub fn agents_file(&self) -> PathBuf {
+        self.state_dir().join("agents.json")
+    }
 
     pub fn employees_file(&self) -> PathBuf {
         self.state_dir().join("employees.json")
@@ -83,6 +89,9 @@ impl ConsolePaths {
     }
     pub fn employee_soul_file(&self, id: &str) -> PathBuf {
         self.employee_dir(id).join("soul.md")
+    }
+    pub fn employee_identity_file(&self, id: &str) -> PathBuf {
+        self.employee_dir(id).join("identity.md")
     }
     pub fn employee_skills_file(&self, id: &str) -> PathBuf {
         self.employee_dir(id).join("skills.md")
@@ -168,6 +177,13 @@ impl ConsolePaths {
         let tools = self.cli_tools_file();
         if !tools.exists() {
             write_json(&tools, &crate::models::CliToolsState { tools: vec![] })?;
+        }
+        let agent_sources = self.agent_sources_file();
+        if !agent_sources.exists() {
+            write_json(
+                &agent_sources,
+                &crate::models::AgentSourcesState { sources: vec![] },
+            )?;
         }
         let providers = self.providers_file();
         if !providers.exists() {

@@ -43,6 +43,8 @@ pub async fn add(
     endpoint: &str,
     api_key: Option<&str>,
     tags: Vec<String>,
+    source_type: Option<&str>,
+    origin: Option<&str>,
 ) -> Result<RemoteAgent> {
     let mut state = get_state().await?;
     
@@ -61,6 +63,8 @@ pub async fn add(
         last_ping: None,
         created_at: now,
         tags,
+        source_type: source_type.map(String::from),
+        origin: origin.map(String::from),
     };
     
     state.agents.push(agent.clone());
@@ -75,6 +79,8 @@ pub async fn update(
     endpoint: Option<&str>,
     api_key: Option<&str>,
     tags: Option<Vec<String>>,
+    source_type: Option<&str>,
+    origin: Option<&str>,
 ) -> Result<RemoteAgent> {
     let mut state = get_state().await?;
     
@@ -94,6 +100,12 @@ pub async fn update(
     }
     if let Some(t) = tags {
         agent.tags = t;
+    }
+    if let Some(st) = source_type {
+        agent.source_type = Some(st.to_string());
+    }
+    if let Some(o) = origin {
+        agent.origin = Some(o.to_string());
     }
     
     let updated = agent.clone();
@@ -138,7 +150,6 @@ async fn ping_single(agent: &RemoteAgent) -> (RemoteAgentStatus, Option<String>,
 
     match request.send().await {
         Ok(response) if response.status().is_success() => {
-            // latency 只计 /health 请求，不含后续 fallback
             let latency_ms = start.elapsed().as_millis() as u64;
             let mut version: Option<String> = None;
 
@@ -220,4 +231,23 @@ pub async fn ping_by_id(id: &str) -> Result<RemoteAgent> {
         .ok_or_else(|| anyhow::anyhow!("Remote agent not found"))?;
     
     Ok(updated)
+}
+
+pub async fn get_latest_version() -> Result<Option<String>> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
+    
+    let response = client.get("https://registry.npmjs.org/openclaw/latest").send().await?;
+    
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+    
+    let json: serde_json::Value = response.json().await?;
+    let version = json.get("version")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    
+    Ok(version)
 }

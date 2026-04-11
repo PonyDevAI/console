@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{run_command_stdout, which, CliAdapter, extract_version};
+use super::{extract_version, run_command_stdout, which, CliAdapter};
 use crate::models::InstalledInfo;
 
 pub struct ClaudeAdapter;
@@ -15,7 +15,9 @@ fn load_settings(path: &std::path::Path) -> Result<serde_json::Value> {
     }
 }
 
-fn ensure_env_object(settings: &mut serde_json::Value) -> Result<&mut serde_json::Map<String, serde_json::Value>> {
+fn ensure_env_object(
+    settings: &mut serde_json::Value,
+) -> Result<&mut serde_json::Map<String, serde_json::Value>> {
     let obj = settings
         .as_object_mut()
         .ok_or_else(|| anyhow::anyhow!("Claude settings.json must be a JSON object"))?;
@@ -47,8 +49,8 @@ impl CliAdapter for ClaudeAdapter {
             Some(p) => p,
             None => return Ok(None),
         };
-        let raw =
-            run_command_stdout(path.to_str().unwrap_or("claude"), &["--version"]).unwrap_or_else(|_| "unknown".into());
+        let raw = run_command_stdout(path.to_str().unwrap_or("claude"), &["--version"])
+            .unwrap_or_else(|_| "unknown".into());
         // `claude --version` outputs "2.1.74 (Claude Code)"; extract the version number only.
         let version = extract_version(&raw);
         Ok(Some(InstalledInfo { version, path }))
@@ -232,7 +234,10 @@ impl CliAdapter for ClaudeAdapter {
         }
 
         let mut settings = load_settings(&settings_path)?;
-        if let Some(env) = settings.get_mut("env").and_then(|value| value.as_object_mut()) {
+        if let Some(env) = settings
+            .get_mut("env")
+            .and_then(|value| value.as_object_mut())
+        {
             env.remove("ANTHROPIC_MODEL");
             env.remove("ANTHROPIC_BASE_URL");
             env.remove("ANTHROPIC_AUTH_TOKEN");

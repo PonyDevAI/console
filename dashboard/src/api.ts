@@ -1,5 +1,7 @@
 import { mockApi } from "./mock/handlers";
 import type {
+  Agent,
+  AgentSource,
   CliTool,
   ConfigSyncEntry,
   CreateMcpServerInput,
@@ -17,7 +19,7 @@ import type {
   SkillManifest,
   Task,
   Employee,
-  SoulFiles,
+  PersonaFiles,
   WorkerInfo,
   CreateEmployeeRequest,
   UpdateEmployeeRequest,
@@ -149,6 +151,127 @@ export async function checkRemoteVersion(name: string) {
   await ensureReady();
   if (useMock) return { name, remote_version: null as string | null };
   return get<{ name: string; remote_version: string | null }>(`/cli-tools/${name}/check-remote`);
+}
+
+// ── Agent Sources ──
+
+export async function getAgentSources() {
+  await ensureReady();
+  if (useMock) return { sources: [] as AgentSource[] };
+  return get<{ sources: AgentSource[] }>("/agent-sources");
+}
+
+export async function getAgentSource(id: string) {
+  await ensureReady();
+  if (useMock) return {} as AgentSource;
+  return get<AgentSource>(`/agent-sources/${id}`);
+}
+
+export async function scanAgentSources() {
+  await ensureReady();
+  if (useMock) return { sources: [] as AgentSource[] };
+  return post<{ sources: AgentSource[] }>("/agent-sources/scan");
+}
+
+export async function checkAgentSourceUpdates() {
+  await ensureReady();
+  if (useMock) return { sources: [] as AgentSource[] };
+  return post<{ sources: AgentSource[] }>("/agent-sources/check-updates");
+}
+
+export async function scanSingleAgentSource(id: string) {
+  await ensureReady();
+  if (useMock) return { task_id: "mock-task-id", status: "pending" };
+  return post<{ task_id: string; status: string }>(`/agent-sources/${id}/scan`);
+}
+
+export async function installAgentSource(id: string) {
+  await ensureReady();
+  if (useMock) return { task_id: "mock-task-id", status: "pending" };
+  return post<{ task_id: string; status: string }>(`/agent-sources/${id}/install`);
+}
+
+export async function upgradeAgentSource(id: string) {
+  await ensureReady();
+  if (useMock) return { task_id: "mock-task-id", status: "pending" };
+  return post<{ task_id: string; status: string }>(`/agent-sources/${id}/upgrade`);
+}
+
+export async function uninstallAgentSource(id: string) {
+  await ensureReady();
+  if (useMock) return { task_id: "mock-task-id", status: "pending" };
+  return post<{ task_id: string; status: string }>(`/agent-sources/${id}/uninstall`);
+}
+
+export async function checkSingleAgentSourceUpdate(id: string) {
+  await ensureReady();
+  if (useMock) return { source_id: id, remote_version: null as string | null };
+  return post<{ source_id: string; remote_version: string | null }>(`/agent-sources/${id}/check-update`);
+}
+
+export type AgentSourceTestResult =
+  | { ok: true; type: "remote_openclaw_ws"; version: string | null; default_agent_id: string | null; latency_ms: number; error: null }
+  | { ok: false; type?: "remote_openclaw_ws"; version?: string | null; default_agent_id?: string | null; latency_ms?: number; error: string }
+  | { source_id: string; healthy: boolean };
+
+export async function testAgentSource(id: string): Promise<AgentSourceTestResult> {
+  await ensureReady();
+  if (useMock) return { source_id: id, healthy: true };
+  return post<AgentSourceTestResult>(`/agent-sources/${id}/test`);
+}
+
+export async function getAgentSourceModels(id: string) {
+  await ensureReady();
+  if (useMock) return { source_id: id, current_model: null as string | null, default_model: null as string | null, supported_models: [] as string[] };
+  return get<{ source_id: string; current_model: string | null; default_model: string | null; supported_models: string[] }>(`/agent-sources/${id}/models`);
+}
+
+export async function setAgentSourceDefaultModel(id: string, model: string) {
+  await ensureReady();
+  if (useMock) return { source_id: id, default_model: model };
+  return put<{ source_id: string; default_model: string }>(`/agent-sources/${id}/default-model`, { model });
+}
+
+export async function getAgentSourceAgents(id: string) {
+  await ensureReady();
+  if (useMock) return { agents: [] };
+  return get<{ agents: Array<{ id: string; source_id: string; name: string; display_name: string; status: string }> }>(`/agent-sources/${id}/agents`);
+}
+
+export async function createAgentSource(data: {
+  name: string;
+  display_name: string;
+  source_type: string;
+  endpoint?: string;
+  api_key?: string;
+  origin?: string;
+}): Promise<AgentSource> {
+  await ensureReady();
+  if (useMock) return {} as AgentSource;
+  return post<AgentSource>("/agent-sources", data);
+}
+
+export async function updateAgentSource(id: string, data: {
+  display_name?: string;
+  endpoint?: string;
+  api_key?: string;
+  origin?: string;
+}): Promise<AgentSource> {
+  await ensureReady();
+  if (useMock) return {} as AgentSource;
+  return put<AgentSource>(`/agent-sources/${id}`, data);
+}
+
+export async function deleteAgentSource(id: string): Promise<void> {
+  await ensureReady();
+  if (useMock) return;
+  return del(`/agent-sources/${id}`);
+}
+
+export async function getOpenClawModels(id: string) {
+  await ensureReady();
+  if (useMock) return { models: [] };
+  return get<{ models: Array<{ id: string; name: string; provider: string | null; context_window: number | null }> }>(`/agent-sources/${id}/models`);
 }
 
 export async function getTasks() {
@@ -442,13 +565,13 @@ export async function getRemoteAgents() {
   return get<{ agents: RemoteAgent[] }>("/remote-agents");
 }
 
-export async function addRemoteAgent(data: { name: string; display_name: string; endpoint: string; api_key?: string; tags?: string[] }) {
+export async function addRemoteAgent(data: { name: string; display_name: string; endpoint: string; api_key?: string; tags?: string[]; source_type?: 'remote_agent' | 'openclaw_ws'; origin?: string }) {
   await ensureReady();
   if (useMock) return {} as RemoteAgent;
   return post<RemoteAgent>("/remote-agents", data);
 }
 
-export async function updateRemoteAgent(id: string, data: { display_name?: string; endpoint?: string; api_key?: string; tags?: string[] }) {
+export async function updateRemoteAgent(id: string, data: { display_name?: string; endpoint?: string; api_key?: string; tags?: string[]; source_type?: 'remote_agent' | 'openclaw_ws'; origin?: string }) {
   await ensureReady();
   if (useMock) return {} as RemoteAgent;
   return put<RemoteAgent>(`/remote-agents/${id}`, data);
@@ -472,10 +595,42 @@ export async function pingAllRemoteAgents() {
   return post<{ agents: RemoteAgent[] }>("/remote-agents/ping-all");
 }
 
+export async function getRemoteAgentLatestVersion() {
+  await ensureReady();
+  if (useMock) return { latest_version: null as string | null };
+  return get<{ latest_version: string | null }>("/remote-agents/latest-version");
+}
+
 export async function getRemoteAgentDetail(id: string) {
   await ensureReady();
   if (useMock) return null as RemoteAgentDetail | null;
   return get<RemoteAgentDetail>(`/remote-agents/${id}/detail`);
+}
+
+// ── Agent ──
+
+export async function getAgents() {
+  await ensureReady();
+  if (useMock) return { agents: [] as Agent[] };
+  return get<{ agents: Agent[] }>("/agents");
+}
+
+export async function getAgent(id: string) {
+  await ensureReady();
+  if (useMock) return {} as Agent;
+  return get<Agent>(`/agents/${id}`);
+}
+
+export async function getAgentsBySource(sourceId: string) {
+  await ensureReady();
+  if (useMock) return { agents: [] as Agent[] };
+  return get<{ agents: Agent[] }>(`/agents/source/${sourceId}`);
+}
+
+export async function fetchRemoteAgentsForSource(sourceId: string) {
+  await ensureReady();
+  if (useMock) return { agents: [] as Agent[] };
+  return get<{ agents: Agent[] }>(`/agents/source/${sourceId}/remote`);
 }
 
 // ── AI Employee ──
@@ -494,8 +649,8 @@ export async function createEmployee(data: CreateEmployeeRequest) {
 
 export async function getEmployee(id: string) {
   await ensureReady();
-  if (useMock) return { employee: {} as Employee, soul_files: {} as SoulFiles };
-  return get<{ employee: Employee; soul_files: SoulFiles }>(`/employees/${id}`);
+  if (useMock) return { employee: {} as Employee, persona_files: { identity: "", soul: "", skills: "", rules: "" } as PersonaFiles };
+  return get<{ employee: Employee; persona_files: PersonaFiles }>(`/employees/${id}`);
 }
 
 export async function updateEmployee(id: string, data: UpdateEmployeeRequest) {
@@ -512,14 +667,32 @@ export async function deleteEmployee(id: string) {
 
 export async function getSoulFiles(id: string) {
   await ensureReady();
-  if (useMock) return {} as SoulFiles;
-  return get<SoulFiles>(`/employees/${id}/soul-files`);
+  if (useMock) return { soul: "", skills: "", rules: "" };
+  return get<{ soul: string; skills: string; rules: string }>(`/employees/${id}/soul-files`);
 }
 
-export async function updateSoulFiles(id: string, data: Partial<SoulFiles>) {
+export async function updateSoulFiles(id: string, data: { soul: string; skills: string; rules: string }) {
   await ensureReady();
   if (useMock) return { ok: true };
   return put<{ ok: boolean }>(`/employees/${id}/soul-files`, data);
+}
+
+export async function getPersonaFiles(id: string) {
+  await ensureReady();
+  if (useMock) return { identity: "", soul: "", skills: "", rules: "" } as PersonaFiles;
+  return get<PersonaFiles>(`/employees/${id}/persona-files`);
+}
+
+export async function updatePersonaFiles(id: string, data: PersonaFiles) {
+  await ensureReady();
+  if (useMock) return { ok: true };
+  return put<{ ok: boolean }>(`/employees/${id}/persona-files`, data);
+}
+
+export async function testEmployee(id: string) {
+  await ensureReady();
+  if (useMock) return { ok: true };
+  return post<{ ok: boolean; error?: string; type?: string; latency_ms?: number }>(`/employees/${id}/test`, {});
 }
 
 export async function addBinding(id: string, binding: AgentBindingRequest) {

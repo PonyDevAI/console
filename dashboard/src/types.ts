@@ -1,4 +1,29 @@
 // ── CLI Tool ──
+export type AgentSourceType = "local_cli" | "openai_compatible" | "remote_agent" | "remote_open_claw_ws";
+
+export type AgentSource = {
+  id: string;
+  name: string;
+  display_name: string;
+  source_type: AgentSourceType;
+  managed_by_console: boolean;
+  executable?: string;
+  endpoint?: string;
+  api_key?: string;
+  origin?: string;
+  supported_models: string[];
+  default_model?: string;
+  healthy: boolean;
+  installed: boolean;
+  local_version?: string;
+  remote_version?: string;
+  path?: string;
+  supports_auto_install: boolean;
+  install_url?: string;
+  supports_model_config: boolean;
+  last_checked_at?: string;
+};
+
 export type CliTool = {
   name: string;
   display_name: string;
@@ -147,7 +172,27 @@ export type RemoteAgent = {
   last_ping?: string | null;
   created_at: string;
   tags: string[];
+  source_type?: 'remote_agent' | 'openclaw_ws';
+  origin?: string;
 };
+
+// ── Agent ──
+export type AgentStatus = 'unknown' | 'offline' | 'online' | 'busy';
+
+export type AgentType = 'local_cli' | 'remote_agent';
+
+export type Agent = {
+  id: string;
+  source_id: string;
+  name: string;
+  display_name: string;
+  agent_type: AgentType;
+  status: AgentStatus;
+  supported_models: string[];
+  default_model?: string;
+};
+
+export type EmployeeStatus = 'unknown' | 'offline' | 'online' | 'busy';
 
 export interface OpenClawDetail {
   assistant_name: string;
@@ -179,17 +224,36 @@ export type Employee = {
   id: string;
   name: string;
   display_name: string;
-  role: string;
+  agent_id?: string;
+  model?: string;
+  status: EmployeeStatus;
   avatar_color: string;
-  bindings: AgentBinding[];
+  tags: string[];
   created_at: string;
   updated_at: string;
   last_dispatched_at?: string;
   dispatch_count?: number;
   dispatch_success_count?: number;
+  /** @deprecated Use agent_id instead - bindings are a legacy concept */
+  bindings?: AgentBinding[];
+  /** @deprecated Use agent_id instead */
+  role?: string;
+  /** @deprecated Use agent_id instead */
+  employee_type?: "local" | "remote";
+  /** @deprecated Use agent_id instead */
+  source_id?: string;
+  /** @deprecated Use agent_id instead */
+  remote_agent_name?: string;
 };
 
 export type SoulFiles = {
+  soul: string;
+  skills: string;
+  rules: string;
+};
+
+export type PersonaFiles = {
+  identity: string;
   soul: string;
   skills: string;
   rules: string;
@@ -202,15 +266,26 @@ export type WorkerInfo = {
 
 export type CreateEmployeeRequest = {
   name: string;
-  display_name: string;
-  role: string;
-  avatar_color: string;
+  display_name?: string;
+  agent_id: string;
+  model?: string;
+  avatar_color?: string;
+  tags?: string[];
+  role?: string;
+  employee_type?: "local" | "remote";
+  source_id?: string;
+  remote_agent_name?: string;
 };
 
 export type UpdateEmployeeRequest = {
   display_name?: string;
-  role?: string;
+  agent_id?: string;
+  model?: string;
   avatar_color?: string;
+  tags?: string[];
+  role?: string;
+  source_id?: string;
+  remote_agent_name?: string;
 };
 
 export type AgentBindingRequest = {
@@ -228,7 +303,6 @@ export type UpdateBindingRequest = {
 export type DispatchRequest = {
   task: string;
   cwd?: string;
-  binding_id?: string;
 };
 
 export type DispatchResponse = {

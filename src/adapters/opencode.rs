@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{run_command_stdout, which, CliAdapter, extract_version};
+use super::{extract_version, run_command_stdout, which, CliAdapter};
 use crate::models::{InstalledInfo, SwitchMode};
 
 pub struct OpenCodeAdapter;
@@ -19,8 +19,8 @@ impl CliAdapter for OpenCodeAdapter {
             Some(p) => p,
             None => return Ok(None),
         };
-        let raw =
-            run_command_stdout(path.to_str().unwrap_or("opencode"), &["--version"]).unwrap_or_else(|_| "unknown".into());
+        let raw = run_command_stdout(path.to_str().unwrap_or("opencode"), &["--version"])
+            .unwrap_or_else(|_| "unknown".into());
         let version = extract_version(&raw);
         Ok(Some(InstalledInfo { version, path }))
     }
@@ -71,7 +71,8 @@ impl CliAdapter for OpenCodeAdapter {
     }
 
     fn uninstall(&self) -> Result<()> {
-        let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+        let home =
+            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
         let bin_path = home.join(".opencode/bin/opencode");
         if bin_path.exists() {
             std::fs::remove_file(&bin_path)?;

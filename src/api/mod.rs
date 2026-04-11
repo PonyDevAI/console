@@ -76,6 +76,10 @@ pub async fn serve(addr: &str) -> Result<()> {
         .route("/api/tasks/stream", axum::routing::get(sse::task_stream))
         .route("/api/tasks/:id", axum::routing::get(routes::get_task))
         .route("/api/employees/:id/dispatch", axum::routing::post(routes::dispatch_employee))
+        .route("/api/agent-sources/:id/scan", axum::routing::post(routes::scan_single_agent_source))
+        .route("/api/agent-sources/:id/install", axum::routing::post(routes::install_agent_source))
+        .route("/api/agent-sources/:id/upgrade", axum::routing::post(routes::upgrade_agent_source))
+        .route("/api/agent-sources/:id/uninstall", axum::routing::post(routes::uninstall_agent_source))
         .with_state(queue.clone());
 
     let stateless_routes = routes::api_routes();

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-use super::{run_command_stdout, which, CliAdapter, extract_version};
+use super::{extract_version, run_command_stdout, which, CliAdapter};
 use crate::models::{InstalledInfo, SwitchMode};
 
 pub struct OpenClawAdapter;

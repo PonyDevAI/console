@@ -29,6 +29,59 @@ pub struct CliToolsState {
     pub tools: Vec<CliTool>,
 }
 
+// ── Agent Source ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentSourceType {
+    LocalCli,
+    OpenAiCompatible,
+    RemoteAgent,
+    RemoteOpenClawWs,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentSource {
+    pub id: String,
+    pub name: String,
+    pub display_name: String,
+    pub source_type: AgentSourceType,
+    #[serde(default)]
+    pub managed_by_console: bool,
+    pub executable: Option<String>,
+    pub endpoint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
+    pub supported_models: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
+    #[serde(default)]
+    pub healthy: bool,
+    #[serde(default)]
+    pub installed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    #[serde(default)]
+    pub supports_auto_install: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub install_url: Option<String>,
+    #[serde(default)]
+    pub supports_model_config: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_checked_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentSourcesState {
+    pub sources: Vec<AgentSource>,
+}
+
 // ── Provider ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -238,6 +291,67 @@ where
     Ok(value.unwrap_or_default())
 }
 
+// ── Agent Status ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentStatus {
+    Unknown,
+    Offline,
+    Online,
+    Busy,
+}
+
+impl Default for AgentStatus {
+    fn default() -> Self {
+        AgentStatus::Unknown
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum EmployeeStatus {
+    Unknown,
+    Offline,
+    Online,
+    Busy,
+}
+
+impl Default for EmployeeStatus {
+    fn default() -> Self {
+        EmployeeStatus::Unknown
+    }
+}
+
+// ── Agent ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentType {
+    LocalCli,
+    RemoteAgent,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Agent {
+    pub id: String,
+    pub source_id: String,
+    pub name: String,
+    pub display_name: String,
+    pub agent_type: AgentType,
+    pub status: AgentStatus,
+    pub supported_models: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
+    #[serde(default)]
+    pub metadata: std::collections::HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentsState {
+    pub agents: Vec<Agent>,
+}
+
 // ── Remote Agent ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -253,6 +367,10 @@ pub struct RemoteAgent {
     pub last_ping: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub source_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -276,6 +394,10 @@ pub struct CreateRemoteAgentRequest {
     pub api_key: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub source_type: Option<String>,
+    #[serde(default)]
+    pub origin: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -284,18 +406,38 @@ pub struct UpdateRemoteAgentRequest {
     pub endpoint: Option<String>,
     pub api_key: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub source_type: Option<String>,
+    pub origin: Option<String>,
 }
 
 // ── AI Employee ──
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum EmployeeType {
+    Local,
+    Remote,
+}
+
+impl Default for EmployeeType {
+    fn default() -> Self {
+        EmployeeType::Local
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Employee {
     pub id: String,
     pub name: String,
     pub display_name: String,
-    pub role: String,
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    pub status: EmployeeStatus,
     pub avatar_color: String,
-    pub bindings: Vec<AgentBinding>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -304,11 +446,52 @@ pub struct Employee {
     pub dispatch_count: u32,
     #[serde(default)]
     pub dispatch_success_count: u32,
+    #[doc = "Legacy field - maintained for backward compatibility only"]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bindings: Option<Vec<AgentBinding>>,
+    #[doc = "Legacy field - maintained for backward compatibility only"]
+    #[serde(default)]
+    pub role: Option<String>,
+    #[doc = "Legacy field - maintained for backward compatibility only"]
+    #[serde(default)]
+    pub employee_type: Option<EmployeeType>,
+    #[doc = "Legacy field - maintained for backward compatibility only"]
+    #[serde(default)]
+    pub source_id: Option<String>,
+    #[doc = "Legacy field - maintained for backward compatibility only"]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_agent_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EmployeesState {
     pub employees: Vec<Employee>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SoulFiles {
+    pub soul: String,
+    pub skills: String,
+    pub rules: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PersonaFiles {
+    pub identity: String,
+    pub soul: String,
+    pub skills: String,
+    pub rules: String,
+}
+
+impl From<SoulFiles> for PersonaFiles {
+    fn from(sf: SoulFiles) -> Self {
+        PersonaFiles {
+            identity: String::new(),
+            soul: sf.soul,
+            skills: sf.skills,
+            rules: sf.rules,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -343,26 +526,50 @@ pub enum AgentProtocol {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SoulFiles {
-    pub soul: String,
-    pub skills: String,
-    pub rules: String,
-}
-
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreateEmployeeRequest {
     pub name: String,
-    pub display_name: String,
-    pub role: String,
-    pub avatar_color: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    pub agent_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub avatar_color: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[doc = "Legacy field - ignored by main create logic"]
+    #[serde(default)]
+    pub role: Option<String>,
+    #[doc = "Legacy field - ignored by main create logic"]
+    #[serde(default)]
+    pub employee_type: Option<EmployeeType>,
+    #[doc = "Legacy field - ignored by main create logic"]
+    #[serde(default)]
+    pub source_id: Option<String>,
+    #[doc = "Legacy field - ignored by main create logic"]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_agent_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct UpdateEmployeeRequest {
     pub display_name: Option<String>,
-    pub role: Option<String>,
+    pub agent_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     pub avatar_color: Option<String>,
+    #[serde(default)]
+    pub tags: Option<Vec<String>>,
+    #[doc = "Legacy field - ignored by main update logic"]
+    #[serde(default)]
+    pub role: Option<String>,
+    #[doc = "Legacy field - ignored by main update logic"]
+    #[serde(default)]
+    pub source_id: Option<String>,
+    #[doc = "Legacy field - ignored by main update logic"]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_agent_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
