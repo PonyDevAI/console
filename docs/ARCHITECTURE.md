@@ -88,8 +88,11 @@ Local file-based storage under `~/.console/`:
   cache/                   # Version check cache
 ```
 
+Execution-plane runtime metadata may also persist under `~/.console/`, including terminal session metadata and future runtime/session state, while keeping repositories as external source-of-truth workspaces.
+
 ## Architecture decision records
 
 - [ADR 0001: Local file-based state](decisions/0001-local-file-state.md)
 - [ADR 0002: SSE streaming transport](decisions/0002-sse-streaming-transport.md)
 - [ADR 0003: Worker adapter boundary](decisions/0003-worker-adapter-boundary.md)
+- [ADR 0004: Persistent terminal sessions](decisions/0004-persistent-terminal-sessions.md)

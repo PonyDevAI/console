@@ -68,17 +68,20 @@ The Web UI is Console's primary management interface, designed as an admin panel
 - SSE streaming output panel.
 
 ### Terminal
-- Default mode: local terminal session connecting to the host where Console is running.
-- Uses local PTY shell (not SSH) for immediate terminal access without configuration.
-- SSH terminal support available as a secondary option (not the default flow).
+- Default mode: persistent terminal sessions connecting to the host where Console is running.
+- Preferred backend: local `tmux` session on the Console host.
+- SSH terminal support is a later backend expansion, not a separate UI model.
 - Features:
-  - Auto-connect on page load (local session by default)
-  - Real-time terminal input/output via WebSocket + PTY
+  - Multiple persistent terminal sessions
+  - Session list, create, reopen, and explicit terminate
+  - Real-time terminal input/output via WebSocket attachment
+  - Detach/reattach semantics across refresh and reconnect
+  - Project-bound terminal sessions, with future employee-bound views
   - Shell selection: uses `$SHELL` env var, falls back to `/bin/zsh` → `/bin/bash` → `/bin/sh`
-  - Working directory: defaults to Console's current working directory
+  - Working directory defaults to the selected project or host default
   - Terminal resize support
   - Connection status indicator (connecting/connected/error/disconnected)
-  - Clean session cleanup on disconnect/refresh/close
+  - Explicit session lifecycle separate from browser lifecycle
 
 ## Backend connectivity
 
@@ -137,20 +140,24 @@ The Web UI communicates with the Rust backend via REST API:
 - `POST /api/config/sync-all` — sync all configs to all CLIs
 
 ### Terminal
-- `POST /api/terminal/sessions` — create terminal session (local or SSH)
+- `GET /api/terminal/sessions` — list terminal sessions
+- `POST /api/terminal/sessions` — create terminal session
+- `GET /api/terminal/sessions/:id` — get terminal session metadata
 - `GET /api/terminal/sessions/:id/ws` — WebSocket endpoint for terminal I/O
-- `DELETE /api/terminal/sessions/:id` — close terminal session
+- `POST /api/terminal/sessions/:id/input` — write input into terminal session
+- `POST /api/terminal/sessions/:id/resize` — resize terminal session
+- `POST /api/terminal/sessions/:id/terminate` — terminate terminal session
 
 **Terminal Session Types:**
 
-Local session (default):
+Local persistent session (default):
 ```json
-{ "type": "local", "cols": 80, "rows": 24, "cwd": "/path", "shell": "/bin/zsh" }
+{ "target": "local_host", "backend": "tmux", "cols": 80, "rows": 24, "cwd": "/path", "shell": "/bin/zsh" }
 ```
 
-SSH session:
+Remote persistent session (later phase):
 ```json
-{ "type": "ssh", "host": "example.com", "port": 22, "user": "username", "key_path": "~/.ssh/id_rsa", "cols": 80, "rows": 24 }
+{ "target": "ssh_host", "target_id": "host-prod-01", "backend": "tmux", "cols": 80, "rows": 24, "cwd": "/srv/app" }
 ```
 
 During local development, Vite proxies `/api/*` calls to `http://127.0.0.1:8080`.

@@ -13,11 +13,14 @@ Console uses local file-based storage under `~/.console/`. SQLite is deferred un
     mcp_servers.json       # MCP server configurations
     prompts.json           # System prompt presets
     workspaces.json        # Workspace registrations (preserved)
+    terminal_sessions.json # Terminal session metadata
+    execution_targets.json # Local/remote terminal target metadata
   credentials/             # API keys and secrets (separate from general config)
   skills/                  # SSOT skill repository
   logs/                    # Daemon and run logs
   backups/                 # Config backups (auto-rotate, keep 10)
   cache/                   # Version check cache, remote metadata cache
+  terminals/               # Terminal runtime metadata and per-session logs
 ```
 
 ## File schemas
@@ -94,6 +97,25 @@ Config backups are stored under `backups/` with timestamps. Auto-rotation keeps 
 ## Repository source-of-truth policy
 
 Console does not relocate or mirror repositories. Repository paths remain where users keep them on disk. Console stores references and metadata only.
+
+## Terminal runtime persistence
+
+Persistent terminal sessions are stored as Console-owned metadata under `~/.console/`. Terminal metadata belongs to the execution plane and must not be written into project repositories.
+
+Suggested layout:
+
+```text
+~/.console/
+  state/
+    terminal_sessions.json
+    execution_targets.json
+  terminals/
+    <session_id>/
+      meta.json
+      events.log
+```
+
+The actual terminal backend may run via `tmux` on the Console host or on a remote SSH host later, but Console remains responsible only for metadata, control bindings, and audit information.
 
 ## Future: SQLite
 

@@ -37,6 +37,9 @@ import type {
   TaskProposal,
   CreateTerminalSessionRequest,
   CreateTerminalSessionResponse,
+  TerminalSessionMeta,
+  TerminalSessionListResponse,
+  TerminalBackendsResponse,
 } from "./types";
 
 const BASE = "/api";
@@ -903,23 +906,67 @@ function getBaseUrl() {
 }
 
 // ── Terminal ──
+
+export async function getTerminalBackends() {
+  await ensureReady();
+  if (useMock) {
+    return {
+      available: [
+        { kind: "tmux", persistence: "persistent", available: true },
+        { kind: "zellij", persistence: "persistent", available: false },
+        { kind: "screen", persistence: "persistent", available: false },
+        { kind: "pty", persistence: "ephemeral", available: true },
+      ],
+      default_backend: "tmux",
+    } as TerminalBackendsResponse;
+  }
+  return get<TerminalBackendsResponse>("/terminal/backends");
+}
+
+export async function getTerminalSessions() {
+  await ensureReady();
+  if (useMock) return { sessions: [] as TerminalSessionMeta[] };
+  return get<TerminalSessionListResponse>("/terminal/sessions");
+}
+
 export async function createTerminalSession(data: CreateTerminalSessionRequest) {
   await ensureReady();
-  if (useMock) return { session_id: "mock-session-id" };
+  if (useMock) {
+    const mockSession: TerminalSessionMeta = {
+      id: "mock-session-id",
+      title: data.title || "Mock Terminal",
+      cwd: data.cwd || ".",
+      shell: data.shell || "/bin/sh",
+      backend: data.backend || "tmux",
+      persistence: data.backend === "pty" ? "ephemeral" : "persistent",
+      backend_session_name: data.backend === "pty" ? null : "console-mock-session-id",
+      status: "running",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    return { session: mockSession };
+  }
   return post<CreateTerminalSessionResponse>("/terminal/sessions", data);
 }
 
-export async function createLocalTerminalSession(cols: number, rows: number, cwd?: string, shell?: string) {
-  return createTerminalSession({ type: "local", cols, rows, cwd, shell });
+export async function getTerminalSession(sessionId: string) {
+  await ensureReady();
+  if (useMock) return null as TerminalSessionMeta | null;
+  return get<TerminalSessionMeta>(`/terminal/sessions/${sessionId}`);
 }
 
-export async function closeTerminalSession(sessionId: string) {
+export async function terminateTerminalSession(sessionId: string) {
   await ensureReady();
   if (useMock) return { ok: true };
-  return del<{ ok: boolean }>(`/terminal/sessions/${sessionId}`);
+  return post<{ ok: boolean }>(`/terminal/sessions/${sessionId}/terminate`);
 }
 
-export function getTerminalWebSocketUrl(sessionId: string): string {
+export function getTerminalWebSocketUrl(sessionId: string, cols?: number, rows?: number): string {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${location.host}/api/terminal/sessions/${sessionId}/ws`;
+  const params = new URLSearchParams();
+  if (cols !== undefined && cols > 0) params.set("cols", cols.toString());
+  if (rows !== undefined && rows > 0) params.set("rows", rows.toString());
+  const queryString = params.toString();
+  const suffix = queryString ? `?${queryString}` : "";
+  return `${protocol}//${location.host}/api/terminal/sessions/${sessionId}/ws${suffix}`;
 }

@@ -484,21 +484,58 @@ export type ThreadEvent =
   | { type: "run_cancelled"; run_id: string };
 
 // ── Terminal ──
-export type CreateTerminalSessionRequest =
-  | { type: "local"; cols: number; rows: number; cwd?: string; shell?: string }
-  | { type: "ssh"; host: string; port: number; user: string; key_path: string; cols: number; rows: number };
+
+export type TerminalBackendKind = "tmux" | "zellij" | "screen" | "pty";
+
+export type TerminalPersistence = "persistent" | "ephemeral";
+
+export type TerminalBackendInfo = {
+  kind: string;
+  persistence: string;
+  available: boolean;
+};
+
+export type TerminalBackendsResponse = {
+  available: TerminalBackendInfo[];
+  default_backend: string;
+};
+
+export type TerminalSessionMeta = {
+  id: string;
+  title: string;
+  cwd: string;
+  shell: string;
+  backend: string;
+  persistence: string;
+  backend_session_name: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TerminalSessionListResponse = {
+  sessions: TerminalSessionMeta[];
+};
+
+export type CreateTerminalSessionRequest = {
+  title?: string;
+  cwd?: string;
+  shell?: string;
+  backend?: "auto" | "tmux" | "zellij" | "screen" | "pty";
+  cols?: number;
+  rows?: number;
+};
 
 export type CreateTerminalSessionResponse = {
-  session_id: string;
+  session: TerminalSessionMeta;
 };
 
 export type TerminalClientMessage =
   | { type: "input"; data: string }
-  | { type: "resize"; cols: number; rows: number }
-  | { type: "close" };
+  | { type: "resize"; cols: number; rows: number };
 
 export type TerminalServerMessage =
-  | { type: "output"; data: string }
+  | { type: "output"; data: string; encoding?: "utf8" | "base64" }
   | { type: "exit"; code: number | null }
   | { type: "error"; message: string };
 

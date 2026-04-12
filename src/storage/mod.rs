@@ -148,6 +148,10 @@ impl ConsolePaths {
         self.thread_dir(id).join("runs.json")
     }
 
+    pub fn terminal_sessions_file(&self) -> PathBuf {
+        self.state_dir().join("terminal_sessions.json")
+    }
+
     /// Create all required directories.
     pub fn ensure_dirs(&self) -> Result<()> {
         let dirs = [
@@ -244,6 +248,14 @@ impl ConsolePaths {
                 fs::create_dir_all(p)?;
             }
             write_json(&threads_meta, &serde_json::json!({ "threads": [] }))?;
+        }
+
+        let terminal_sessions = self.terminal_sessions_file();
+        if !terminal_sessions.exists() {
+            write_json(
+                &terminal_sessions,
+                &crate::services::terminal::TerminalSessionsState::default(),
+            )?;
         }
 
         Ok(())

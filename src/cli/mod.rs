@@ -14,7 +14,7 @@ pub enum Command {
     Init,
     /// Start the Console daemon (API server)
     Start {
-        #[arg(long, default_value = "127.0.0.1")]
+        #[arg(long, default_value = "0.0.0.0")]
         host: String,
         #[arg(long, default_value_t = 8080)]
         port: u16,
