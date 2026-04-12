@@ -61,7 +61,7 @@ export default function SettingsPage() {
               {sections.find((s) => s.id === activeSection)?.label}
             </h1>
             <p className="mt-1 text-[13px] text-gray-500">
-              管理 Console 的{sections.find((s) => s.id === activeSection)?.label.toLowerCase()}配置
+              管理 CloudCode 的{sections.find((s) => s.id === activeSection)?.label.toLowerCase()}配置
             </p>
           </div>
 
@@ -1488,7 +1488,7 @@ function SyncSection() {
   return (
     <div>
       <p className="text-[13px] text-gray-600">
-        配置同步页面 - 将 Console 的统一配置同步到各 CLI 工具的原生配置文件
+        配置同步页面 - 将 CloudCode 的统一配置同步到各 CLI 工具的原生配置文件
       </p>
     </div>
   );

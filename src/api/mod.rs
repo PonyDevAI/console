@@ -119,7 +119,7 @@ pub async fn serve(addr: &str) -> Result<()> {
         .layer(CorsLayer::permissive());
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    tracing::info!("Console listening on http://{addr}");
+    tracing::info!("CloudCode listening on http://{addr}");
     axum::serve(listener, app).await?;
     Ok(())
 }

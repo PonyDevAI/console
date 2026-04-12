@@ -1,13 +1,13 @@
 # AGENTS.md — Canonical Engineering Guide
 
-This file is the single source of truth for project engineering rules in **Console**.
+This file is the single source of truth for project engineering rules in **CloudCode**.
 If any tool-specific rule file conflicts with this file, follow `AGENTS.md`.
 
 ## Project identity
 
-- Project name: **Console**.
-- Console is a **local AI CLI unified management platform**.
-- Console provides a Web UI and local daemon for managing AI coding CLI tools — including version lifecycle, provider/model configuration, MCP servers, skills, and system prompts.
+- Project name: **CloudCode**.
+- CloudCode is a **local AI CLI unified management platform**.
+- CloudCode provides a Web UI and local daemon for managing AI coding CLI tools — including version lifecycle, provider/model configuration, MCP servers, skills, and system prompts.
 - Prefer local-first behavior and straightforward implementation choices.
 
 ## Product scope
@@ -35,7 +35,7 @@ Deferred to later phases:
 - Maintain strict separation between:
   - **Management plane**: config/state, version management, provider/MCP/skill management, API, sync engine.
   - **Execution plane**: worker adapters that invoke local CLIs for run execution.
-- A **config sync engine** is the core differentiator — it translates Console's unified config into each CLI's native format and writes to the correct paths.
+- A **config sync engine** is the core differentiator — it translates CloudCode's unified config into each CLI's native format and writes to the correct paths.
 - Keep modules small and composable.
 - Favor clarity over abstraction-heavy frameworks.
 - Use explicit CLI adapters; do not hard-code one CLI implementation into core logic.
@@ -47,7 +47,7 @@ Deferred to later phases:
 - Start with local file-based state/config under `~/.console/`.
 - Defer SQLite until history/indexing/query needs are clearly justified.
 - Treat repository paths as external source-of-truth filesystem locations.
-- Treat `~/.console/` as Console-owned metadata/cache/artifact space only.
+- Treat `~/.console/` as CloudCode-owned metadata/cache/artifact space only.
 
 ## CLI adapter model
 

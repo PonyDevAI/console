@@ -5,6 +5,6 @@ pub async fn run() -> anyhow::Result<()> {
     paths.ensure_dirs()?;
     paths.init_default_files()?;
     tracing::info!("Initialized ~/.console/ directory structure");
-    println!("Console initialized at {}", paths.root.display());
+    println!("CloudCode initialized at {}", paths.root.display());
     Ok(())
 }

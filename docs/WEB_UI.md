@@ -1,6 +1,6 @@
 # Web UI
 
-The Web UI is Console's primary management interface, designed as an admin panel for AI CLI tools.
+The Web UI is CloudCode's primary management interface, designed as an admin panel for AI CLI tools.
 
 ## Stack
 
@@ -68,8 +68,8 @@ The Web UI is Console's primary management interface, designed as an admin panel
 - SSE streaming output panel.
 
 ### Terminal
-- Default mode: persistent terminal sessions connecting to the host where Console is running.
-- Preferred backend: local `tmux` session on the Console host.
+- Default mode: persistent terminal sessions connecting to the host where CloudCode is running.
+- Preferred backend: local `tmux` session on the CloudCode host.
 - SSH terminal support is a later backend expansion, not a separate UI model.
 - Features:
   - Multiple persistent terminal sessions

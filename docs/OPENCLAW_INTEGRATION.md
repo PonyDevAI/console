@@ -2,21 +2,21 @@
 
 ## Overview
 
-Console integrates with OpenClaw through a WebSocket-based gateway connection. The integration follows a backend-adapter pattern where Console backend connects to OpenClaw Gateway on behalf of the frontend.
+CloudCode integrates with OpenClaw through a WebSocket-based gateway connection. The integration follows a backend-adapter pattern where CloudCode backend connects to OpenClaw Gateway on behalf of the frontend.
 
 ## Architecture
 
 ```
 Frontend
-  -> Console HTTP API
+  -> CloudCode HTTP API
       -> OpenClaw Adapter (backend)
           -> OpenClaw Gateway (WS)
 ```
 
 **Key Principles:**
 - Frontend does NOT connect directly to OpenClaw
-- Token/credentials are stored only in Console backend
-- OpenClaw source data is adapted to Console's unified data model
+- Token/credentials are stored only in CloudCode backend
+- OpenClaw source data is adapted to CloudCode's unified data model
 
 ## Why WebSocket?
 
@@ -58,12 +58,12 @@ When connecting to OpenClaw Gateway, the following headers are required:
 
 ### Adding an OpenClaw Source
 
-1. User provides in Console UI:
+1. User provides in CloudCode UI:
    - **Endpoint**: e.g., `http://100.69.109.88:11744`
    - **Token**: Gateway authentication token
    - **Origin**: e.g., `http://100.69.109.88:11744`
 
-2. Console stores these in `~/.console/agent_sources.json`
+2. CloudCode stores these in `~/.console/agent_sources.json`
 
 ### Testing a Source
 

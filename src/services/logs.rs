@@ -83,6 +83,6 @@ pub fn list(level: Option<&str>, source: Option<&str>, limit: Option<usize>) -> 
 }
 
 pub fn init_startup_logs() {
-    push("info", "daemon", "Console daemon started");
+    push("info", "daemon", "CloudCode daemon started");
     push("info", "scanner", "CLI tool scan initiated");
 }

@@ -2,7 +2,7 @@
 
 ## Backend: Rust (axum)
 
-Why Rust for the Console daemon:
+Why Rust for the CloudCode daemon:
 - Excellent fit for long-running local services with low resource usage.
 - Strong type system catches config sync bugs at compile time.
 - Single binary deployment, no runtime dependencies.

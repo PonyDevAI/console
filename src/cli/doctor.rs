@@ -1,7 +1,7 @@
 use crate::adapters;
 
 pub async fn run() -> anyhow::Result<()> {
-    println!("Console Doctor — running diagnostics\n");
+    println!("CloudCode Doctor — running diagnostics\n");
 
     // Check ~/.console/ structure
     let paths = crate::storage::ConsolePaths::default();

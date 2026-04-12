@@ -247,7 +247,7 @@ export const mockLogs: LogEntry[] = [
     timestamp: "2025-03-13T10:00:00Z",
     level: "info",
     source: "daemon",
-    message: "Console 守护进程已在端口 4280 启动",
+    message: "CloudCode 守护进程已在端口 4280 启动",
   },
   {
     id: "l2",

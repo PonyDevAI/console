@@ -1,6 +1,6 @@
 # Thread Runtime UI Plan
 
-本方案定义 Console 中“新线程 / 线程聊天工作区”的完整落地方式。
+本方案定义 CloudCode 中“新线程 / 线程聊天工作区”的完整落地方式。
 
 核心原则：
 
@@ -960,4 +960,4 @@ MVP 阶段可先：
 - 现有系统 task queue 不作为 Runtime 队列使用
 - 后续远程 API 与 OpenAI-compatible API 复用同一个 Runtime Core
 
-这是当前 Console 最稳妥、最符合现有架构原则的落地方式。
+这是当前 CloudCode 最稳妥、最符合现有架构原则的落地方式。

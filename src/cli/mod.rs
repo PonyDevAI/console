@@ -12,7 +12,7 @@ use clap::Subcommand;
 pub enum Command {
     /// Initialize ~/.console/ directory structure
     Init,
-    /// Start the Console daemon (API server)
+    /// Start the CloudCode daemon (API server)
     Start {
         #[arg(long, default_value = "0.0.0.0")]
         host: String,
@@ -25,13 +25,13 @@ pub enum Command {
     Doctor,
     /// Scan for installed CLI tools
     Scan,
-    /// Sync Console config to CLI native config files
+    /// Sync CloudCode config to CLI native config files
     Sync {
         /// Only sync a specific config type
         #[arg(long)]
         only: Option<String>,
     },
-    /// Self-upgrade Console to the latest version
+    /// Self-upgrade CloudCode to the latest version
     Upgrade {
         /// Target version (default: latest)
         #[arg(long)]
@@ -40,7 +40,7 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Uninstall Console
+    /// Uninstall CloudCode
     Uninstall {
         /// Remove all data including config (default: keep config)
         #[arg(long)]
@@ -62,7 +62,7 @@ pub async fn execute(cmd: Command) -> anyhow::Result<()> {
         Command::Init => init::run().await,
         Command::Start { host, port } => start::run(&host, port).await,
         Command::Status => {
-            println!("Console status: not yet implemented");
+            println!("CloudCode status: not yet implemented");
             Ok(())
         }
         Command::Doctor => doctor::run().await,

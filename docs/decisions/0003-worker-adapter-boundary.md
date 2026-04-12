@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Console must support multiple local worker CLIs (Cursor, Claude, Codex) without coupling control-plane logic to a single tool.
+CloudCode must support multiple local worker CLIs (Cursor, Claude, Codex) without coupling control-plane logic to a single tool.
 
 ## Decision
 Define and enforce a shared worker adapter contract. Core control-plane logic depends only on the adapter interface, while worker-specific invocation details remain inside each adapter implementation.

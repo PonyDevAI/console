@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Console is currently focused on single-machine operation, fast iteration, and clear local ownership of data.
+CloudCode is currently focused on single-machine operation, fast iteration, and clear local ownership of data.
 
 ## Decision
 Use file-based config and state storage under `~/.console/` as the default persistence model for the initial implementation.

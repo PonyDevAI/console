@@ -1,10 +1,10 @@
 # Terminal Runtime
 
-Console's terminal runtime is part of the execution plane. It provides persistent terminal sessions for project work, future AI-controlled execution, and later remote-host expansion without coupling session lifetime to the Web UI.
+CloudCode's terminal runtime is part of the execution plane. It provides persistent terminal sessions for project work, future AI-controlled execution, and later remote-host expansion without coupling session lifetime to the Web UI.
 
 ## 1. Goals
 
-- Support multiple terminal sessions on the Console host.
+- Support multiple terminal sessions on the CloudCode host.
 - Preserve terminal sessions across page refresh, browser disconnect, and later reconnect.
 - Bind terminal sessions to projects and, when needed, to employees.
 - Provide a stable control surface for future AI execution against terminal sessions.
@@ -146,11 +146,11 @@ UI and API should clearly expose whether a session is fully persistent or degrad
 
 ## 7. Local-host phase
 
-For the initial phase, Console runs on a server and manages terminal sessions on that same host.
+For the initial phase, CloudCode runs on a server and manages terminal sessions on that same host.
 
 Standard behavior:
 
-- one Console terminal session maps to one local backend session
+- one CloudCode terminal session maps to one local backend session
 - local shell defaults to the host shell
 - project terminal sessions may be pre-created per project
 - employee runs may reuse or allocate employee-scoped sessions per project
@@ -167,10 +167,10 @@ Remote terminal support should reuse the same `TerminalSession` model and differ
 
 Standard behavior:
 
-- Console connects to a remote host through SSH
+- CloudCode connects to a remote host through SSH
 - the remote host owns the actual terminal backend
 - persistent mode uses `tmux` on the remote host
-- Console stores only metadata and control bindings locally
+- CloudCode stores only metadata and control bindings locally
 
 Do not create a separate terminal domain model for remote sessions.
 
@@ -202,7 +202,7 @@ Standard AI loop:
 
 ## 10. Project and employee binding
 
-Console should support project-bound and employee-bound terminal semantics.
+CloudCode should support project-bound and employee-bound terminal semantics.
 
 Recommended model:
 
@@ -293,7 +293,7 @@ Minimum requirements:
 
 ### Phase 1: Local persistent terminals
 
-- multiple sessions on the Console host
+- multiple sessions on the CloudCode host
 - persistent session model
 - attach/detach semantics
 - project binding

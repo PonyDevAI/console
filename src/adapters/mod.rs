@@ -85,7 +85,7 @@ pub trait CliAdapter: Send + Sync {
         Ok(None)
     }
 
-    /// Clear Console-managed model config so the CLI falls back to its default behavior.
+    /// Clear CloudCode-managed model config so the CLI falls back to its default behavior.
     fn clear_model_config(&self) -> Result<()> {
         Ok(())
     }

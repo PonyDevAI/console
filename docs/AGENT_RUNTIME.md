@@ -1,6 +1,6 @@
 # Agent Runtime Gateway
 
-Console 增加一条新的执行平面能力：**Agent Runtime Gateway**。
+CloudCode 增加一条新的执行平面能力：**Agent Runtime Gateway**。
 
 它的目标不是直接暴露底层 CLI，而是：
 
@@ -12,7 +12,7 @@ Console 增加一条新的执行平面能力：**Agent Runtime Gateway**。
 
 ## 1. 背景
 
-当前 Console 已具备：
+当前 CloudCode 已具备：
 
 - CLI 版本管理
 - Provider / Model 管理
@@ -46,7 +46,7 @@ Agent Runtime Gateway 的核心目标：
    - task lifecycle
    - timeout / cancel
 
-4. 保持 Console 现有架构原则
+4. 保持 CloudCode 现有架构原则
    - 管理平面 / 执行平面分离
    - 模块小且职责明确
    - 本地优先
@@ -599,7 +599,7 @@ src/
 
 ## 18. 结论
 
-Console 的标准做法应是：
+CloudCode 的标准做法应是：
 
 1. 对外提供 OpenAI-compatible Agent Gateway
 2. 内部建立统一 Agent Runtime 抽象
@@ -607,4 +607,4 @@ Console 的标准做法应是：
 4. 明确区分 management plane 与 execution plane
 5. 先做 `chat/completions`，再逐步扩 streaming、session、responses
 
-这能最大化复用 Console 现有架构，同时保持未来可扩展性。
+这能最大化复用 CloudCode 现有架构，同时保持未来可扩展性。

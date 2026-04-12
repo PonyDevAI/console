@@ -1,8 +1,8 @@
-# Console
+# CloudCode
 
-Console is a **local AI CLI unified management platform**. It provides a web UI and local daemon for managing the full lifecycle of AI coding CLI tools — version management, provider/model switching, MCP server configuration, skills management, and system prompts.
+CloudCode is a **local AI CLI unified management platform**. It provides a web UI and local daemon for managing the full lifecycle of AI coding CLI tools — version management, provider/model switching, MCP server configuration, skills management, and system prompts.
 
-## What Console does
+## What CloudCode does
 
 - **Version management**: detect, install, upgrade, and uninstall AI CLI tools (Claude CLI, Codex CLI, Gemini CLI, Cursor CLI, and more via adapters).
 - **Provider / model management**: configure multiple API endpoints and keys, switch active providers, sync across all managed CLIs.
@@ -11,7 +11,7 @@ Console is a **local AI CLI unified management platform**. It provides a web UI 
 - **System prompt management**: manage prompt presets, cross-app format adaptation (CLAUDE.md, AGENTS.md, GEMINI.md).
 - **Run execution** (deferred priority): route prompts to local CLI workers and stream output via SSE.
 
-## What Console is not (yet)
+## What CloudCode is not (yet)
 
 - A cloud-hosted orchestration platform.
 - A replacement for git hosting or CI systems.
@@ -19,7 +19,7 @@ Console is a **local AI CLI unified management platform**. It provides a web UI 
 
 ## Core differentiator
 
-Unlike CLI-only tools, Console provides a **Web UI management panel** as the primary interface. Unlike desktop-only tools, Console runs as a lightweight local daemon accessible from any browser. The **config sync engine** translates Console's unified configuration into each CLI's native format automatically.
+Unlike CLI-only tools, CloudCode provides a **Web UI management panel** as the primary interface. Unlike desktop-only tools, CloudCode runs as a lightweight local daemon accessible from any browser. The **config sync engine** translates CloudCode's unified configuration into each CLI's native format automatically.
 
 ## Supported CLI tools
 
@@ -42,7 +42,7 @@ Unlike CLI-only tools, Console provides a **Web UI management panel** as the pri
 
 ```text
 ~/.console/
-  config.json              # Console config (port, theme, etc.)
+  config.json              # CloudCode config (port, theme, etc.)
   state/
     cli_tools.json         # Detected CLI tools and versions
     providers.json         # Provider configurations
@@ -73,7 +73,7 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL (default `http://127.0.0.1:5173`) to access the Console management panel.
+Open the Vite URL (default `http://127.0.0.1:5173`) to access the CloudCode management panel.
 
 ## Documentation
 
@@ -89,4 +89,4 @@ Open the Vite URL (default `http://127.0.0.1:5173`) to access the Console manage
 
 ## Current phase
 
-Console is in Phase 0 (foundation and scaffolding). See [Roadmap](docs/ROADMAP.md) for details.
+CloudCode is in Phase 0 (foundation and scaffolding). See [Roadmap](docs/ROADMAP.md) for details.

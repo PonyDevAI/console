@@ -1,6 +1,6 @@
 # AI 员工管理
 
-AI 员工是 Console 中的**工作身份层**，不等于 CLI 工具本身。
+AI 员工是 CloudCode 中的**工作身份层**，不等于 CLI 工具本身。
 
 ## 概念定义
 
@@ -8,7 +8,7 @@ AI 员工是 Console 中的**工作身份层**，不等于 CLI 工具本身。
 
 #### 本地员工 (local employee)
 
-由 Console 自己维护 persona 的员工：
+由 CloudCode 自己维护 persona 的员工：
 - `IDENTITY.md` - 身份定义
 - `SOUL.md` - 工作风格和特点
 - `SKILLS.md` - 技能列表

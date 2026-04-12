@@ -1,10 +1,10 @@
-# Console Architecture
+# CloudCode Architecture
 
-Console is designed around a management plane / execution plane separation, with a config sync engine as the core integration layer.
+CloudCode is designed around a management plane / execution plane separation, with a config sync engine as the core integration layer.
 
 ## 1) Management plane (primary focus)
 
-The management plane is the Console daemon and backend API.
+The management plane is the CloudCode daemon and backend API.
 
 Responsibilities:
 - Load and persist local config/state under `~/.console/`.
@@ -25,10 +25,10 @@ Each CLI tool has different config file formats and paths:
 - Cursor: `~/.cursor/` (various config files)
 
 The sync engine:
-- Reads Console's unified configuration.
+- Reads CloudCode's unified configuration.
 - Transforms it into each CLI's native format via the adapter layer.
 - Writes to the correct filesystem paths.
-- Supports reverse import (read existing CLI configs into Console).
+- Supports reverse import (read existing CLI configs into CloudCode).
 - Detects conflicts when CLI configs are modified externally.
 
 ## 3) Execution plane (deferred priority)
@@ -74,7 +74,7 @@ Local file-based storage under `~/.console/`:
 
 ```text
 ~/.console/
-  config.json              # Console self-config
+  config.json              # CloudCode self-config
   state/
     cli_tools.json         # Detected CLI tools and versions
     providers.json         # Provider configurations

@@ -1,10 +1,10 @@
 # CLI Adapter Model
 
-Console uses CLI adapters to normalize interactions with different AI coding CLI tools.
+CloudCode uses CLI adapters to normalize interactions with different AI coding CLI tools.
 
 ## Why adapters
 
-Each CLI has unique installation methods, config file formats, config file paths, and invocation patterns. Adapters isolate these differences so Console's core services operate on a unified model.
+Each CLI has unique installation methods, config file formats, config file paths, and invocation patterns. Adapters isolate these differences so CloudCode's core services operate on a unified model.
 
 ## Supported CLI tools
 
@@ -66,7 +66,7 @@ trait CliAdapter: Send + Sync {
 ## Config sync flow
 
 ```
-Console unified config
+CloudCode unified config
         |
         v
   Sync Engine

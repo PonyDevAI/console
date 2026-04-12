@@ -1,10 +1,10 @@
-# Console Goals
+# CloudCode Goals
 
 This document captures product and engineering goals by horizon.
 
 ## Near-term goals (Phase 0 to Phase 1)
 
-- Establish Console as a reliable **local AI CLI management platform**.
+- Establish CloudCode as a reliable **local AI CLI management platform**.
 - Build a web UI management panel with:
   - Dashboard showing CLI tool status and version info.
   - Version management: detect installed CLIs, check for updates, install/upgrade/uninstall.

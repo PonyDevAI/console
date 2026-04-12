@@ -38,7 +38,7 @@ export function Composer({ value, onChange, onSubmit, disabled }: ComposerProps)
             onKeyDown={handleKeyDown}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
-            placeholder="向 Console 提问：检测已安装工具、切换模型、同步 MCP、安装技能，或规划一次升级。"
+            placeholder="向 CloudCode 提问：检测已安装工具、切换模型、同步 MCP、安装技能，或规划一次升级。"
             rows={1}
             className="w-full resize-none bg-transparent text-[14px] leading-relaxed text-gray-900 placeholder-gray-400 outline-none"
             style={{ minHeight: "24px", maxHeight: "200px" }}

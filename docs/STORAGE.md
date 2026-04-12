@@ -1,12 +1,12 @@
 # Storage Model
 
-Console uses local file-based storage under `~/.console/`. SQLite is deferred until query needs justify it.
+CloudCode uses local file-based storage under `~/.console/`. SQLite is deferred until query needs justify it.
 
 ## Directory layout
 
 ```text
 ~/.console/
-  config.json              # Console self-config (port, theme, etc.)
+  config.json              # CloudCode self-config (port, theme, etc.)
   state/
     cli_tools.json         # Detected CLI tools and version info
     providers.json         # Provider/model configurations
@@ -96,11 +96,11 @@ Config backups are stored under `backups/` with timestamps. Auto-rotation keeps 
 
 ## Repository source-of-truth policy
 
-Console does not relocate or mirror repositories. Repository paths remain where users keep them on disk. Console stores references and metadata only.
+CloudCode does not relocate or mirror repositories. Repository paths remain where users keep them on disk. CloudCode stores references and metadata only.
 
 ## Terminal runtime persistence
 
-Persistent terminal sessions are stored as Console-owned metadata under `~/.console/`. Terminal metadata belongs to the execution plane and must not be written into project repositories.
+Persistent terminal sessions are stored as CloudCode-owned metadata under `~/.console/`. Terminal metadata belongs to the execution plane and must not be written into project repositories.
 
 Suggested layout:
 
@@ -115,7 +115,7 @@ Suggested layout:
       events.log
 ```
 
-The actual terminal backend may run via `tmux` on the Console host or on a remote SSH host later, but Console remains responsible only for metadata, control bindings, and audit information.
+The actual terminal backend may run via `tmux` on the CloudCode host or on a remote SSH host later, but CloudCode remains responsible only for metadata, control bindings, and audit information.
 
 ## Future: SQLite
 

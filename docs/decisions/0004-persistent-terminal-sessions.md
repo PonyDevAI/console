@@ -4,7 +4,7 @@
 Accepted
 
 ## Context
-Console needs terminal sessions that survive browser refresh, reconnects, and later AI-driven task execution. The current transient PTY model is not sufficient for project-scoped, employee-scoped, and remotely hosted long-running work.
+CloudCode needs terminal sessions that survive browser refresh, reconnects, and later AI-driven task execution. The current transient PTY model is not sufficient for project-scoped, employee-scoped, and remotely hosted long-running work.
 
 ## Decision
 Model terminal sessions as persistent execution resources whose lifecycle is independent from a browser connection. Treat WebSocket connections as attach/detach channels only, and use backend adapters to support local-host and remote-host terminal targets. Prefer `tmux` as the persistent backend when available.

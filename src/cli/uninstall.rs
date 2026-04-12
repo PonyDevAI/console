@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 pub async fn run(purge: bool, yes: bool) -> Result<()> {
     if !yes {
-        println!("This will remove Console binary and web assets.");
+        println!("This will remove CloudCode binary and web assets.");
         if purge {
             println!("Purge is enabled: ~/.console will be removed completely.");
         } else {
@@ -44,9 +44,9 @@ pub async fn run(purge: bool, yes: bool) -> Result<()> {
 
     if purge && paths.root.exists() {
         std::fs::remove_dir_all(&paths.root)?;
-        println!("Console removed, including ~/.console");
+        println!("CloudCode removed, including ~/.console");
     } else {
-        println!("Console removed. Preserved config at {}", paths.root.display());
+        println!("CloudCode removed. Preserved config at {}", paths.root.display());
     }
 
     Ok(())

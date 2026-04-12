@@ -1,6 +1,6 @@
-//! Config sync engine — translates Console's unified config into each CLI's native format.
+//! Config sync engine — translates CloudCode's unified config into each CLI's native format.
 //!
-//! This module is the core integration layer. It reads Console state and writes
+//! This module is the core integration layer. It reads CloudCode state and writes
 //! to each CLI tool's native config files via the adapter layer.
 
 use anyhow::Result;
@@ -8,7 +8,7 @@ use anyhow::Result;
 use crate::adapters;
 use crate::services;
 
-/// Sync all Console configuration to all managed CLI tools.
+/// Sync all CloudCode configuration to all managed CLI tools.
 /// This is the main entry point called by `console sync` and the API.
 pub fn sync_all() -> Result<SyncReport> {
     let mut report = SyncReport::default();
@@ -197,7 +197,7 @@ fn sync_prompts() -> Result<u32> {
         if let (Some(dir), Some(fname)) = (config_dir, filename) {
             let path = dir.join(fname);
             let content = format!(
-                "<!-- Managed by Console. Last synced: {} -->\n\n{}",
+                "<-- Managed by CloudCode. Last synced: {} -->\n\n{}",
                 chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
                 active_prompt.content
             );

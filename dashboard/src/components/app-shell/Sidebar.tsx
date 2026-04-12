@@ -38,7 +38,7 @@ export default function Sidebar({
         <aside className="relative z-50 h-full w-64 overflow-hidden bg-[#e8eef3] shadow-xl md:hidden">
           <div className="flex h-full flex-col overflow-hidden">
             <div className="shrink-0 px-3 py-3">
-              <div className="text-[14px] font-semibold text-gray-900">Console</div>
+              <div className="text-[14px] font-semibold text-gray-900">CloudCode</div>
             </div>
 
             <nav className="shrink-0 px-2">
@@ -176,10 +176,10 @@ export default function Sidebar({
     >
       {/* Brand */}
       <div className="shrink-0 px-3 py-3">
-        <div className="text-[14px] font-semibold text-gray-900">Console</div>
+        <div className="text-[14px] font-semibold text-gray-900">CloudCode</div>
       </div>
 
-      {/* Console navigation - no section header */}
+      {/* CloudCode navigation - no section header */}
       <nav className="shrink-0 px-2">
         <div className="space-y-0.5">
           {consoleNavItems.map((item) => {

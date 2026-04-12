@@ -10,11 +10,11 @@ export default function Dashboard() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-white">
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-5">
-        {/* Header - no Console category label */}
+        {/* Header - no CloudCode category label */}
         <div className="mb-1">
           <h1 className="text-[15px] font-medium text-gray-900">概览</h1>
           <p className="text-[13px] text-gray-500">
-            Console 平台状态总览
+            CloudCode 平台状态总览
           </p>
         </div>
 

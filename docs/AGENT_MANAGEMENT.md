@@ -1,6 +1,6 @@
 # Agent Management
 
-Agent 管理是 Console 对**本地 CLI 工具**的统一管理中心。
+Agent 管理是 CloudCode 对**本地 CLI 工具**的统一管理中心。
 
 ## 概念定义
 

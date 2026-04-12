@@ -8,14 +8,14 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
     let target_bin = paths.root.join("bin").join("console");
     if target_bin.is_symlink() && !target_bin.exists() {
         anyhow::bail!(
-            "Console symlink at {} is broken (target version may have been removed). \
+            "CloudCode symlink at {} is broken (target version may have been removed). \
              Run `console rollback` to switch to an available version, or reinstall with install.sh.",
             target_bin.display()
         );
     }
     if !target_bin.exists() {
         anyhow::bail!(
-            "Console is not installed at {}. Run install.sh first.",
+            "CloudCode is not installed at {}. Run install.sh first.",
             target_bin.display()
         );
     }

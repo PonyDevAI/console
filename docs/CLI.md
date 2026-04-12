@@ -1,6 +1,6 @@
 # CLI Commands
 
-Console provides a CLI for initialization and daemon management.
+CloudCode provides a CLI for initialization and daemon management.
 
 ## Commands
 
@@ -19,7 +19,7 @@ Creates:
 
 ### `console start`
 
-Start the Console daemon (HTTP API server).
+Start the CloudCode daemon (HTTP API server).
 
 Options:
 - `--port <port>` — override default port (default: 8080)
@@ -46,7 +46,7 @@ Scan for installed CLI tools and update `state/cli_tools.json`.
 
 > Not yet implemented.
 
-Sync Console configuration to all managed CLI tools:
+Sync CloudCode configuration to all managed CLI tools:
 - Write provider configs to each CLI's native format.
 - Write MCP server configs to each CLI's native format.
 - Sync enabled skills to each CLI's skill directory.
