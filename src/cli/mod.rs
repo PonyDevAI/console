@@ -16,7 +16,7 @@ pub enum Command {
     Start {
         #[arg(long, default_value = "0.0.0.0")]
         host: String,
-        #[arg(long, default_value_t = 8080)]
+        #[arg(long, default_value_t = 8300)]
         port: u16,
     },
     /// Show daemon status and system info
