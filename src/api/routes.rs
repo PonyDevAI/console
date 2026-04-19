@@ -8,68 +8,27 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::models::{CreateMcpServerRequest, CreateProviderRequest, McpServer, McpTransport, SwitchMode};
-use crate::models::{CreateRemoteAgentRequest, RemoteAgentsState, UpdateRemoteAgentRequest};
-use crate::models::{CreateEmployeeRequest, SoulFiles, UpdateEmployeeRequest, PersonaFiles};
+use cloudcode_contracts::agent_sources::{
+    CreateAgentSourceRequest, SetDefaultModelRequest, UpdateAgentSourceRequest,
+};
+use cloudcode_contracts::employees::{CreateEmployeeRequest, PersonaFiles, SoulFiles, UpdateEmployeeRequest};
+use cloudcode_contracts::mcp::CreateMcpServerRequest;
+use cloudcode_contracts::prompts::{CreatePromptRequest, UpdatePromptRequest};
+use cloudcode_contracts::providers::{
+    CreateProviderRequest, ImportProvidersRequest, SetModelAssignmentRequest, SetSwitchModeRequest,
+};
+use cloudcode_contracts::remote_agents::{CreateRemoteAgentRequest, UpdateRemoteAgentRequest};
+use cloudcode_contracts::sessions::{
+    CreateProposalRequest, CreateSessionRequest, PostMessageRequest, UpdateParticipantsRequest,
+    UpdateSessionTitleRequest,
+};
+use cloudcode_contracts::skills::{
+    AddSkillRepoRequest, InstallFromUrlRequest, ToggleSkillRepoRequest, UpdateSkillRequest,
+};
+
+use crate::models::{McpServer, McpTransport, RemoteAgentsState};
 use crate::services;
 use crate::services::task_queue::{TaskQueue, TaskStatus};
-
-#[derive(serde::Deserialize)]
-struct UpdateSkillRequest {
-    apps: Vec<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct SetSwitchModeRequest {
-    mode: SwitchMode,
-}
-
-#[derive(serde::Deserialize)]
-struct ImportProvidersRequest {
-    data: String,
-}
-
-#[derive(serde::Deserialize)]
-struct AddSkillRepoRequest {
-    name: String,
-    url: String,
-}
-
-#[derive(serde::Deserialize)]
-struct ToggleSkillRepoRequest {
-    enabled: bool,
-}
-
-#[derive(serde::Deserialize)]
-struct SetModelAssignmentRequest {
-    provider_id: String,
-    model: String,
-}
-
-#[derive(serde::Deserialize)]
-struct InstallFromUrlRequest {
-    name: String,
-    source_url: String,
-    apps: Vec<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct CreateSourceRequest {
-    name: String,
-    display_name: String,
-    source_type: String,
-    endpoint: Option<String>,
-    api_key: Option<String>,
-    origin: Option<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct UpdateSourceRequest {
-    display_name: Option<String>,
-    endpoint: Option<String>,
-    api_key: Option<String>,
-    origin: Option<String>,
-}
 
 pub fn api_routes() -> Router {
     Router::new()
@@ -276,7 +235,7 @@ async fn get_agent_source(Path(id): Path<String>) -> Result<Json<Value>, StatusC
     Ok(Json(json!(source)))
 }
 
-async fn create_agent_source(Json(req): Json<CreateSourceRequest>) -> Result<Json<Value>, StatusCode> {
+async fn create_agent_source(Json(req): Json<CreateAgentSourceRequest>) -> Result<Json<Value>, StatusCode> {
     let source_type = match req.source_type.as_str() {
         "remote_openclaw_ws" => crate::models::AgentSourceType::RemoteOpenClawWs,
         "openai_compatible" => crate::models::AgentSourceType::OpenAiCompatible,
@@ -295,7 +254,7 @@ async fn create_agent_source(Json(req): Json<CreateSourceRequest>) -> Result<Jso
         )
     })
     .await
-    .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(json!(source)))
@@ -303,7 +262,7 @@ async fn create_agent_source(Json(req): Json<CreateSourceRequest>) -> Result<Jso
 
 async fn update_agent_source(
     Path(id): Path<String>,
-    Json(req): Json<UpdateSourceRequest>,
+    Json(req): Json<UpdateAgentSourceRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let source = tokio::task::spawn_blocking(move || {
         services::agent_source::update_source(
@@ -315,7 +274,7 @@ async fn update_agent_source(
         )
     })
     .await
-    .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     .map_err(map_not_found)?;
 
     Ok(Json(json!(source)))
@@ -326,7 +285,7 @@ async fn delete_agent_source(Path(id): Path<String>) -> Result<Json<Value>, Stat
         services::agent_source::delete_source(&id)
     })
     .await
-    .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     .map_err(map_not_found)?;
 
     Ok(Json(json!({ "ok": true })))
@@ -523,11 +482,6 @@ async fn get_agent_source_models(Path(id): Path<String>) -> Result<Json<Value>, 
     }
 }
 
-#[derive(serde::Deserialize)]
-struct SetDefaultModelRequest {
-    model: String,
-}
-
 async fn set_agent_source_default_model(
     Path(id): Path<String>,
     Json(req): Json<SetDefaultModelRequest>,
@@ -557,6 +511,7 @@ async fn list_agent_source_agents(Path(id): Path<String>) -> Result<Json<Value>,
     }
 }
 
+#[allow(dead_code)]
 async fn list_openclaw_models(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     let source = services::agent_source::get_source(&id)
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -1198,7 +1153,7 @@ async fn add_remote_agent(
             )
         })
         .await
-        .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         return Ok(Json(json!(source)));
     }
@@ -1237,7 +1192,7 @@ async fn update_remote_agent(
             )
         })
         .await
-        .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map_err(map_not_found)?;
         return Ok(Json(json!(updated)));
     }
@@ -1264,7 +1219,7 @@ async fn delete_remote_agent(Path(id): Path<String>) -> Result<Json<Value>, Stat
         }
     })
     .await
-    .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     if let Some(source) = source_result {
@@ -1274,7 +1229,7 @@ async fn delete_remote_agent(Path(id): Path<String>) -> Result<Json<Value>, Stat
                 services::agent_source::delete_source(&id_for_delete)
             })
             .await
-            .map_err(|e| StatusCode::INTERNAL_SERVER_ERROR)?
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .map_err(map_not_found)?;
             return Ok(Json(json!({ "ok": true })));
         }
@@ -1423,20 +1378,6 @@ pub struct DispatchRequest {
 }
 
 #[derive(serde::Deserialize)]
-struct CreatePromptRequest {
-    name: String,
-    content: String,
-    apps: Vec<String>,
-}
-
-#[derive(serde::Deserialize)]
-struct UpdatePromptRequest {
-    name: Option<String>,
-    content: Option<String>,
-    apps: Option<Vec<String>>,
-}
-
-#[derive(serde::Deserialize)]
 struct UpdateBindingRequest {
     label: Option<String>,
     is_primary: Option<bool>,
@@ -1459,6 +1400,13 @@ struct CreateBackupRequest {
 }
 
 async fn create_employee(Json(req): Json<CreateEmployeeRequest>) -> Result<Json<Value>, StatusCode> {
+    let employee_type = match req.employee_type.as_deref() {
+        Some("local") => Some(crate::models::EmployeeType::Local),
+        Some("remote") => Some(crate::models::EmployeeType::Remote),
+        Some(_) => return Err(StatusCode::BAD_REQUEST),
+        None => None,
+    };
+
     let employee = services::employee::create(
         &req.name,
         req.display_name.as_deref(),
@@ -1467,7 +1415,7 @@ async fn create_employee(Json(req): Json<CreateEmployeeRequest>) -> Result<Json<
         req.avatar_color.as_deref(),
         req.tags.clone(),
         req.role.as_deref(),
-        req.employee_type,
+        employee_type,
         req.source_id.as_deref(),
         req.remote_agent_name.as_deref(),
     )
@@ -2066,7 +2014,7 @@ pub async fn list_sessions() -> Result<Json<Value>, StatusCode> {
 }
 
 pub async fn create_session(
-    Json(req): Json<crate::models::CreateSessionRequest>,
+    Json(req): Json<CreateSessionRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let session = services::session::create(&req.title, &req.participant_ids)
         .await
@@ -2099,7 +2047,7 @@ pub async fn list_session_messages(
 
 pub async fn post_session_message(
     Path(id): Path<String>,
-    Json(req): Json<crate::models::PostMessageRequest>,
+    Json(req): Json<PostMessageRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let _session = services::session::get(&id).map_err(map_not_found)?;
 
@@ -2358,7 +2306,7 @@ pub async fn session_stream(
 
 pub async fn update_session_title(
     Path(id): Path<String>,
-    Json(req): Json<crate::models::UpdateSessionTitleRequest>,
+    Json(req): Json<UpdateSessionTitleRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let session = services::session::update_title(&id, &req.title).map_err(map_not_found)?;
     Ok(Json(json!(session)))
@@ -2366,7 +2314,7 @@ pub async fn update_session_title(
 
 pub async fn update_session_participants(
     Path(id): Path<String>,
-    Json(req): Json<crate::models::UpdateParticipantsRequest>,
+    Json(req): Json<UpdateParticipantsRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let session = services::session::update_participants(&id, &req.add, &req.remove)
         .await
@@ -2386,7 +2334,7 @@ pub async fn list_proposals(
 
 pub async fn create_proposal(
     Path(session_id): Path<String>,
-    Json(req): Json<crate::models::CreateProposalRequest>,
+    Json(req): Json<CreateProposalRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let proposal = services::proposal::create(
         &session_id, &req.title, &req.description, &req.assigned_employee_id,
@@ -2633,7 +2581,6 @@ pub async fn review_proposal(
 
     let registry = crate::api::session_registry();
     let sid = session_id.clone();
-    let pid = proposal_id.clone();
     let reviewer_id = req.reviewer_employee_id.clone();
     let reg = registry.clone();
     let task_desc = proposal.description.clone();

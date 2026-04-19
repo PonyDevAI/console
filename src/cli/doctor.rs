@@ -3,12 +3,12 @@ use crate::adapters;
 pub async fn run() -> anyhow::Result<()> {
     println!("CloudCode Doctor — running diagnostics\n");
 
-    // Check ~/.console/ structure
-    let paths = crate::storage::ConsolePaths::default();
+    // Check ~/.cloudcode/ structure
+    let paths = crate::storage::CloudCodePaths::default();
     if paths.root.exists() {
-        println!("[OK] ~/.console/ directory exists");
+        println!("[OK] ~/.cloudcode/ directory exists");
     } else {
-        println!("[!!] ~/.console/ directory missing — run `console init`");
+        println!("[!!] ~/.cloudcode/ directory missing — run `cloudcode init`");
     }
 
     // Check CLI tools

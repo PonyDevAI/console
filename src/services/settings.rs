@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
@@ -35,7 +35,7 @@ pub enum LogLevel {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            storage_path: "~/.console".to_string(),
+            storage_path: "~/.cloudcode".to_string(),
             default_worker: "claude".to_string(),
             theme: Theme::Dark,
             log_level: LogLevel::Info,
@@ -46,7 +46,7 @@ impl Default for Settings {
 }
 
 pub fn load() -> Result<Settings> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let file = paths.settings_file();
     if file.exists() {
         storage::read_json(&file)
@@ -56,7 +56,7 @@ pub fn load() -> Result<Settings> {
 }
 
 pub fn save(settings: &Settings) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let file = paths.settings_file();
     storage::write_json(&file, settings)
 }

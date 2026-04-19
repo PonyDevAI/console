@@ -2,11 +2,11 @@ use anyhow::Result;
 
 use crate::adapters;
 use crate::models::{CliTool, CliToolsState};
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 /// Load CLI tool state from disk.
 pub fn load() -> Result<CliToolsState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::read_json(&paths.cli_tools_file())
 }
 
@@ -111,6 +111,6 @@ pub fn uninstall(name: &str) -> Result<()> {
 
 /// Persist tool state to disk.
 pub fn save(state: &CliToolsState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::write_json(&paths.cli_tools_file(), state)
 }

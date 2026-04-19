@@ -121,10 +121,10 @@ Modal 内容：
 ## 四、需要修改的文件
 
 ### 供应商页面
-- `dashboard/src/pages/ProviderPage.tsx` — 列表改为表格，删除 Card 堆叠和展开逻辑
+- `apps/web/src/pages/ProviderPage.tsx` — 列表改为表格，删除 Card 堆叠和展开逻辑
 
 ### Agent 页面
-- `dashboard/src/pages/AgentsPage.tsx` — 表格加"当前模型"列 + "配置"按钮，删除内嵌配置行，新增 Modal
+- `apps/web/src/pages/AgentsPage.tsx` — 表格加"当前模型"列 + "配置"按钮，删除内嵌配置行，新增 Modal
 
 ### 不需要改的
 - 后端 API — 不变

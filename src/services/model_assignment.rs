@@ -1,10 +1,10 @@
 use anyhow::Result;
 
 use crate::models::{ModelAssignment, ModelAssignmentsState};
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 fn load() -> Result<ModelAssignmentsState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let file = paths.model_assignments_file();
     if !file.exists() {
         return Ok(ModelAssignmentsState::default());
@@ -13,7 +13,7 @@ fn load() -> Result<ModelAssignmentsState> {
 }
 
 fn save(state: &ModelAssignmentsState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::write_json(&paths.model_assignments_file(), state)
 }
 

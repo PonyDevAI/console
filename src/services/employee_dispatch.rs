@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crate::models::{Agent, AgentProtocol, AgentSource, AgentSourceType, Employee, EmployeeType, PersonaFiles, SoulFiles};
+use crate::models::{Agent, AgentProtocol, AgentSource, AgentSourceType, Employee, PersonaFiles, SoulFiles};
 
 pub struct DispatchResult {
     pub output: String,
@@ -469,7 +469,7 @@ async fn dispatch_remote_agent(
         serde_json::json!({"role": "user", "content": task}),
     ];
     
-    let mut req_body = serde_json::json!({
+    let req_body = serde_json::json!({
         "model": model,
         "messages": messages,
         "stream": true,

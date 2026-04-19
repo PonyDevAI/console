@@ -1,10 +1,10 @@
 use crate::models::{ProposalStatus, ProposalsState, TaskProposal};
-use crate::storage::{read_json, write_json, ConsolePaths};
+use crate::storage::{read_json, write_json, CloudCodePaths};
 use anyhow::Result;
 use chrono::Utc;
 
 fn load(session_id: &str) -> Result<ProposalsState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let path = paths.session_proposals_file(session_id);
     if !path.exists() {
         return Ok(ProposalsState::default());
@@ -13,7 +13,7 @@ fn load(session_id: &str) -> Result<ProposalsState> {
 }
 
 fn save(session_id: &str, state: &ProposalsState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let dir = paths.session_dir(session_id);
     std::fs::create_dir_all(&dir)?;
     write_json(&paths.session_proposals_file(session_id), state)

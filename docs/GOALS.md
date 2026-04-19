@@ -12,7 +12,7 @@ This document captures product and engineering goals by horizon.
 - Implement a local daemon (management plane) in Rust.
 - Define CLI adapters for Claude CLI, Codex CLI, Gemini CLI, and Cursor CLI.
 - Implement a config sync engine that translates unified config to each CLI's native format.
-- Store configuration and state under `~/.console/` using files.
+- Store configuration and state under `~/.cloudcode/` using files.
 - Keep startup and runtime lightweight for daily local usage.
 
 ## Mid-term goals (Phase 2)

@@ -14,7 +14,7 @@ type AgentSource = {
   name: string;                  // 内部名称
   display_name: string;           // 显示名称
   source_type: "local_cli";      // 类型：本地 CLI
-  managed_by_console: boolean;   // 是否由 Console 管理
+  managed_by_cloudcode: boolean;   // 是否由 CloudCode 管理
   installed: boolean;             // 是否已安装
   local_version?: string;        // 本地版本
   remote_version?: string;        // 远程最新版本
@@ -42,7 +42,7 @@ type AgentSource = {
 
 ## 存储结构
 
-Agent Source 状态存储在 `~/.console/state/agent_sources.json`。
+Agent Source 状态存储在 `~/.cloudcode/state/agent_sources.json`。
 
 ## 模型配置
 

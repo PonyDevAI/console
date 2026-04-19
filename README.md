@@ -35,13 +35,13 @@ Unlike CLI-only tools, CloudCode provides a **Web UI management panel** as the p
 
 - Backend: Rust (axum)
 - Frontend: Vite + React + TypeScript + Tailwind CSS
-- Storage: local files under `~/.console/`, SQLite when justified
+- Storage: local files under `~/.cloudcode/`, SQLite when justified
 - Streaming: SSE
 
 ## Local file layout
 
 ```text
-~/.console/
+~/.cloudcode/
   config.json              # CloudCode config (port, theme, etc.)
   state/
     cli_tools.json         # Detected CLI tools and versions
@@ -68,12 +68,41 @@ cargo run -- start
 Frontend:
 
 ```bash
-cd dashboard
-npm install
-npm run dev
+make web
 ```
 
 Open the Vite URL (default `http://127.0.0.1:5173`) to access the CloudCode management panel.
+
+Desktop:
+
+```bash
+make desk
+```
+
+Mobile placeholders:
+
+```bash
+make android
+make ios
+```
+
+Validation guidance:
+
+- `make check` for static validation
+- `make test` for Rust test execution
+- `make verify-local` for the default local validation command set
+- `docs/testing/` for canonical validation rules and reporting expectations
+
+Repository transition:
+
+- The repo now includes a shared contracts crate at `crates/cloudcode-contracts/`.
+- The repo now includes a transitional dedicated server crate at `apps/server/`.
+- The repo now includes an independent desktop shell at `apps/desktop/` with `src-tauri/`.
+- The web app now lives at `apps/web/`.
+- The repo now includes reserved mobile surfaces at `apps/mobile/android/` and `apps/mobile/ios/`.
+- This is the first migration step toward separate `server` and `desktop` Rust applications with shared core crates.
+- The desktop UI is intentionally separate from the web dashboard UI; only contracts and lower Rust layers are candidates for sharing at this stage.
+- The normalized dev entrypoints are `make server`, `make web`, `make desk`, `make android`, and `make ios`.
 
 ## Documentation
 
@@ -85,7 +114,10 @@ Open the Vite URL (default `http://127.0.0.1:5173`) to access the CloudCode mana
 - [CLI Commands](docs/CLI.md)
 - [CLI Adapter Model](docs/ADAPTER_MODEL.md)
 - [Web UI](docs/WEB_UI.md)
+- [Desktop Shell](docs/DESKTOP.md)
+- [Mobile Surfaces](docs/MOBILE.md)
 - [Development Guide](docs/DEVELOPMENT.md)
+- [Testing Docs](docs/testing/README.md)
 
 ## Current phase
 

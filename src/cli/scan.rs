@@ -17,7 +17,7 @@ pub async fn run() -> anyhow::Result<()> {
     }
 
     services::version::save(&state)?;
-    let paths = crate::storage::ConsolePaths::default();
+    let paths = crate::storage::CloudCodePaths::default();
     println!("\nSaved to {}", paths.cli_tools_file().display());
 
     Ok(())

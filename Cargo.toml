@@ -1,11 +1,29 @@
-[package]
-name = "console"
+[workspace]
+members = [
+  ".",
+  "apps/server",
+  "apps/desktop/src-tauri",
+  "crates/cloudcode-contracts",
+]
+resolver = "2"
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
+
+[workspace.dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[package]
+name = "cloudcode"
+version.workspace = true
+edition.workspace = true
 description = "Local AI CLI unified management platform"
 
 [[bin]]
-name = "console"
+name = "cloudcode"
 path = "src/main.rs"
 
 [dependencies]
@@ -36,3 +54,4 @@ rand = "0.8"
 tokio-tungstenite = { version = "0.21", features = ["connect", "handshake", "stream"] }
 futures-util = "0.3"
 url = "2"
+cloudcode-contracts = { path = "crates/cloudcode-contracts" }

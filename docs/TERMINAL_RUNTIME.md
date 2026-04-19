@@ -218,12 +218,12 @@ This supports:
 
 ## 11. Storage model
 
-Terminal metadata belongs under `~/.console/` and not inside repositories.
+Terminal metadata belongs under `~/.cloudcode/` and not inside repositories.
 
 Suggested layout:
 
 ```text
-~/.console/
+~/.cloudcode/
   state/
     terminal_sessions.json
     execution_targets.json
@@ -386,18 +386,18 @@ When creating session with `backend: "auto"`:
 
 ### Frontend (React)
 
-- `dashboard/src/pages/TerminalPage.tsx`: Card + Tab multi-session UI
+- `apps/web/src/pages/TerminalPage.tsx`: Card + Tab multi-session UI
   - Left sidebar: session cards list
   - Top tabs bar: open terminal tabs
   - Main area: active terminal view
   - Close tab vs terminate session distinction
-- `dashboard/src/components/terminal/TerminalView.tsx`: xterm.js terminal view
+- `apps/web/src/components/terminal/TerminalView.tsx`: xterm.js terminal view
 - Backend selection: auto + pty buttons in sidebar
 - Ephemeral session warning banner
 
 ### Persistence Model
 
-- **persistent** (tmux): Session metadata saved to `~/.console/state/terminal_sessions.json`
+- **persistent** (tmux): Session metadata saved to `~/.cloudcode/state/terminal_sessions.json`
 - **ephemeral** (pty): Not persisted across daemon restart
 
 ### Known limitations

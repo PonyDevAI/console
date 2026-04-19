@@ -10,7 +10,7 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Initialize ~/.console/ directory structure
+    /// Initialize ~/.cloudcode/ directory structure
     Init,
     /// Start the CloudCode daemon (API server)
     Start {

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="${CONSOLE_GITHUB_REPO:-PonyDevAI/console}"
-BIN_NAME="console"
-INSTALL_ROOT="${CONSOLE_INSTALL_DIR:-$HOME/.console}"
+REPO="${CLOUDCODE_GITHUB_REPO:-PonyDevAI/CloudCode}"
+BIN_NAME="cloudcode"
+INSTALL_ROOT="${CLOUDCODE_INSTALL_DIR:-$HOME/.cloudcode}"
 BIN_DIR="$INSTALL_ROOT/bin"
-WEB_DIR="$INSTALL_ROOT/dashboard"
+WEB_DIR="$INSTALL_ROOT/web"
 BIN_PATH="$BIN_DIR/$BIN_NAME"
 
 # ── Colors ──────────────────────────────────────────────
@@ -19,10 +19,10 @@ else
   C_RESET="" C_GREEN="" C_YELLOW="" C_RED="" C_CYAN=""
 fi
 
-info()  { echo -e "${C_CYAN}[console]${C_RESET} $*"; }
-warn()  { echo -e "${C_YELLOW}[console]${C_RESET} $*" >&2; }
-error() { echo -e "${C_RED}[console]${C_RESET} $*" >&2; }
-ok()    { echo -e "${C_GREEN}[console]${C_RESET} $*"; }
+info()  { echo -e "${C_CYAN}[cloudcode]${C_RESET} $*"; }
+warn()  { echo -e "${C_YELLOW}[cloudcode]${C_RESET} $*" >&2; }
+error() { echo -e "${C_RED}[cloudcode]${C_RESET} $*" >&2; }
+ok()    { echo -e "${C_GREEN}[cloudcode]${C_RESET} $*"; }
 
 # ── Environment checks ──────────────────────────────────
 preflight() {
@@ -96,9 +96,9 @@ Options:
   --from-repo  Build from current repo instead of downloading release
 
 Commands:
-  install    Install Console to ~/.console/bin/console (default when no command given)
+  install    Install CloudCode to ~/.cloudcode/bin/cloudcode (default when no command given)
   upgrade    Upgrade existing installation
-  uninstall  Remove binary and dashboard assets (keeps ~/.console state by default)
+  uninstall  Remove binary and web assets (keeps ~/.cloudcode state by default)
   rollback   Roll back to a previously installed version
 EOF
 }
@@ -108,19 +108,19 @@ subcommand_help() {
     install)
       cat <<'EOF'
 Usage: install.sh install [--version <tag>]
-Install Console from GitHub Releases.
+Install CloudCode from GitHub Releases.
 EOF
       ;;
     upgrade)
       cat <<'EOF'
 Usage: install.sh upgrade [--version <tag>]
-Upgrade existing Console installation.
+Upgrade existing CloudCode installation.
 EOF
       ;;
     uninstall)
       cat <<'EOF'
 Usage: install.sh uninstall [--purge]
-Uninstall Console. --purge removes ~/.console entirely.
+Uninstall CloudCode. --purge removes ~/.cloudcode entirely.
 EOF
       ;;
     rollback)
@@ -258,7 +258,7 @@ download_and_install() {
   fi
 
   local extracted_web
-  extracted_web="$(find "$tmp" -type d -name dashboard | head -n1 || true)"
+  extracted_web="$(find "$tmp" -type d -name web | head -n1 || true)"
 
   local ver_dir="$INSTALL_ROOT/versions/${tag}"
   mkdir -p "$ver_dir/bin"
@@ -266,7 +266,7 @@ download_and_install() {
   chmod +x "$ver_dir/bin/$BIN_NAME"
 
   if [[ -n "${extracted_web}" ]]; then
-    mv "$extracted_web" "$ver_dir/dashboard"
+    mv "$extracted_web" "$ver_dir/web"
   fi
 
   rm -f "$INSTALL_ROOT/current"
@@ -276,9 +276,9 @@ download_and_install() {
   rm -f "$BIN_PATH"
   ln -sf "../current/bin/$BIN_NAME" "$BIN_PATH"
 
-  if [[ -d "$ver_dir/dashboard" ]]; then
+  if [[ -d "$ver_dir/web" ]]; then
     rm -f "$WEB_DIR"
-    ln -sf "current/dashboard" "$WEB_DIR"
+    ln -sf "current/web" "$WEB_DIR"
   fi
 
   rm -rf "$tmp"
@@ -297,7 +297,7 @@ do_install() {
   download_and_install "$tag"
   ensure_path
   "$BIN_PATH" init
-  ok "Installed Console ${tag} to ${BIN_PATH}"
+  ok "Installed CloudCode ${tag} to ${BIN_PATH}"
   local shell_name
   shell_name="$(basename "${SHELL:-}")"
   case "$shell_name" in
@@ -311,7 +311,7 @@ do_install() {
 do_upgrade() {
   local tag="${1:-}"
   if [[ ! -x "$BIN_PATH" ]]; then
-    error "Console is not installed at ${BIN_PATH}. Run: install.sh install"
+    error "CloudCode is not installed at ${BIN_PATH}. Run: install.sh install"
     exit 1
   fi
 
@@ -331,7 +331,7 @@ do_upgrade() {
 
   info "Upgrading: ${current} -> ${latest}"
   download_and_install "$tag"
-  ok "Upgraded Console: ${current} -> ${latest}"
+  ok "Upgraded CloudCode: ${current} -> ${latest}"
 }
 
 do_uninstall() {
@@ -340,9 +340,9 @@ do_uninstall() {
 
   if [[ "$skip_confirm" != "true" ]]; then
     if [[ "$purge" == "true" ]]; then
-      warn "This will remove Console and ALL data at ${INSTALL_ROOT}"
+      warn "This will remove CloudCode and ALL data at ${INSTALL_ROOT}"
     else
-      info "This will remove Console binary and dashboard assets. Config will be preserved."
+      info "This will remove CloudCode binary and web assets. Config will be preserved."
     fi
     printf "Continue? [y/N]: "
     read -r answer
@@ -364,9 +364,9 @@ do_uninstall() {
 
   if [[ "$purge" == "true" ]]; then
     rm -rf "$INSTALL_ROOT"
-    ok "Uninstalled Console and purged ${INSTALL_ROOT}"
+    ok "Uninstalled CloudCode and purged ${INSTALL_ROOT}"
   else
-    ok "Uninstalled Console binary and dashboard assets."
+    ok "Uninstalled CloudCode binary and web assets."
     info "Preserved data at ${INSTALL_ROOT}"
   fi
 }
@@ -398,31 +398,31 @@ do_rollback() {
 }
 
 do_install_from_repo() {
-  if [[ ! -f "Cargo.toml" ]] || ! grep -q 'name = "console"' Cargo.toml 2>/dev/null; then
-    error "Not in Console repo root. Run from the project directory."
+  if [[ ! -f "Cargo.toml" ]] || ! grep -q 'name = "cloudcode"' Cargo.toml 2>/dev/null; then
+    error "Not in CloudCode repo root. Run from the project directory."
     exit 1
   fi
 
-  info "Building from source..."
+  info "Building CloudCode from source..."
   command -v cargo >/dev/null 2>&1 || { error "cargo not found. Install Rust: https://rustup.rs"; exit 1; }
   cargo build --release
 
   info "Building web assets..."
-  if [[ -d "web" ]]; then
+  if [[ -d "apps/web" ]]; then
     command -v pnpm >/dev/null 2>&1 || { error "pnpm not found"; exit 1; }
-    (cd web && pnpm install && pnpm build)
+    (cd apps/web && pnpm install && pnpm build)
   fi
 
   local ver_dir="$INSTALL_ROOT/versions/source"
   local bin_dir="$ver_dir/bin"
   mkdir -p "$bin_dir"
 
-  cp target/release/console "$bin_dir/console"
-  chmod +x "$bin_dir/console"
+  cp target/release/cloudcode "$bin_dir/cloudcode"
+  chmod +x "$bin_dir/cloudcode"
 
-  if [[ -d "web/dist" ]]; then
-    mkdir -p "$ver_dir/dashboard"
-    cp -r web/dist "$ver_dir/dashboard/dist"
+  if [[ -d "apps/web/dist" ]]; then
+    mkdir -p "$ver_dir/web"
+    cp -r apps/web/dist "$ver_dir/web/dist"
   fi
 
   rm -f "$INSTALL_ROOT/current"
@@ -430,16 +430,16 @@ do_install_from_repo() {
 
   mkdir -p "$BIN_DIR"
   rm -f "$BIN_PATH"
-  ln -sf "../current/bin/console" "$BIN_PATH"
+  ln -sf "../current/bin/cloudcode" "$BIN_PATH"
 
-  if [[ -d "$ver_dir/dashboard" ]]; then
+  if [[ -d "$ver_dir/web" ]]; then
     rm -f "$WEB_DIR"
-    ln -sf "current/dashboard" "$WEB_DIR"
+    ln -sf "current/web" "$WEB_DIR"
   fi
 
   ensure_path
   "$BIN_PATH" init
-  ok "Installed Console from source to ${BIN_PATH}"
+  ok "Installed CloudCode from source to ${BIN_PATH}"
   local shell_name
   shell_name="$(basename "${SHELL:-}")"
   case "$shell_name" in

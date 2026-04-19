@@ -1,15 +1,15 @@
 use anyhow::Result;
 
 use crate::models::{PromptPreset, PromptsState};
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 fn load() -> Result<PromptsState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::read_json(&paths.prompts_file())
 }
 
 fn save(state: &PromptsState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::write_json(&paths.prompts_file(), state)
 }
 

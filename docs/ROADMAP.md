@@ -9,7 +9,7 @@ Objective: establish Rust project skeleton, core abstractions, and development w
 - Set up Rust project with axum, clap, serde, tokio.
 - Define CLI adapter trait (version detection, config paths, config read/write).
 - Implement initial adapters for Claude CLI, Codex CLI, Gemini CLI, Cursor CLI.
-- Implement local file storage layer under `~/.console/`.
+- Implement local file storage layer under `~/.cloudcode/`.
 - Set up basic API framework (health, status endpoints).
 - Set up React + Tailwind frontend skeleton.
 - Update documentation to reflect new direction.

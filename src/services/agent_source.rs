@@ -3,15 +3,15 @@ use chrono::Utc;
 
 use crate::adapters;
 use crate::models::{AgentSource, AgentSourceType, AgentSourcesState};
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 pub fn load() -> Result<AgentSourcesState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::read_json(&paths.agent_sources_file())
 }
 
 pub fn save(state: &AgentSourcesState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::write_json(&paths.agent_sources_file(), state)
 }
 

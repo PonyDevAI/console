@@ -4,16 +4,15 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-use super::backend::TerminalBackend;
 use super::models::{
     AttachBridgeComponents, BackendKind, CloseFn, CreateSessionRequest, CreateSessionResponse,
     TerminalSessionMeta, TerminalSessionListResponse, TerminalSessionsState,
 };
 use super::registry::BackendRegistry;
-use crate::storage::{read_json, write_json, ConsolePaths};
+use crate::storage::{read_json, write_json, CloudCodePaths};
 
 pub struct TerminalService {
-    paths: ConsolePaths,
+    paths: CloudCodePaths,
     sessions: Arc<Mutex<HashMap<String, TerminalSessionMeta>>>,
     registry: BackendRegistry,
     /// Active close_fn for ephemeral sessions (pty)
@@ -22,7 +21,7 @@ pub struct TerminalService {
 
 impl TerminalService {
     pub fn new() -> Self {
-        let paths = ConsolePaths::default();
+        let paths = CloudCodePaths::default();
         let registry = BackendRegistry::new();
         let service = Self {
             paths,

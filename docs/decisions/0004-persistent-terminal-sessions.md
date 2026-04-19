@@ -12,4 +12,4 @@ Model terminal sessions as persistent execution resources whose lifecycle is ind
 ## Consequences
 - Enables project-bound and employee-bound terminal sessions that can be reopened later.
 - Creates a clean path for AI workers to operate against stable terminal session ids instead of transient browser state.
-- Requires terminal metadata persistence under `~/.console/` and explicit terminate semantics separate from disconnect semantics.
+- Requires terminal metadata persistence under `~/.cloudcode/` and explicit terminate semantics separate from disconnect semantics.

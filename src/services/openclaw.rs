@@ -276,8 +276,8 @@ pub async fn test_source(source: &AgentSource) -> OpenClawTestResult {
         };
     }
     
-    let endpoint = match &source.endpoint {
-        Some(e) => e,
+    match &source.endpoint {
+        Some(_) => {}
         None => {
             return OpenClawTestResult {
                 ok: false,
@@ -287,7 +287,7 @@ pub async fn test_source(source: &AgentSource) -> OpenClawTestResult {
                 error: Some("Endpoint is required".to_string()),
             };
         }
-    };
+    }
     
     if source.api_key.is_none() {
         return OpenClawTestResult {

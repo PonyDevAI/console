@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
-    let paths = crate::storage::ConsolePaths::default();
+    let paths = crate::storage::CloudCodePaths::default();
     let target_bin = paths.root.join("bin").join("console");
     if target_bin.is_symlink() && !target_bin.exists() {
         anyhow::bail!(
@@ -123,8 +123,8 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
         std::fs::set_permissions(ver_bin_dir.join("console"), perms)?;
     }
 
-    if let Some(web_dir) = find_named_dir(&extract_dir, "dashboard") {
-        let ver_web = ver_dir.join("dashboard");
+    if let Some(web_dir) = find_named_dir(&extract_dir, "web") {
+        let ver_web = ver_dir.join("web");
         if ver_web.exists() {
             std::fs::remove_dir_all(&ver_web)?;
         }
@@ -145,7 +145,7 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
         std::fs::remove_file(&bin_link)?;
     }
     #[cfg(unix)]
-    std::os::unix::fs::symlink("../current/bin/console", &bin_link)?;
+    std::os::unix::fs::symlink("../current/bin/cloudcode", &bin_link)?;
 
     let _ = std::fs::remove_dir_all(&tmp_root);
 

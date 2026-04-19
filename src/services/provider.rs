@@ -1,15 +1,15 @@
 use anyhow::Result;
 
 use crate::models::{Provider, ProvidersState, SwitchMode};
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 fn load() -> Result<ProvidersState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::read_json(&paths.providers_file())
 }
 
 fn save(state: &ProvidersState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::write_json(&paths.providers_file(), state)
 }
 

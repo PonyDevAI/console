@@ -575,7 +575,7 @@ pub struct ThreadRunRef {
 建议新增：
 
 ```text
-~/.console/
+~/.cloudcode/
   threads/
     meta.json
     <thread_id>/

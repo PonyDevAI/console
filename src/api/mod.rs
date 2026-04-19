@@ -34,15 +34,15 @@ fn build_runtime() -> (Arc<RuntimeGateway>, Arc<RuntimeManager>) {
 }
 
 pub async fn serve(addr: &str) -> Result<()> {
-    let paths = crate::storage::ConsolePaths::default();
-    let web_dir = paths.root.join("dashboard");
+    let paths = crate::storage::CloudCodePaths::default();
+    let web_dir = paths.root.join("web");
     let dist_dir = if web_dir.join("dist").exists() {
         web_dir.join("dist")
     } else {
-        PathBuf::from("dashboard/dist")
+        PathBuf::from("apps/web/dist")
     };
 
-    tracing::info!("Serving dashboard from {}", dist_dir.display());
+    tracing::info!("Serving web app from {}", dist_dir.display());
 
     let spa_fallback = ServeFile::new(dist_dir.join("index.html"));
     let static_files = ServeDir::new(&dist_dir).fallback(spa_fallback);

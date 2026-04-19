@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CloudCode",
+  "mainBinaryName": "CloudCode",
+  "version": "0.0.0",
+  "identifier": "ai.pony.cloudcode.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://127.0.0.1:8302",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        {
+          "identifier": "desktop-main-window",
+          "description": "Allows the main desktop window to use default core APIs and initiate window dragging.",
+          "windows": ["main"],
+          "permissions": ["core:default", "core:window:allow-start-dragging"]
+        }
+      ]
+    },
+    "windows": [
+      {
+        "title": "CloudCode",
+        "width": 1320,
+        "height": 860,
+        "minWidth": 1120,
+        "minHeight": 720,
+        "resizable": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 18
+        }
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"]
+  }
+}

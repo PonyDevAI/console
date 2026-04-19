@@ -233,7 +233,7 @@ export const mockSkillRepos: SkillRepo[] = [
 ];
 
 export const mockSettings: Settings = {
-  storage_path: "~/.console",
+  storage_path: "~/.cloudcode",
   default_worker: "claude",
   theme: "dark",
   log_level: "info",

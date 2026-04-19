@@ -3,19 +3,19 @@ use chrono::Utc;
 use tokio::sync::Mutex;
 
 use crate::models::{AgentBinding, DispatchHistory, DispatchRecord, Employee, EmployeesState, PersonaFiles, SoulFiles, EmployeeStatus, EmployeeType};
-use crate::storage::{read_json, write_json, ConsolePaths};
+use crate::storage::{read_json, write_json, CloudCodePaths};
 use std::fs;
 
 static STATE: Mutex<Option<EmployeesState>> = Mutex::const_new(None);
 
 pub fn load() -> Result<EmployeesState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let state = read_json(&paths.employees_file()).unwrap_or_else(|_| EmployeesState { employees: vec![] });
     Ok(state)
 }
 
 pub fn save(state: &EmployeesState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     write_json(&paths.employees_file(), state)?;
     Ok(())
 }
@@ -82,7 +82,7 @@ pub async fn create(
         remote_agent_name: remote_agent_name.map(String::from),
     };
     
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let emp_dir = paths.employee_dir(&id);
     fs::create_dir_all(&emp_dir)?;
     
@@ -171,7 +171,7 @@ pub async fn delete(id: &str) -> Result<()> {
         anyhow::bail!("Employee not found");
     }
     
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let emp_dir = paths.employee_dir(id);
     if emp_dir.exists() {
         fs::remove_dir_all(&emp_dir)?;
@@ -182,7 +182,7 @@ pub async fn delete(id: &str) -> Result<()> {
 }
 
 pub fn read_soul_files(id: &str) -> Result<SoulFiles> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     
     let soul = fs::read_to_string(paths.employee_soul_file(id))
         .unwrap_or_default();
@@ -195,7 +195,7 @@ pub fn read_soul_files(id: &str) -> Result<SoulFiles> {
 }
 
 pub fn write_soul_files(id: &str, soul_files: &SoulFiles) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let emp_dir = paths.employee_dir(id);
     fs::create_dir_all(&emp_dir)?;
     
@@ -207,7 +207,7 @@ pub fn write_soul_files(id: &str, soul_files: &SoulFiles) -> Result<()> {
 }
 
 pub fn read_persona_files(id: &str) -> Result<PersonaFiles> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     
     let identity = fs::read_to_string(paths.employee_identity_file(id))
         .unwrap_or_default();
@@ -222,7 +222,7 @@ pub fn read_persona_files(id: &str) -> Result<PersonaFiles> {
 }
 
 pub fn write_persona_files(id: &str, persona: &PersonaFiles) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let emp_dir = paths.employee_dir(id);
     fs::create_dir_all(&emp_dir)?;
     
@@ -356,7 +356,7 @@ pub async fn delete_binding(id: &str, binding_id: &str) -> Result<Employee> {
 }
 
 pub fn append_dispatch_record(id: &str, record: DispatchRecord) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let path = paths.employee_history_file(id);
     let mut history: DispatchHistory = if path.exists() {
         read_json(&path).unwrap_or_default()
@@ -370,7 +370,7 @@ pub fn append_dispatch_record(id: &str, record: DispatchRecord) -> Result<()> {
 }
 
 pub fn get_dispatch_history(id: &str) -> Result<DispatchHistory> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let path = paths.employee_history_file(id);
     if !path.exists() {
         return Ok(Default::default());

@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 pub async fn run(version: Option<String>) -> Result<()> {
-    let paths = crate::storage::ConsolePaths::default();
+    let paths = crate::storage::CloudCodePaths::default();
     let versions_dir = paths.root.join("versions");
 
     if !versions_dir.exists() {

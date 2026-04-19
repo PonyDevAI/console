@@ -5,7 +5,7 @@ This file records assumptions made for early implementation and questions that s
 ## Assumptions
 - A single local CloudCode daemon process is sufficient for initial management and coordination.
 - Worker CLIs are installed and available on PATH for the local user running CloudCode.
-- File-based state in `~/.console/` is acceptable for initial reliability and recovery expectations.
+- File-based state in `~/.cloudcode/` is acceptable for initial reliability and recovery expectations.
 - Each CLI tool has a known config directory and file format that the adapter can read/write.
 - CloudCode's config sync engine is the primary way to push unified config to CLI tools.
 

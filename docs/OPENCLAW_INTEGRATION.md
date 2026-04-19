@@ -63,7 +63,7 @@ When connecting to OpenClaw Gateway, the following headers are required:
    - **Token**: Gateway authentication token
    - **Origin**: e.g., `http://100.69.109.88:11744`
 
-2. CloudCode stores these in `~/.console/agent_sources.json`
+2. CloudCode stores these in `~/.cloudcode/agent_sources.json`
 
 ### Testing a Source
 

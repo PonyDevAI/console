@@ -474,10 +474,10 @@ enum RuntimeErrorCode {
 
 ## 13. 存储建议
 
-在 `~/.console/` 下新增或复用：
+在 `~/.cloudcode/` 下新增或复用：
 
 ```text
-~/.console/
+~/.cloudcode/
   sessions/
     meta.json
     <session_id>/

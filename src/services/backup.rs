@@ -1,4 +1,4 @@
-use crate::storage::ConsolePaths;
+use crate::storage::CloudCodePaths;
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -13,7 +13,7 @@ const STATE_FILES: &[&str] = &[
 ];
 
 pub fn list() -> Result<Vec<crate::models::BackupMeta>> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let dir = paths.backups_dir();
     let mut metas = vec![];
 
@@ -35,7 +35,7 @@ pub fn list() -> Result<Vec<crate::models::BackupMeta>> {
 }
 
 pub fn create(label: &str) -> Result<crate::models::BackupMeta> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let state_dir = paths.state_dir();
     let backups_dir = paths.backups_dir();
 
@@ -90,7 +90,7 @@ pub fn create(label: &str) -> Result<crate::models::BackupMeta> {
 }
 
 pub fn restore(id: &str) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let backup_path = find_backup_path(id)?;
     let content = std::fs::read_to_string(&backup_path)?;
     let snapshot: crate::models::BackupSnapshot = serde_json::from_str(&content)?;
@@ -116,7 +116,7 @@ pub fn delete(id: &str) -> Result<()> {
 }
 
 fn find_backup_path(id: &str) -> Result<std::path::PathBuf> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let dir = paths.backups_dir();
     for entry in std::fs::read_dir(&dir)?.flatten() {
         let path = entry.path();

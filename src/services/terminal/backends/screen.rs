@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
-use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::env;
 use std::sync::{Arc, Mutex};

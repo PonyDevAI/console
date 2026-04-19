@@ -3,17 +3,17 @@ use chrono::Utc;
 use std::fs;
 use std::sync::Mutex;
 use crate::models::{Session, SessionMeta, SessionMessage, SessionParticipant};
-use crate::storage::{ConsolePaths, read_json, write_json};
+use crate::storage::{CloudCodePaths, read_json, write_json};
 
 static MESSAGES_LOCK: Mutex<()> = Mutex::new(());
 
 fn load_meta() -> Result<SessionMeta> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     read_json(&paths.session_meta_file()).or_else(|_| Ok(SessionMeta::default()))
 }
 
 fn save_meta(meta: &SessionMeta) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     write_json(&paths.session_meta_file(), meta)
 }
 
@@ -24,7 +24,7 @@ pub fn list() -> Result<Vec<Session>> {
 }
 
 pub async fn create(title: &str, participant_ids: &[String]) -> Result<Session> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
 
     let employees = crate::services::employee::list().await?;
     let participants: Vec<SessionParticipant> = participant_ids.iter()
@@ -77,7 +77,7 @@ pub fn get(id: &str) -> Result<Session> {
 }
 
 pub fn delete(id: &str) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let mut meta = load_meta()?;
     meta.sessions.retain(|s| s.id != id);
     save_meta(&meta)?;
@@ -87,7 +87,7 @@ pub fn delete(id: &str) -> Result<()> {
 }
 
 pub fn list_messages(session_id: &str) -> Result<Vec<SessionMessage>> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let path = paths.session_messages_file(session_id);
     if !path.exists() { return Ok(vec![]); }
     read_json(&path)
@@ -95,7 +95,7 @@ pub fn list_messages(session_id: &str) -> Result<Vec<SessionMessage>> {
 
 pub fn append_message(session_id: &str, msg: SessionMessage) -> Result<()> {
     let _guard = MESSAGES_LOCK.lock().unwrap();
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let path = paths.session_messages_file(session_id);
     let mut messages: Vec<SessionMessage> = if path.exists() {
         read_json(&path).unwrap_or_default()

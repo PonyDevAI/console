@@ -1,20 +1,20 @@
 use anyhow::Result;
 
 use crate::models::{Skill, SkillManifest, SkillRepo, SkillReposState, SkillsState};
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 fn skills_state_file() -> std::path::PathBuf {
-    ConsolePaths::default().skills_file()
+    CloudCodePaths::default().skills_file()
 }
 
 fn skill_repos_state_file() -> std::path::PathBuf {
-    ConsolePaths::default().skill_repos_file()
+    CloudCodePaths::default().skill_repos_file()
 }
 
 fn cache_dir() -> std::path::PathBuf {
     dirs::home_dir()
         .expect("home dir not found")
-        .join(".console")
+        .join(".cloudcode")
         .join("cache")
         .join("repos")
 }
@@ -258,7 +258,7 @@ pub async fn install_from_url(name: &str, source_url: &str, apps: Vec<String>) -
     let resp = client.get(source_url).send().await?;
     let content = resp.error_for_status()?.text().await?;
 
-    let skills_dir = ConsolePaths::default().skills_dir();
+    let skills_dir = CloudCodePaths::default().skills_dir();
     let skill_dir = skills_dir.join(name);
     fs::create_dir_all(&skill_dir)?;
 
@@ -313,7 +313,7 @@ pub fn install_from_zip(zip_data: &[u8]) -> Result<Vec<Skill>> {
         }
     }
 
-    let skills_dir = ConsolePaths::default().skills_dir();
+    let skills_dir = CloudCodePaths::default().skills_dir();
     fs::create_dir_all(&skills_dir)?;
 
     for entry in fs::read_dir(&temp_dir)? {
@@ -379,7 +379,7 @@ pub fn import_from_app(app: &str) -> Result<Vec<Skill>> {
         return Ok(vec![]);
     }
 
-    let skills_dir = ConsolePaths::default().skills_dir();
+    let skills_dir = CloudCodePaths::default().skills_dir();
     fs::create_dir_all(&skills_dir)?;
 
     let mut state = load()?;

@@ -5,13 +5,13 @@ use crate::models::{Agent, AgentStatus, AgentType, AgentsState};
 use crate::services::agent_source;
 
 pub fn load() -> Result<AgentsState> {
-    let paths = crate::storage::ConsolePaths::default();
+    let paths = crate::storage::CloudCodePaths::default();
     crate::storage::read_json(&paths.agents_file())
         .or_else(|_| Ok(AgentsState { agents: vec![] }))
 }
 
 pub fn save(state: &AgentsState) -> Result<()> {
-    let paths = crate::storage::ConsolePaths::default();
+    let paths = crate::storage::CloudCodePaths::default();
     crate::storage::write_json(&paths.agents_file(), state)
 }
 

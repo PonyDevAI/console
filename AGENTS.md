@@ -62,9 +62,18 @@ Deferred to later phases:
 ## UI model
 
 - Web UI is the primary management interface (similar to an admin panel).
+- Desktop is a separate application surface and must keep an independent UI from the web dashboard during the current migration phase.
 - Key pages: Dashboard, Version Management, Provider Management, MCP Management, Skills Management, Prompt Management.
 - Run execution UI is preserved but deprioritized.
 - Default streaming transport is **SSE** unless a strong reason requires another transport.
+
+## Multi-surface migration rules
+
+- `apps/server` and `apps/desktop/src-tauri` are separate Rust application shells.
+- `apps/mobile/android` and `apps/mobile/ios` are separate future mobile shells and should not be treated as UI variants of the web app.
+- They may share lower crates and contracts, but should not be coupled through the server route layer.
+- Prefer sharing contracts, adapters, storage, sync, and runtime building blocks before sharing UI.
+- Do not introduce a shared UI library until both web and desktop surfaces have stabilized enough to reveal true overlap.
 
 ## Default implementation stack
 
@@ -83,6 +92,45 @@ Deferred to later phases:
 - When behavior or architecture changes, update relevant docs under `docs/` in the same change.
 - Ensure docs describe user-visible behavior and architectural intent.
 - Record meaningful architectural decisions as they are made.
+
+## Agent Delivery Contract
+
+Every meaningful change is a multi-part delivery:
+
+1. code
+2. config/schema changes if needed
+3. canonical doc updates if needed
+4. validation evidence
+
+A task is not complete when only code changes.
+
+## Testing And Validation Rules
+
+- `docs/testing/` is the canonical testing surface for this repo.
+- `docs/DEVELOPMENT.md` explains how to work in the repo; it does not define testing truth.
+- `Makefile`, CLI commands, CI jobs, and helper scripts are execution surfaces only.
+- `make check` proves static validation only.
+- `make test` proves unit or narrow integration execution only.
+- `make doctor` proves diagnostics only.
+- `make scan` proves discovery only.
+- Claims about adapter correctness, native config paths, or config sync require evidence that matches the relevant testing spec.
+- If behavior, validation flow, or config sync semantics change, update the matching docs in the same change.
+
+## Canonical Doc Update Rules
+
+- If current behavior changes, update the relevant canonical docs under `docs/`.
+- If testing or validation flow changes, update `docs/testing/*.md`.
+- If command semantics change, update `docs/DEVELOPMENT.md` and `docs/CLI.md` as needed.
+- If architecture boundaries change, update `docs/ARCHITECTURE.md` and any affected domain docs.
+
+## Reporting Rules
+
+When reporting validation, distinguish explicitly between:
+
+- `implemented`
+- `validated_static`
+- `validated_local`
+- `validated_host_cli`
 
 ## What not to build yet
 

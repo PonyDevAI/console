@@ -7,23 +7,17 @@ use axum::{
 };
 use axum::extract::ws::{Message, WebSocket};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use cloudcode_contracts::terminal::{
+    ClientMessage, CreateSessionRequest, ServerMessage, TerminalWsQuery,
+};
 use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
-use serde::Deserialize;
 
-use crate::services::terminal::{
-    BackendsResponse, ClientMessage, CreateSessionRequest, ServerMessage, TerminalService,
-};
+use crate::services::terminal::TerminalService;
 
 #[derive(Clone)]
 pub struct TerminalApiState {
     pub terminal_service: Arc<TerminalService>,
-}
-
-#[derive(Debug, Deserialize)]
-struct TerminalWsQuery {
-    cols: Option<u16>,
-    rows: Option<u16>,
 }
 
 pub fn router() -> Router<TerminalApiState> {

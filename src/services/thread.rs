@@ -1,18 +1,10 @@
 use crate::runtime::{RuntimeEvent, RuntimeMessage, RuntimeRequest, RuntimeRole, RuntimeTarget};
-use crate::storage::{read_json, write_json, ConsolePaths};
+use crate::storage::{read_json, write_json, CloudCodePaths};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use cloudcode_contracts::threads::{ThreadAttachment, ThreadRuntimeProfile};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
-/// Thread runtime configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThreadRuntimeProfile {
-    pub adapter: String,
-    pub model: String,
-    pub reasoning_effort: String,
-    pub permission_mode: String,
-}
 
 /// Thread metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,13 +15,6 @@ pub struct Thread {
     pub runtime: ThreadRuntimeProfile,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-}
-
-/// Attachment in a thread message
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThreadAttachment {
-    pub name: String,
-    pub path: String,
 }
 
 /// Message in a thread
@@ -62,21 +47,21 @@ pub struct ThreadRunRef {
 }
 
 pub struct ThreadService {
-    storage: ConsolePaths,
+    storage: CloudCodePaths,
     runtime_manager: Option<Arc<crate::runtime::RuntimeManager>>,
 }
 
 impl ThreadService {
     pub fn new() -> Self {
         Self {
-            storage: ConsolePaths::default(),
+            storage: CloudCodePaths::default(),
             runtime_manager: None,
         }
     }
 
     pub fn with_runtime_manager(runtime_manager: Arc<crate::runtime::RuntimeManager>) -> Self {
         Self {
-            storage: ConsolePaths::default(),
+            storage: CloudCodePaths::default(),
             runtime_manager: Some(runtime_manager),
         }
     }

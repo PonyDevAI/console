@@ -2,12 +2,26 @@
 
 CloudCode is designed around a management plane / execution plane separation, with a config sync engine as the core integration layer.
 
+## Current transition note
+
+The repository has started extracting shared API contracts into `crates/cloudcode-contracts/` as the first step toward a split between:
+
+- a dedicated server application
+- a dedicated desktop application
+- shared Rust core crates
+
+At this stage, the server still runs from the root package, but route-layer DTOs should begin moving into the contracts crate instead of being defined inline in API files.
+The repo also includes a transitional `apps/server/` crate that reuses the current root library while deeper crate extraction is still in progress.
+The desktop shell lives in `apps/desktop/` and is intentionally UI-independent from the web dashboard.
+Desktop and server are separate Rust application shells. They may share lower crates, but the desktop shell should not embed the server application's route layer as its primary integration path.
+Reserved mobile application paths now live under `apps/mobile/android/` and `apps/mobile/ios/` so future mobile work follows the same shell separation model.
+
 ## 1) Management plane (primary focus)
 
 The management plane is the CloudCode daemon and backend API.
 
 Responsibilities:
-- Load and persist local config/state under `~/.console/`.
+- Load and persist local config/state under `~/.cloudcode/`.
 - Manage CLI tool version lifecycle (detect, install, upgrade, uninstall).
 - Manage provider/model configurations and active provider switching.
 - Manage MCP server configurations with per-app enable/disable.
@@ -70,10 +84,10 @@ New CLIs can be added by implementing this trait.
 
 ## 5) Storage model
 
-Local file-based storage under `~/.console/`:
+Local file-based storage under `~/.cloudcode/`:
 
 ```text
-~/.console/
+~/.cloudcode/
   config.json              # CloudCode self-config
   state/
     cli_tools.json         # Detected CLI tools and versions
@@ -88,7 +102,12 @@ Local file-based storage under `~/.console/`:
   cache/                   # Version check cache
 ```
 
-Execution-plane runtime metadata may also persist under `~/.console/`, including terminal session metadata and future runtime/session state, while keeping repositories as external source-of-truth workspaces.
+Execution-plane runtime metadata may also persist under `~/.cloudcode/`, including terminal session metadata and future runtime/session state, while keeping repositories as external source-of-truth workspaces.
+
+Server target management and local authentication object management are defined separately in:
+
+- [Server And Credential Architecture](SERVER_AND_CREDENTIAL_ARCHITECTURE.md)
+- [Server And Credential Implementation Plan](SERVER_AND_CREDENTIAL_IMPLEMENTATION_PLAN.md)
 
 ## Architecture decision records
 

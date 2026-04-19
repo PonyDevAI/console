@@ -2,11 +2,16 @@
 
 CloudCode provides a CLI for initialization and daemon management.
 
+## Validation note
+
+These commands are operational entrypoints.
+Their existence does not define testing truth; use `docs/testing/` for validation requirements.
+
 ## Commands
 
-### `console init`
+### `cloudcode init`
 
-Initialize the `~/.console/` directory structure.
+Initialize the `~/.cloudcode/` directory structure.
 
 Creates:
 - `config.json` with default settings
@@ -17,7 +22,7 @@ Creates:
 - `backups/` directory
 - `cache/` directory
 
-### `console start`
+### `cloudcode start`
 
 Start the CloudCode daemon (HTTP API server).
 
@@ -32,15 +37,19 @@ Show daemon status and basic system info.
 ### `console doctor`
 
 Run diagnostic checks:
-- Verify `~/.console/` directory structure.
+- Verify `~/.cloudcode/` directory structure.
 - Detect installed CLI tools and their versions.
 - Check for version updates.
 - Validate config file integrity.
 - Report any issues with suggested fixes.
 
+This command is a diagnostic helper. It does not prove adapter correctness or host CLI compatibility by itself.
+
 ### `console scan`
 
 Scan for installed CLI tools and update `state/cli_tools.json`.
+
+This command proves discovery only. It does not prove install, upgrade, or native config correctness by itself.
 
 ### `console sync (planned)`
 
@@ -55,7 +64,7 @@ Sync CloudCode configuration to all managed CLI tools:
 
 > Not yet implemented.
 
-Create a backup of current configuration under `~/.console/backups/`.
+Create a backup of current configuration under `~/.cloudcode/backups/`.
 
 Options:
 - `--name <name>` — custom backup name (default: timestamp-based)

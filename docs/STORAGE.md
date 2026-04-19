@@ -1,11 +1,11 @@
 # Storage Model
 
-CloudCode uses local file-based storage under `~/.console/`. SQLite is deferred until query needs justify it.
+CloudCode uses local file-based storage under `~/.cloudcode/`. SQLite is deferred until query needs justify it.
 
 ## Directory layout
 
 ```text
-~/.console/
+~/.cloudcode/
   config.json              # CloudCode self-config (port, theme, etc.)
   state/
     cli_tools.json         # Detected CLI tools and version info
@@ -15,7 +15,7 @@ CloudCode uses local file-based storage under `~/.console/`. SQLite is deferred 
     workspaces.json        # Workspace registrations (preserved)
     terminal_sessions.json # Terminal session metadata
     execution_targets.json # Local/remote terminal target metadata
-  credentials/             # API keys and secrets (separate from general config)
+  credentials/             # Managed secrets and auth credentials (separate from general config)
   skills/                  # SSOT skill repository
   logs/                    # Daemon and run logs
   backups/                 # Config backups (auto-rotate, keep 10)
@@ -88,7 +88,12 @@ CloudCode uses local file-based storage under `~/.console/`. SQLite is deferred 
 
 ## Credential storage
 
-API keys are stored as separate files under `credentials/`, referenced by pointer from provider configs. This keeps secrets out of general state files.
+Credentials are stored under `credentials/` and referenced by pointer from higher-level configs. This includes API keys today and should also be the storage boundary for future server password and private-key credentials. General state files should store references only, not secret plaintext.
+
+For server/private-key planning, see:
+
+- [Server And Credential Architecture](SERVER_AND_CREDENTIAL_ARCHITECTURE.md)
+- [Server And Credential Implementation Plan](SERVER_AND_CREDENTIAL_IMPLEMENTATION_PLAN.md)
 
 ## Backup model
 
@@ -100,12 +105,12 @@ CloudCode does not relocate or mirror repositories. Repository paths remain wher
 
 ## Terminal runtime persistence
 
-Persistent terminal sessions are stored as CloudCode-owned metadata under `~/.console/`. Terminal metadata belongs to the execution plane and must not be written into project repositories.
+Persistent terminal sessions are stored as CloudCode-owned metadata under `~/.cloudcode/`. Terminal metadata belongs to the execution plane and must not be written into project repositories.
 
 Suggested layout:
 
 ```text
-~/.console/
+~/.cloudcode/
   state/
     terminal_sessions.json
     execution_targets.json

@@ -3,10 +3,10 @@ use std::path::PathBuf;
 
 use crate::adapters;
 use crate::models::Skill;
-use crate::storage::ConsolePaths;
+use crate::storage::CloudCodePaths;
 
 fn ssot_dir() -> PathBuf {
-    ConsolePaths::default().root.join("skills")
+    CloudCodePaths::default().root.join("skills")
 }
 
 fn app_skills_dir(app_name: &str) -> Result<PathBuf> {

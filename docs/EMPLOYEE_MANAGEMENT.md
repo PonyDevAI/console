@@ -50,7 +50,7 @@ type Employee = {
 仅本地员工需要维护 persona 文件：
 
 ```text
-~/.console/employees/<employee_id>/
+~/.cloudcode/employees/<employee_id>/
   identity.md    # 身份定义
   soul.md        # 工作风格
   skills.md      # 技能列表
@@ -87,9 +87,9 @@ employee.model > agent_source.default_model > runtime_builtin_default
 
 ## 存储结构
 
-员工状态存储在 `~/.console/state/employees.json`。
+员工状态存储在 `~/.cloudcode/state/employees.json`。
 
-员工目录在 `~/.console/employees/<employee_id>/`。
+员工目录在 `~/.cloudcode/employees/<employee_id>/`。
 
 ## API 接口
 

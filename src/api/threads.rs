@@ -4,11 +4,15 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use cloudcode_contracts::threads::{
+    CreateThreadRequest, SendMessageResponse, SendMessageRequest, ThreadMessageDto,
+    ThreadRuntimeProfile, UpdateThreadTitleRequest, WorkspaceInspectResult,
+};
+use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::runtime::{RuntimeGateway, RuntimeManager};
-use crate::services::thread::{ThreadService, ThreadRuntimeProfile, ThreadAttachment};
+use crate::services::thread::ThreadService;
 use crate::runtime::stream::{ThreadSseStream, sse_response};
 
 /// Shared state for thread routes
@@ -31,57 +35,6 @@ impl ThreadState {
             runtime_manager,
         }
     }
-}
-
-/// Request to create a thread
-#[derive(Debug, Deserialize)]
-pub struct CreateThreadRequest {
-    pub title: String,
-    pub workspace: String,
-    pub runtime: ThreadRuntimeConfig,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ThreadRuntimeConfig {
-    pub adapter: String,
-    pub model: String,
-    pub reasoning_effort: String,
-    pub permission_mode: String,
-}
-
-/// Request to send a message
-#[derive(Debug, Deserialize)]
-pub struct SendMessageRequest {
-    pub content: String,
-    #[serde(default)]
-    pub attachments: Vec<ThreadAttachment>,
-    // Keep for API compatibility even if unused internally
-    #[serde(default)]
-    pub _stream: bool,
-}
-
-/// Request to update thread title
-#[derive(Debug, Deserialize)]
-pub struct UpdateTitleRequest {
-    pub title: String,
-}
-
-/// Response for sending a message
-#[derive(Debug, Serialize)]
-pub struct SendMessageResponse {
-    pub thread_id: String,
-    pub run_id: String,
-    pub user_message: crate::services::thread::ThreadMessage,
-    pub assistant_message: crate::services::thread::ThreadMessage,
-}
-
-/// Response for workspace inspect
-#[derive(Debug, Serialize)]
-pub struct WorkspaceInspectResult {
-    pub path: String,
-    pub display_name: String,
-    pub git_branch: Option<String>,
-    pub is_git_repo: bool,
 }
 
 pub fn thread_routes(state: Arc<ThreadState>) -> Router {
@@ -163,7 +116,7 @@ async fn delete_thread(
 async fn update_thread_title(
     State(state): State<Arc<ThreadState>>,
     Path(id): Path<String>,
-    Json(req): Json<UpdateTitleRequest>,
+    Json(req): Json<UpdateThreadTitleRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, &'static str)> {
     let thread = state.thread_service.update_thread_title(&id, req.title)
         .map_err(|e| {
@@ -246,8 +199,28 @@ async fn send_message(
     Ok(Json(SendMessageResponse {
         thread_id,
         run_id: run.id,
-        user_message,
-        assistant_message,
+        user_message: ThreadMessageDto {
+            id: user_message.id.clone(),
+            thread_id: user_message.thread_id.clone(),
+            role: user_message.role.clone(),
+            content: user_message.content.clone(),
+            status: user_message.status.clone(),
+            error: user_message.error.clone(),
+            attachments: user_message.attachments.clone(),
+            created_at: user_message.created_at,
+            run_id: user_message.run_id.clone(),
+        },
+        assistant_message: ThreadMessageDto {
+            id: assistant_message.id.clone(),
+            thread_id: assistant_message.thread_id.clone(),
+            role: assistant_message.role.clone(),
+            content: assistant_message.content.clone(),
+            status: assistant_message.status.clone(),
+            error: assistant_message.error.clone(),
+            attachments: assistant_message.attachments.clone(),
+            created_at: assistant_message.created_at,
+            run_id: assistant_message.run_id.clone(),
+        },
     }))
 }
 

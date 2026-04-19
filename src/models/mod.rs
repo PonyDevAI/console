@@ -2,6 +2,38 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[allow(unused_imports)]
+pub use cloudcode_contracts::agent_sources::{
+    CreateAgentSourceRequest, SetDefaultModelRequest, UpdateAgentSourceRequest,
+};
+#[allow(unused_imports)]
+pub use cloudcode_contracts::common::SwitchMode;
+#[allow(unused_imports)]
+pub use cloudcode_contracts::employees::{
+    CreateEmployeeRequest, PersonaFiles, SoulFiles, UpdateEmployeeRequest,
+};
+#[allow(unused_imports)]
+pub use cloudcode_contracts::mcp::{CreateMcpServerRequest, McpTransport};
+#[allow(unused_imports)]
+pub use cloudcode_contracts::prompts::{CreatePromptRequest, UpdatePromptRequest};
+#[allow(unused_imports)]
+pub use cloudcode_contracts::providers::{
+    CreateProviderRequest, ImportProvidersRequest, SetModelAssignmentRequest, SetSwitchModeRequest,
+};
+#[allow(unused_imports)]
+pub use cloudcode_contracts::remote_agents::{
+    CreateRemoteAgentRequest, UpdateRemoteAgentRequest,
+};
+#[allow(unused_imports)]
+pub use cloudcode_contracts::sessions::{
+    CreateProposalRequest, CreateSessionRequest, PostMessageRequest, UpdateParticipantsRequest,
+    UpdateSessionTitleRequest,
+};
+#[allow(unused_imports)]
+pub use cloudcode_contracts::skills::{
+    AddSkillRepoRequest, InstallFromUrlRequest, ToggleSkillRepoRequest, UpdateSkillRequest,
+};
+
 // ── CLI Tool ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,16 +130,6 @@ pub struct Provider {
     pub modified_at: DateTime<Utc>,
 }
 
-/// Provider switching mode per CLI tool.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SwitchMode {
-    /// Only one provider active at a time.
-    Switch,
-    /// All providers coexist in config.
-    Additive,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvidersState {
     pub providers: Vec<Provider>,
@@ -117,16 +139,6 @@ pub struct ProvidersState {
 
 fn default_switch_modes() -> std::collections::HashMap<String, SwitchMode> {
     std::collections::HashMap::new()
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateProviderRequest {
-    pub name: String,
-    pub api_endpoint: String,
-    pub api_key_ref: String,
-    pub apps: Vec<String>,
-    #[serde(default)]
-    pub models: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,27 +169,8 @@ pub struct McpServer {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum McpTransport {
-    Stdio,
-    Http,
-    Sse,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServersState {
     pub servers: Vec<McpServer>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateMcpServerRequest {
-    pub name: String,
-    pub transport: McpTransport,
-    pub command: Option<String>,
-    pub args: Vec<String>,
-    pub url: Option<String>,
-    pub env: std::collections::HashMap<String, String>,
-    pub enabled_apps: Vec<String>,
 }
 
 // ── Skill ──
@@ -254,7 +247,7 @@ pub struct PromptsState {
 // ── Config ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConsoleConfig {
+pub struct CloudCodeConfig {
     pub version: String,
     pub server: ServerConfig,
 }
@@ -264,7 +257,7 @@ pub struct ServerConfig {
     pub address: String,
 }
 
-impl Default for ConsoleConfig {
+impl Default for CloudCodeConfig {
     fn default() -> Self {
         Self {
             version: "0.1.0".to_string(),
@@ -386,30 +379,6 @@ pub struct RemoteAgentsState {
     pub agents: Vec<RemoteAgent>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateRemoteAgentRequest {
-    pub name: String,
-    pub display_name: String,
-    pub endpoint: String,
-    pub api_key: Option<String>,
-    #[serde(default)]
-    pub tags: Vec<String>,
-    #[serde(default)]
-    pub source_type: Option<String>,
-    #[serde(default)]
-    pub origin: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct UpdateRemoteAgentRequest {
-    pub display_name: Option<String>,
-    pub endpoint: Option<String>,
-    pub api_key: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub source_type: Option<String>,
-    pub origin: Option<String>,
-}
-
 // ── AI Employee ──
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -468,32 +437,6 @@ pub struct EmployeesState {
     pub employees: Vec<Employee>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct SoulFiles {
-    pub soul: String,
-    pub skills: String,
-    pub rules: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct PersonaFiles {
-    pub identity: String,
-    pub soul: String,
-    pub skills: String,
-    pub rules: String,
-}
-
-impl From<SoulFiles> for PersonaFiles {
-    fn from(sf: SoulFiles) -> Self {
-        PersonaFiles {
-            identity: String::new(),
-            soul: sf.soul,
-            skills: sf.skills,
-            rules: sf.rules,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentBinding {
     pub id: String,
@@ -524,52 +467,6 @@ pub enum AgentProtocol {
         executable: String,
         soul_arg: String,
     },
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct CreateEmployeeRequest {
-    pub name: String,
-    #[serde(default)]
-    pub display_name: Option<String>,
-    pub agent_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    #[serde(default)]
-    pub avatar_color: Option<String>,
-    #[serde(default)]
-    pub tags: Vec<String>,
-    #[doc = "Legacy field - ignored by main create logic"]
-    #[serde(default)]
-    pub role: Option<String>,
-    #[doc = "Legacy field - ignored by main create logic"]
-    #[serde(default)]
-    pub employee_type: Option<EmployeeType>,
-    #[doc = "Legacy field - ignored by main create logic"]
-    #[serde(default)]
-    pub source_id: Option<String>,
-    #[doc = "Legacy field - ignored by main create logic"]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub remote_agent_name: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Default)]
-pub struct UpdateEmployeeRequest {
-    pub display_name: Option<String>,
-    pub agent_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    pub avatar_color: Option<String>,
-    #[serde(default)]
-    pub tags: Option<Vec<String>>,
-    #[doc = "Legacy field - ignored by main update logic"]
-    #[serde(default)]
-    pub role: Option<String>,
-    #[doc = "Legacy field - ignored by main update logic"]
-    #[serde(default)]
-    pub source_id: Option<String>,
-    #[doc = "Legacy field - ignored by main update logic"]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub remote_agent_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -664,25 +561,6 @@ pub struct SessionMeta {
     pub sessions: Vec<Session>,
 }
 
-// ── Requests ──
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateSessionRequest {
-    pub title: String,
-    pub participant_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PostMessageRequest {
-    pub content: String,
-    pub mentions: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdateSessionTitleRequest {
-    pub title: String,
-}
-
 // ── Task Proposal ──
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -712,17 +590,4 @@ pub struct TaskProposal {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProposalsState {
     pub proposals: Vec<TaskProposal>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateProposalRequest {
-    pub title: String,
-    pub description: String,
-    pub assigned_employee_id: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct UpdateParticipantsRequest {
-    pub add: Vec<String>,
-    pub remove: Vec<String>,
 }

@@ -2,15 +2,15 @@ use anyhow::Result;
 use std::collections::HashMap;
 
 use crate::models::{CreateMcpServerRequest, McpServer, McpServersState};
-use crate::storage::{self, ConsolePaths};
+use crate::storage::{self, CloudCodePaths};
 
 fn load() -> Result<McpServersState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::read_json(&paths.mcp_servers_file())
 }
 
 fn save(state: &McpServersState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     storage::write_json(&paths.mcp_servers_file(), state)
 }
 

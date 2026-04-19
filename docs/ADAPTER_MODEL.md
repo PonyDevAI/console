@@ -83,6 +83,6 @@ CloudCode unified config
 
 ## Security
 
-- Credentials are stored under `~/.console/credentials/`, not in adapter config files.
+- Credentials are stored under `~/.cloudcode/credentials/`, not in adapter config files.
 - Adapters write API key references, not raw keys, into CLI configs where possible.
 - Minimize secret exposure in logs and events.

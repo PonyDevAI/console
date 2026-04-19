@@ -3,22 +3,22 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Paths under ~/.console/
+/// Paths under ~/.cloudcode/
 #[derive(Clone)]
-pub struct ConsolePaths {
+pub struct CloudCodePaths {
     pub root: PathBuf,
 }
 
-impl Default for ConsolePaths {
+impl Default for CloudCodePaths {
     fn default() -> Self {
         let home = dirs::home_dir().expect("cannot determine home directory");
         Self {
-            root: home.join(".console"),
+            root: home.join(".cloudcode"),
         }
     }
 }
 
-impl ConsolePaths {
+impl CloudCodePaths {
     pub fn state_dir(&self) -> PathBuf {
         self.root.join("state")
     }
@@ -176,7 +176,7 @@ impl ConsolePaths {
     pub fn init_default_files(&self) -> Result<()> {
         let config = self.config_file();
         if !config.exists() {
-            write_json(&config, &crate::models::ConsoleConfig::default())?;
+            write_json(&config, &crate::models::CloudCodeConfig::default())?;
         }
         let tools = self.cli_tools_file();
         if !tools.exists() {

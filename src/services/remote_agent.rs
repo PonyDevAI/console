@@ -4,18 +4,18 @@ use std::time::Instant;
 use tokio::sync::Mutex;
 
 use crate::models::{RemoteAgent, RemoteAgentStatus, RemoteAgentsState};
-use crate::storage::{read_json, write_json, ConsolePaths};
+use crate::storage::{read_json, write_json, CloudCodePaths};
 
 static STATE: Mutex<Option<RemoteAgentsState>> = Mutex::const_new(None);
 
 pub fn load() -> Result<RemoteAgentsState> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     let state = read_json(&paths.remote_agents_file()).unwrap_or_else(|_| RemoteAgentsState { agents: vec![] });
     Ok(state)
 }
 
 pub fn save(state: &RemoteAgentsState) -> Result<()> {
-    let paths = ConsolePaths::default();
+    let paths = CloudCodePaths::default();
     write_json(&paths.remote_agents_file(), state)?;
     Ok(())
 }

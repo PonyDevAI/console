@@ -5,9 +5,9 @@ pub async fn run(purge: bool, yes: bool) -> Result<()> {
     if !yes {
         println!("This will remove CloudCode binary and web assets.");
         if purge {
-            println!("Purge is enabled: ~/.console will be removed completely.");
+            println!("Purge is enabled: ~/.cloudcode will be removed completely.");
         } else {
-            println!("Config/state under ~/.console will be kept.");
+            println!("Config/state under ~/.cloudcode will be kept.");
         }
         print!("Continue? [y/N]: ");
         io::stdout().flush()?;
@@ -21,7 +21,7 @@ pub async fn run(purge: bool, yes: bool) -> Result<()> {
         }
     }
 
-    let paths = crate::storage::ConsolePaths::default();
+    let paths = crate::storage::CloudCodePaths::default();
     let installed_bin = paths.root.join("bin").join("console");
 
     // Always target the installed binary, not the currently running executable.
@@ -29,7 +29,7 @@ pub async fn run(purge: bool, yes: bool) -> Result<()> {
         std::fs::remove_file(&installed_bin)?;
     }
 
-    let web_dir = paths.root.join("dashboard");
+    let web_dir = paths.root.join("web");
     if web_dir.exists() {
         std::fs::remove_dir_all(&web_dir)?;
     }
@@ -44,7 +44,7 @@ pub async fn run(purge: bool, yes: bool) -> Result<()> {
 
     if purge && paths.root.exists() {
         std::fs::remove_dir_all(&paths.root)?;
-        println!("CloudCode removed, including ~/.console");
+        println!("CloudCode removed, including ~/.cloudcode");
     } else {
         println!("CloudCode removed. Preserved config at {}", paths.root.display());
     }
@@ -61,21 +61,15 @@ fn clean_shell_rc(bin_dir: &std::path::Path) {
 
     let dynamic_path_line = format!(r#"export PATH="{}:$PATH""#, bin_dir.display());
     let dynamic_fish_line = format!("set -gx PATH {} $PATH", bin_dir.display());
-    // Backward compatibility for older hard-coded installers.
-    let legacy_path_line = r#"export PATH="$HOME/.console/bin:$PATH""#;
-    let legacy_fish_line = "set -gx PATH $HOME/.console/bin $PATH";
-
     for rc_path in [
         home.join(".zshrc"),
         home.join(".bashrc"),
     ] {
         remove_line_from_file(&rc_path, &dynamic_path_line);
-        remove_line_from_file(&rc_path, legacy_path_line);
     }
 
     let fish_rc = home.join(".config/fish/config.fish");
     remove_line_from_file(&fish_rc, &dynamic_fish_line);
-    remove_line_from_file(&fish_rc, legacy_fish_line);
 }
 
 fn remove_line_from_file(path: &std::path::Path, line: &str) {
