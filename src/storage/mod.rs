@@ -3,6 +3,9 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub mod credentials;
+pub mod servers;
+
 /// Paths under ~/.cloudcode/
 #[derive(Clone)]
 pub struct CloudCodePaths {
@@ -19,11 +22,36 @@ impl Default for CloudCodePaths {
 }
 
 impl CloudCodePaths {
+    pub fn from_root(root: PathBuf) -> Self {
+        Self { root }
+    }
+
     pub fn state_dir(&self) -> PathBuf {
         self.root.join("state")
     }
     pub fn credentials_dir(&self) -> PathBuf {
         self.root.join("credentials")
+    }
+    pub fn credentials_index_file(&self) -> PathBuf {
+        self.credentials_dir().join("credentials.json")
+    }
+    pub fn credentials_encrypted_dir(&self) -> PathBuf {
+        self.credentials_dir().join("encrypted")
+    }
+    pub fn credentials_master_key_file(&self) -> PathBuf {
+        self.credentials_dir().join("master.key")
+    }
+    pub fn credential_encrypted_file(&self, id: &str) -> PathBuf {
+        self.credentials_encrypted_dir().join(format!("{}.enc", id))
+    }
+    pub fn servers_dir(&self) -> PathBuf {
+        self.root.join("servers")
+    }
+    pub fn servers_file(&self) -> PathBuf {
+        self.servers_dir().join("servers.json")
+    }
+    pub fn groups_file(&self) -> PathBuf {
+        self.servers_dir().join("groups.json")
     }
     pub fn skills_dir(&self) -> PathBuf {
         self.root.join("skills")
@@ -158,6 +186,7 @@ impl CloudCodePaths {
             &self.root,
             &self.state_dir(),
             &self.credentials_dir(),
+            &self.credentials_encrypted_dir(),
             &self.skills_dir(),
             &self.logs_dir(),
             &self.backups_dir(),
@@ -165,6 +194,7 @@ impl CloudCodePaths {
             &self.employees_dir(),
             &self.sessions_dir(),
             &self.threads_dir(),
+            &self.servers_dir(),
         ];
         for d in dirs {
             fs::create_dir_all(d)?;
@@ -256,6 +286,27 @@ impl CloudCodePaths {
                 &terminal_sessions,
                 &crate::services::terminal::TerminalSessionsState::default(),
             )?;
+        }
+
+        // Initialize credential index
+        let creds = self.credentials_index_file();
+        if !creds.exists() {
+            write_json(
+                &creds,
+                &crate::models::CredentialIndex::default(),
+            )?;
+        }
+
+        // Initialize server index
+        let srv = self.servers_file();
+        if !srv.exists() {
+            write_json(&srv, &crate::models::ServerIndex::default())?;
+        }
+
+        // Initialize group index
+        let grp = self.groups_file();
+        if !grp.exists() {
+            write_json(&grp, &crate::models::GroupIndex::default())?;
         }
 
         Ok(())

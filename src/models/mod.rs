@@ -1,6 +1,14 @@
+mod credential;
+mod os_detection;
+mod server;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+pub use credential::*;
+pub use os_detection::*;
+pub use server::*;
 
 #[allow(unused_imports)]
 pub use cloudcode_contracts::agent_sources::{

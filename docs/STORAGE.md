@@ -94,6 +94,7 @@ For server/private-key planning, see:
 
 - [Server And Credential Architecture](SERVER_AND_CREDENTIAL_ARCHITECTURE.md)
 - [Server And Credential Implementation Plan](SERVER_AND_CREDENTIAL_IMPLEMENTATION_PLAN.md)
+- [Terminal Runtime](TERMINAL_RUNTIME.md)
 
 ## Backup model
 
@@ -120,7 +121,7 @@ Suggested layout:
       events.log
 ```
 
-The actual terminal backend may run via `tmux` on the CloudCode host or on a remote SSH host later, but CloudCode remains responsible only for metadata, control bindings, and audit information.
+The actual terminal backend may run via `tmux`, `screen`, or `pty` on the CloudCode host or on a remote SSH host later, but CloudCode remains responsible only for metadata, target bindings, and audit information. Only `tmux`/`screen` sessions should be restored across app restart; `pty` remains ephemeral.
 
 ## Future: SQLite
 

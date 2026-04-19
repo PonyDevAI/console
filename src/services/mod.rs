@@ -1,3 +1,5 @@
+pub mod servers;
+pub mod credentials;
 pub mod version;
 pub mod agent_source;
 pub mod agent_registry;
@@ -21,3 +23,4 @@ pub mod proposal;
 pub mod thread;
 pub mod terminal;
 pub mod openclaw;
+pub mod server_os_sync;

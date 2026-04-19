@@ -1,14 +1,14 @@
 # Terminal Runtime
 
-CloudCode's terminal runtime is part of the execution plane. It provides persistent terminal sessions for project work, future AI-controlled execution, and later remote-host expansion without coupling session lifetime to the Web UI.
+CloudCode's terminal runtime is part of the execution plane. It provides desktop terminal workspaces whose session lifetime is independent from the Web UI or desktop tab lifecycle, and it must support both local-machine and remote-server terminals behind one unified session model.
 
 ## 1. Goals
 
-- Support multiple terminal sessions on the CloudCode host.
+- Support multiple terminal sessions for both the local machine and remote servers.
 - Preserve terminal sessions across page refresh, browser disconnect, and later reconnect.
-- Bind terminal sessions to projects and, when needed, to employees.
+- Preserve persistent sessions when the backend supports reattach semantics.
 - Provide a stable control surface for future AI execution against terminal sessions.
-- Extend the same model to SSH-backed remote hosts later.
+- Reuse the same target/session model for `Local` and `Server` terminals in the desktop UI.
 
 ## 2. Non-goals
 
@@ -19,42 +19,54 @@ CloudCode's terminal runtime is part of the execution plane. It provides persist
 
 ## 3. Core model
 
-### 3.1 Project
-
-Represents a repository or working directory.
-
-Suggested fields:
-
-- `id`
-- `name`
-- `workspace_path`
-- `default_target_id`
-- `default_shell`
-
-### 3.2 ExecutionTarget
+### 3.1 ExecutionTarget
 
 Represents where a terminal session actually runs.
 
 Suggested fields:
 
 - `id`
-- `type`: `local_host` | `ssh_host`
+- `type`: `local` | `server`
 - `display_name`
-- `host`
-- `port`
-- `auth_ref`
+- `server_id` (`null` for `local`)
+- `host` (`null` for `local`)
+- `port` (`null` for `local`)
+- `credential_ref` (`null` for `local`)
+- `default_cwd`
+- `default_shell`
+- `backend_preference`: `auto` | `tmux` | `screen` | `pty`
 
-### 3.3 TerminalSession
+Rules:
 
-Represents a persistent terminal resource.
+- `Local` is a built-in execution target for the current CloudCode host. It is not modeled as a saved server record.
+- `Server` targets reference existing server-management objects.
+- Both local and remote targets use the same session model and backend priority rules.
+
+### 3.2 TerminalWorkspaceTab
+
+Represents one desktop tab bound to a terminal session.
 
 Suggested fields:
 
 - `id`
-- `project_id`
-- `employee_id`
+- `session_id`
 - `target_id`
-- `backend`: `tmux` | `pty`
+- `title`
+- `created_at`
+- `last_active_at`
+
+This is desktop UI state. It is not the terminal runtime itself.
+
+### 3.3 TerminalSession
+
+Represents one terminal runtime resource.
+
+Suggested fields:
+
+- `id`
+- `target_id`
+- `backend`: `tmux` | `screen` | `pty`
+- `persistence`: `persistent` | `ephemeral`
 - `backend_session_name`
 - `cwd`
 - `shell`
@@ -62,26 +74,20 @@ Suggested fields:
 - `created_at`
 - `updated_at`
 - `last_attached_at`
+- `last_active_at`
 
-### 3.4 EmployeeRun
+Rules:
 
-Represents one employee task execution bound to a project terminal.
-
-Suggested fields:
-
-- `id`
-- `employee_id`
-- `project_id`
-- `terminal_session_id`
-- `status`
-- `started_at`
-- `finished_at`
+- `tmux` and `screen` sessions are `persistent`.
+- `pty` sessions are `ephemeral`.
+- Only `persistent` sessions participate in restore/reattach after app restart.
+- `ephemeral` sessions are valid runtime sessions but are not restorable.
 
 ## 4. Session lifecycle
 
-Terminal session lifecycle must be independent from browser lifecycle.
+Terminal session lifecycle must be independent from browser lifecycle and desktop tab lifecycle.
 
-- `create`: create a persistent session resource.
+- `create`: create a terminal session resource.
 - `attach`: connect a browser client to an existing session.
 - `detach`: disconnect a browser client without killing the session.
 - `terminate`: explicitly close a session and its backend process.
@@ -92,6 +98,8 @@ Required semantic rules:
 - WebSocket disconnect does not terminate a session.
 - Browser refresh does not terminate a session.
 - Page unload does not terminate a session.
+- Closing a desktop tab does not necessarily terminate a persistent session.
+- Reopening the desktop app should attempt to restore persistent sessions.
 - Only explicit terminate or backend exit ends the session.
 
 ## 5. Backend model
@@ -114,67 +122,114 @@ trait TerminalBackend: Send + Sync {
 }
 ```
 
-Initial backends:
+Required backends:
 
 - `LocalTmuxTerminalBackend`
-- `LocalPtyTerminalBackend` as a fallback only
-
-Planned backends:
-
+- `LocalScreenTerminalBackend`
+- `LocalPtyTerminalBackend`
 - `SshTmuxTerminalBackend`
+- `SshScreenTerminalBackend`
+- `SshPtyTerminalBackend`
 
 ## 6. Backend policy
 
 ### 6.1 Preferred mode
 
-Use `tmux` as the preferred backend for persistent sessions:
+Use the same backend preference policy for both local and remote targets:
 
 - supports detach/reattach
 - survives browser disconnect
 - can survive daemon restart
-- maps well to project-bound and employee-bound work
+- maps well to long-running desktop terminal work
+
+Priority:
+
+- `tmux`
+- fallback `screen`
+- fallback `pty`
 
 ### 6.2 Fallback mode
 
-If `tmux` is unavailable on the host:
+If neither `tmux` nor `screen` is available on the target:
 
 - allow `pty` fallback
-- mark capability as non-persistent or degraded
-- do not present the same guarantees as `tmux`
+- mark capability as `ephemeral`
+- do not present the same guarantees as `tmux`/`screen`
 
 UI and API should clearly expose whether a session is fully persistent or degraded.
 
-## 7. Local-host phase
+## 7. Local and remote target policy
 
-For the initial phase, CloudCode runs on a server and manages terminal sessions on that same host.
-
-Standard behavior:
-
-- one CloudCode terminal session maps to one local backend session
-- local shell defaults to the host shell
-- project terminal sessions may be pre-created per project
-- employee runs may reuse or allocate employee-scoped sessions per project
-
-Recommended default mode:
-
-- project mode: `employee_scoped`
-
-This means each employee working on a project gets a dedicated persistent terminal session for that project.
-
-## 8. SSH remote-host phase
-
-Remote terminal support should reuse the same `TerminalSession` model and differ only by target/backend adapter.
+CloudCode must treat local and remote terminals as one product surface.
 
 Standard behavior:
 
-- CloudCode connects to a remote host through SSH
-- the remote host owns the actual terminal backend
-- persistent mode uses `tmux` on the remote host
-- CloudCode stores only metadata and control bindings locally
+- `Local` means the current machine running CloudCode.
+- `Server` means one saved server-management object.
+- both target types resolve backend priority as `tmux -> screen -> pty`
+- both target types expose the same tab/session semantics in the desktop UI
+
+Local target behavior:
+
+- shell defaults to the host shell
+- `tmux` preferred
+- `screen` fallback
+- `pty` last resort
+
+Server target behavior:
+
+- SSH transport is responsible only for reaching the target
+- the actual terminal backend runs on the remote host
+- `tmux` preferred
+- `screen` fallback
+- `pty` last resort
 
 Do not create a separate terminal domain model for remote sessions.
 
-## 9. AI control model
+## 8. Session persistence policy
+
+Persistence is determined by backend capability, not by whether the target is local or remote.
+
+- `tmux` => `persistent`
+- `screen` => `persistent`
+- `pty` => `ephemeral`
+
+CloudCode persists:
+
+- terminal session metadata
+- target bindings
+- backend session references
+- desktop tab/session restoration state
+
+CloudCode does not persist:
+
+- full terminal scrollback as a source of truth
+- raw command output history as the primary restore mechanism
+- PTY session restoration data for `ephemeral` sessions
+
+Application restart behavior:
+
+- restore `persistent` sessions (`tmux` / `screen`)
+- do not restore `ephemeral` sessions (`pty`)
+
+## 9. Desktop UI model
+
+The desktop terminal page should use:
+
+- a dedicated primary nav item: `Terminal`
+- a tab strip in the page header
+- a target selector with default `Local`
+- one terminal canvas per active tab
+
+Tab rules:
+
+- adding a tab creates a new terminal session shell for the currently selected target
+- each tab binds to exactly one target/session pair
+- closing a tab detaches from the session
+- closing a tab does not imply terminating a persistent session
+- terminating a session is a distinct user action
+
+## 10. AI control model
 
 AI should not operate against browser WebSocket state directly. AI must use a terminal control service.
 
@@ -200,23 +255,20 @@ Standard AI loop:
 6. System captures output and updates run state.
 7. User may open the bound terminal session to observe execution.
 
-## 10. Project and employee binding
+## 11. Performance model
 
-CloudCode should support project-bound and employee-bound terminal semantics.
+High-performance terminal behavior depends on runtime design, not on React state tricks.
 
-Recommended model:
+Required principles:
 
-- one project can own multiple terminal sessions
-- one employee can have a default session per project
-- each employee run binds to exactly one terminal session
+- use a real terminal renderer such as `xterm.js`
+- keep terminal output out of React state
+- stream incremental output chunks instead of repainting full buffers
+- keep resize as a dedicated runtime event
+- reuse backend sessions across tab switches
+- keep persistent session state in backend/session metadata, not in UI memory
 
-This supports:
-
-- persistent project context
-- employee-specific execution traces
-- UI inspection of active employee work by opening the bound terminal session
-
-## 11. Storage model
+## 12. Storage model
 
 Terminal metadata belongs under `~/.cloudcode/` and not inside repositories.
 
@@ -238,10 +290,9 @@ Suggested layout:
 ```json
 {
   "id": "term_proj_alpha_emp_research",
-  "project_id": "proj_alpha",
-  "employee_id": "emp_research",
   "target_id": "console-local",
   "backend": "tmux",
+  "persistence": "persistent",
   "backend_session_name": "console-proj-alpha-emp-research",
   "cwd": "/srv/workspaces/proj-alpha",
   "shell": "/bin/zsh",
@@ -252,7 +303,7 @@ Suggested layout:
 }
 ```
 
-## 12. API shape
+## 13. API shape
 
 Recommended terminal APIs:
 
@@ -266,13 +317,15 @@ Recommended terminal APIs:
 - `POST /api/terminal/sessions/:id/resize`
 - `POST /api/terminal/sessions/:id/terminate`
 
-Recommended binding APIs:
+Recommended target-aware APIs:
 
-- `GET /api/projects/:id/terminal-sessions`
-- `POST /api/employees/:id/runs`
-- `GET /api/employees/:id/runs/:run_id`
+- `GET /api/terminal/targets`
+- `POST /api/terminal/sessions`
+  - input should allow `target_id` and optional `backend`
+- `GET /api/terminal/sessions/:id`
+  - output must include `target_id`, `backend`, `persistence`, `status`
 
-## 13. Permission policy
+## 14. Permission policy
 
 Terminal execution policy must distinguish between observation and action.
 
@@ -288,30 +341,38 @@ Minimum requirements:
 - destructive or privileged commands require approval policy
 - AI-issued commands must be auditable
 - terminal session ownership and target host must be visible in UI
+- remote SSH credentials must be resolved through managed `Credential` objects, not plain UI fields
 
-## 14. Delivery phases
+## 15. Delivery phases
 
-### Phase 1: Local persistent terminals
+### Phase 1: Desktop terminal shell
 
-- multiple sessions on the CloudCode host
-- persistent session model
+- desktop `Terminal` page
+- tab strip
+- target selector with default `Local`
+- session metadata model
+- persistent vs ephemeral semantics visible in UI
+
+### Phase 2: Local runtime
+
+- local target runtime
+- backend priority `tmux -> screen -> pty`
 - attach/detach semantics
-- project binding
-- `tmux` preferred backend
+- restore persistent local sessions
 
-### Phase 2: AI-controlled local terminals
+### Phase 3: Remote runtime
 
-- employee runs bind to terminal sessions
-- AI uses terminal control service
-- execution output is observable from the same session
+- SSH-backed server targets
+- remote backend priority `tmux -> screen -> pty`
+- restore persistent remote sessions
 
-### Phase 3: Remote persistent terminals
+### Phase 4: Higher-level execution
 
-- SSH-backed execution targets
-- remote `tmux` backend
-- same session model and UI semantics
+- AI-controlled terminal flows
+- project/employee/workflow binding if still needed
+- richer session recovery and observability
 
-## 15. Implementation notes for current codebase
+## 16. Implementation notes for current codebase
 
 Current code should evolve away from transient terminal semantics:
 
@@ -319,11 +380,12 @@ Current code should evolve away from transient terminal semantics:
 - do not bind session lifetime to page unload
 - persist terminal metadata in local state
 - separate session lifecycle from WebSocket attachment
-- add backend abstraction before introducing remote targets and AI control
+- extend existing backend abstraction instead of replacing it
+- add target binding before adding more UI terminal affordances
 
-## 16. Current implementation status (Phase 1 - Backend Adapter)
+## 17. Current implementation status
 
-Phase 1 has been refactored to "Terminal Runtime + Backend Adapter" structure:
+Current code already has a usable backend adapter skeleton and persistent-session metadata model, but it still reflects an older local-first assumption.
 
 ### Backend Directory Structure
 
@@ -338,8 +400,8 @@ src/services/terminal/
     mod.rs         - Backend exports
     tmux.rs        - TmuxBackend implementation
     pty.rs         - PtyBackend implementation
-    screen.rs      - ScreenBackend stub (not implemented)
-    zellij.rs      - ZellijBackend stub (not implemented)
+    screen.rs      - ScreenBackend implementation
+    zellij.rs      - Optional backend, not part of the core product contract
 ```
 
 ### TerminalBackend Trait
@@ -364,16 +426,17 @@ Each backend implements:
   - status: `pending` → `running` (on successful attach) → removed (on disconnect)
   - attach failure: immediate cleanup, no orphan session
   - duplicate attach: explicit error "already has an active connection"
-- **screen/zellij**: Stub implementations, return "not implemented" error
+- **screen**: persistent fallback backend
+- **pty**: ephemeral fallback backend
+- **zellij**: optional extra backend, not part of the core product contract
 
 ### Auto-selection Logic
 
-Priority: tmux > zellij > screen > pty
+Priority should converge on the product contract:
 
-When creating session with `backend: "auto"`:
-1. Try tmux first (if available)
-2. Fall back to pty if tmux unavailable
-3. When user specifies explicit backend, error if unavailable
+1. Try `tmux`
+2. Fall back to `screen`
+3. Fall back to `pty`
 
 ### API endpoints
 
@@ -386,24 +449,18 @@ When creating session with `backend: "auto"`:
 
 ### Frontend (React)
 
-- `apps/web/src/pages/TerminalPage.tsx`: Card + Tab multi-session UI
-  - Left sidebar: session cards list
-  - Top tabs bar: open terminal tabs
-  - Main area: active terminal view
-  - Close tab vs terminate session distinction
-- `apps/web/src/components/terminal/TerminalView.tsx`: xterm.js terminal view
-- Backend selection: auto + pty buttons in sidebar
-- Ephemeral session warning banner
+- `apps/desktop/src/pages/TerminalPage.tsx`: desktop terminal shell with tabs and target selector
+- terminal runtime integration is still pending
+- desktop UI should become the canonical terminal surface
 
 ### Persistence Model
 
-- **persistent** (tmux): Session metadata saved to `~/.cloudcode/state/terminal_sessions.json`
+- **persistent** (tmux/screen): Session metadata saved to `~/.cloudcode/state/terminal_sessions.json`
 - **ephemeral** (pty): Not persisted across daemon restart
 
 ### Known limitations
 
-- screen/zellij are stubs only
-- No SSH remote targets yet (Phase 3)
-- No AI control integration yet (Phase 2)
-- No project/employee binding UI yet
-- Pty sessions cannot be synced (no persistent backend state)
+- No SSH-backed target binding yet
+- Desktop terminal shell is not yet attached to real runtime
+- No AI control integration yet
+- PTY sessions remain intentionally non-restorable

@@ -109,6 +109,10 @@ Server target management and local authentication object management are defined 
 - [Server And Credential Architecture](SERVER_AND_CREDENTIAL_ARCHITECTURE.md)
 - [Server And Credential Implementation Plan](SERVER_AND_CREDENTIAL_IMPLEMENTATION_PLAN.md)
 
+Terminal runtime and local/remote terminal target policy are defined in:
+
+- [Terminal Runtime](TERMINAL_RUNTIME.md)
+
 ## Architecture decision records
 
 - [ADR 0001: Local file-based state](decisions/0001-local-file-state.md)

@@ -13,6 +13,19 @@ pub struct TerminalSessionMeta {
     pub status: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Target type: "local" or "server"
+    #[serde(default = "default_target_local")]
+    pub target_type: String,
+    /// Server ID if target_type is "server", null for local
+    #[serde(default)]
+    pub target_id: Option<String>,
+    /// Display name of the target (e.g. "Local" or server name)
+    #[serde(default = "default_target_local")]
+    pub target_label: String,
+}
+
+fn default_target_local() -> String {
+    "local".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +39,30 @@ pub struct CreateSessionRequest {
     pub cols: u16,
     #[serde(default = "default_rows")]
     pub rows: u16,
+    /// Target type: "local" or "server"
+    #[serde(default = "default_target_local")]
+    pub target_type: String,
+    /// Server ID if target_type is "server"
+    #[serde(default)]
+    pub target_id: Option<String>,
+    /// Display name for the target
+    #[serde(default = "default_target_local")]
+    pub target_label: String,
+    /// SSH host for remote targets
+    #[serde(default)]
+    pub ssh_host: Option<String>,
+    /// SSH port for remote targets
+    #[serde(default = "default_ssh_port")]
+    pub ssh_port: u16,
+    /// SSH username for remote targets
+    #[serde(default)]
+    pub ssh_username: Option<String>,
+    /// Path to SSH identity file (private key) for remote targets
+    #[serde(default)]
+    pub ssh_identity_file: Option<String>,
 }
+
+fn default_ssh_port() -> u16 { 22 }
 
 fn default_cols() -> u16 { 80 }
 fn default_rows() -> u16 { 24 }

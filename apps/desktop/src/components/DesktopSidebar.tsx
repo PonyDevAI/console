@@ -7,11 +7,14 @@ import {
   Settings,
   PanelLeftClose,
   Tag,
+  KeyRound,
+  Server,
+  Terminal,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { startWindowDrag } from "../lib/windowDrag";
 
-type ViewKey = "overview" | "agent-sources" | "providers" | "mcp" | "settings";
+type ViewKey = "overview" | "agent-sources" | "providers" | "mcp" | "credentials" | "servers" | "terminal" | "settings";
 
 type NavItemDef = {
   key: ViewKey;
@@ -24,6 +27,9 @@ const navItems: NavItemDef[] = [
   { key: "agent-sources", label: "Agent Sources", icon: Package },
   { key: "providers", label: "Providers", icon: Route },
   { key: "mcp", label: "MCP", icon: Plug },
+  { key: "credentials", label: "Credentials", icon: KeyRound },
+  { key: "servers", label: "Servers", icon: Server },
+  { key: "terminal", label: "Terminal", icon: Terminal },
 ];
 
 type DesktopSidebarProps = {

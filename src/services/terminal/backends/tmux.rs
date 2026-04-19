@@ -153,6 +153,9 @@ impl TerminalBackend for TmuxBackend {
             status: "running".to_string(),
             created_at: now,
             updated_at: now,
+            target_type: "local".to_string(),
+            target_id: None,
+            target_label: "Local".to_string(),
         })
     }
 
