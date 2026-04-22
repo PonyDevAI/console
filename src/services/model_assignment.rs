@@ -22,7 +22,10 @@ pub fn list() -> Result<Vec<ModelAssignment>> {
 }
 
 pub fn get(app: &str) -> Result<Option<ModelAssignment>> {
-    Ok(load()?.assignments.into_iter().find(|assignment| assignment.app == app))
+    Ok(load()?
+        .assignments
+        .into_iter()
+        .find(|assignment| assignment.app == app))
 }
 
 pub fn set(app: String, provider_id: String, model: String) -> Result<ModelAssignment> {

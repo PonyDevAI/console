@@ -84,9 +84,7 @@ pub fn create_server(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        Credential, CredentialKind, CredentialStorageMode, ServerAuthMethod,
-    };
+    use crate::models::{Credential, CredentialKind, CredentialStorageMode, ServerAuthMethod};
 
     fn make_credential(id: &str, kind: CredentialKind) -> Credential {
         Credential {

@@ -16,7 +16,12 @@ pub async fn run() -> anyhow::Result<()> {
     for adapter in registry.adapters() {
         match adapter.detect_installation() {
             Ok(Some(info)) => {
-                println!("[OK] {} v{} at {}", adapter.display_name(), info.version, info.path.display());
+                println!(
+                    "[OK] {} v{} at {}",
+                    adapter.display_name(),
+                    info.version,
+                    info.path.display()
+                );
             }
             Ok(None) => {
                 println!("[--] {} not installed", adapter.display_name());

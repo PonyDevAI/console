@@ -187,9 +187,7 @@ pub fn validate_group_index(index: &GroupIndex) -> Result<(), ServerValidationEr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::credential::{
-        Credential, CredentialKind, CredentialStorageMode,
-    };
+    use crate::models::credential::{Credential, CredentialKind, CredentialStorageMode};
 
     fn make_credential(id: &str, kind: CredentialKind) -> Credential {
         Credential {

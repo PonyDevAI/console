@@ -137,9 +137,15 @@ pub fn import_from_app(app_name: &str) -> Result<Vec<McpServer>> {
                 id: uuid::Uuid::new_v4().to_string(),
                 name: name.clone(),
                 transport,
-                command: config.get("command").and_then(|v| v.as_str()).map(ToString::to_string),
+                command: config
+                    .get("command")
+                    .and_then(|v| v.as_str())
+                    .map(ToString::to_string),
                 args,
-                url: config.get("url").and_then(|v| v.as_str()).map(ToString::to_string),
+                url: config
+                    .get("url")
+                    .and_then(|v| v.as_str())
+                    .map(ToString::to_string),
                 env,
                 enabled_apps: vec![app_name.to_string()],
             };

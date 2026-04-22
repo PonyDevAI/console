@@ -1,11 +1,13 @@
 use anyhow::{Context, Result};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::services::terminal::backend::TerminalBackend;
-use crate::services::terminal::models::{AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta};
+use crate::services::terminal::models::{
+    AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta,
+};
 use chrono::Utc;
 
 const SCREEN_PREFIX: &str = "console-";
@@ -15,6 +17,45 @@ pub struct ScreenBackend;
 impl ScreenBackend {
     pub fn new() -> Self {
         Self
+    }
+
+    fn configure_shell_env_for_process(cmd: &mut std::process::Command) {
+        cmd.env("SHELL_SESSIONS_DISABLE", "1");
+        cmd.env("TERM_PROGRAM", "CloudCode");
+        cmd.env_remove("TERM_SESSION_ID");
+        cmd.env_remove("TERM_PROGRAM_VERSION");
+    }
+
+    fn configure_shell_env_for_pty(cmd: &mut CommandBuilder) {
+        cmd.env("SHELL_SESSIONS_DISABLE", "1");
+        cmd.env("TERM_PROGRAM", "CloudCode");
+        cmd.env_remove("TERM_SESSION_ID");
+        cmd.env_remove("TERM_PROGRAM_VERSION");
+    }
+
+    fn resize_window(session_name: &str, cols: u16, rows: u16) {
+        let output = std::process::Command::new("screen")
+            .args([
+                "-S",
+                session_name,
+                "-X",
+                "width",
+                "-w",
+                &cols.to_string(),
+                &rows.to_string(),
+            ])
+            .output();
+
+        if let Ok(o) = output {
+            if !o.status.success() {
+                tracing::warn!(
+                    session_name = %session_name,
+                    cols = cols,
+                    rows = rows,
+                    "screen width -w resize failed"
+                );
+            }
+        }
     }
 
     fn session_name(id: &str) -> String {
@@ -54,8 +95,8 @@ impl TerminalBackend for ScreenBackend {
         id: &str,
         cwd: Option<&str>,
         shell: Option<&str>,
-        cols: u16,
-        rows: u16,
+        _cols: u16,
+        _rows: u16,
     ) -> Result<TerminalSessionMeta> {
         let shell_path = shell
             .map(PathBuf::from)
@@ -106,7 +147,8 @@ impl TerminalBackend for ScreenBackend {
         cmd.args(["-dmS", &backend_name]);
         cmd.current_dir(&cwd_path);
         cmd.env("TERM", "screen-256color");
-        
+        Self::configure_shell_env_for_process(&mut cmd);
+
         let shell_name = shell_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -125,16 +167,6 @@ impl TerminalBackend for ScreenBackend {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             anyhow::bail!("screen create failed: {}", stderr);
-        }
-
-        // Resize to initial size using stty within screen
-        let resize_cmd = std::process::Command::new("screen")
-            .args(["-S", &backend_name, "-X", "resize", &cols.to_string(), &rows.to_string()])
-            .output();
-        if let Ok(o) = resize_cmd {
-            if !o.status.success() {
-                tracing::warn!(session_id = %id, "Initial screen resize failed");
-            }
         }
 
         Ok(TerminalSessionMeta {
@@ -168,14 +200,12 @@ impl TerminalBackend for ScreenBackend {
     }
 
     fn resize_session(&self, session_name: &str, cols: u16, rows: u16) -> Result<()> {
-        let output = std::process::Command::new("screen")
-            .args(["-S", session_name, "-X", "resize", &cols.to_string(), &rows.to_string()])
-            .output()
-            .context("Failed to resize screen session")?;
-        
-        if !output.status.success() {
-            tracing::warn!(session_name = %session_name, "screen resize failed");
-        }
+        tracing::debug!(
+            session_name = %session_name,
+            cols = cols,
+            rows = rows,
+            "screen resize handled by active attach PTY only"
+        );
         Ok(())
     }
 
@@ -200,11 +230,7 @@ impl TerminalBackend for ScreenBackend {
         }
 
         tracing::info!(session_name = %session_name, cols = cols, rows = rows, "Spawning screen attach bridge with PTY");
-
-        // Resize screen session before attach
-        let _ = std::process::Command::new("screen")
-            .args(["-S", session_name, "-X", "resize", &cols.to_string(), &rows.to_string()])
-            .output();
+        Self::resize_window(session_name, cols, rows);
 
         let pty_system = NativePtySystem::default();
         let size = PtySize {
@@ -222,6 +248,7 @@ impl TerminalBackend for ScreenBackend {
         // -d -r: Detach if attached, then resume
         cmd.args(["-d", "-r", session_name]);
         cmd.env("TERM", "screen-256color");
+        Self::configure_shell_env_for_pty(&mut cmd);
 
         let child = pair
             .slave
@@ -238,7 +265,6 @@ impl TerminalBackend for ScreenBackend {
             .context("Failed to take PTY writer")?;
 
         let pty_master = Arc::new(Mutex::new(pair.master));
-        let session_name_for_resize = session_name.to_string();
         let resize_fn: Arc<dyn Fn(u16, u16) -> Result<()> + Send + Sync> = Arc::new({
             let pty_master = pty_master.clone();
             move |cols: u16, rows: u16| {
@@ -252,9 +278,6 @@ impl TerminalBackend for ScreenBackend {
                     let guard = pty_master.lock().unwrap();
                     guard.resize(size)?;
                 }
-                let _ = std::process::Command::new("screen")
-                    .args(["-S", &session_name_for_resize, "-X", "resize", &cols.to_string(), &rows.to_string()])
-                    .output();
                 Ok(())
             }
         });

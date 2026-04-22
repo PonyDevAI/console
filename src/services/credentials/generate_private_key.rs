@@ -3,7 +3,7 @@ use chrono::Utc;
 
 use crate::models::{
     classify_rsa_strength, validate_credential_index, validate_private_key_meta, Credential,
-    CredentialIndex, CredentialKind, CredentialStrength, CredentialStorageMode, KeyFormat,
+    CredentialIndex, CredentialKind, CredentialStorageMode, CredentialStrength, KeyFormat,
     KeySource, PrivateKeyAlgorithm, PrivateKeyMeta,
 };
 use crate::storage::credentials::{
@@ -156,10 +156,16 @@ mod tests {
         assert_eq!(cred.name, "test ed25519");
         assert!(!cred.storage_ref.is_empty());
         assert_eq!(index.private_keys.len(), 1);
-        assert_eq!(index.private_keys[0].algorithm, PrivateKeyAlgorithm::Ed25519);
+        assert_eq!(
+            index.private_keys[0].algorithm,
+            PrivateKeyAlgorithm::Ed25519
+        );
         assert!(index.private_keys[0].rsa_bits.is_none());
         assert_eq!(index.private_keys[0].source, KeySource::Generated);
-        assert_eq!(index.private_keys[0].strength, CredentialStrength::Recommended);
+        assert_eq!(
+            index.private_keys[0].strength,
+            CredentialStrength::Recommended
+        );
     }
 
     #[test]
@@ -180,7 +186,10 @@ mod tests {
         assert_eq!(index.private_keys[0].algorithm, PrivateKeyAlgorithm::Rsa);
         assert_eq!(index.private_keys[0].rsa_bits, Some(4096));
         assert_eq!(index.private_keys[0].source, KeySource::Generated);
-        assert_eq!(index.private_keys[0].strength, CredentialStrength::Recommended);
+        assert_eq!(
+            index.private_keys[0].strength,
+            CredentialStrength::Recommended
+        );
     }
 
     #[test]

@@ -24,7 +24,11 @@ pub fn scan_all() -> Result<CliToolsState> {
         let handles: Vec<_> = adapter_list
             .iter()
             .map(|adapter| {
-                let cached_tool = cached.tools.iter().find(|t| t.name == adapter.name()).cloned();
+                let cached_tool = cached
+                    .tools
+                    .iter()
+                    .find(|t| t.name == adapter.name())
+                    .cloned();
                 s.spawn(move || -> CliTool {
                     let now = chrono::Utc::now();
                     let cached_remote = cached_tool.and_then(|t| t.remote_version);
@@ -91,21 +95,27 @@ pub fn check_updates(state: &mut CliToolsState) {
 /// Install a CLI tool by name.
 pub fn install(name: &str) -> Result<()> {
     let registry = adapters::registry();
-    let adapter = registry.find(name).ok_or_else(|| anyhow::anyhow!("unknown CLI: {name}"))?;
+    let adapter = registry
+        .find(name)
+        .ok_or_else(|| anyhow::anyhow!("unknown CLI: {name}"))?;
     adapter.install()
 }
 
 /// Upgrade a CLI tool by name.
 pub fn upgrade(name: &str) -> Result<()> {
     let registry = adapters::registry();
-    let adapter = registry.find(name).ok_or_else(|| anyhow::anyhow!("unknown CLI: {name}"))?;
+    let adapter = registry
+        .find(name)
+        .ok_or_else(|| anyhow::anyhow!("unknown CLI: {name}"))?;
     adapter.upgrade()
 }
 
 /// Uninstall a CLI tool by name.
 pub fn uninstall(name: &str) -> Result<()> {
     let registry = adapters::registry();
-    let adapter = registry.find(name).ok_or_else(|| anyhow::anyhow!("unknown CLI: {name}"))?;
+    let adapter = registry
+        .find(name)
+        .ok_or_else(|| anyhow::anyhow!("unknown CLI: {name}"))?;
     adapter.uninstall()
 }
 

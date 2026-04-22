@@ -1,11 +1,13 @@
 use anyhow::{Context, Result};
 use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::services::terminal::backend::TerminalBackend;
-use crate::services::terminal::models::{AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta};
+use crate::services::terminal::models::{
+    AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta,
+};
 use chrono::Utc;
 
 pub struct PtyBackend;
@@ -13,6 +15,14 @@ pub struct PtyBackend;
 impl PtyBackend {
     pub fn new() -> Self {
         Self
+    }
+
+    fn configure_shell_env(cmd: &mut CommandBuilder) {
+        // Avoid inheriting Apple Terminal's shell-session restoration into our PTYs.
+        cmd.env("SHELL_SESSIONS_DISABLE", "1");
+        cmd.env("TERM_PROGRAM", "CloudCode");
+        cmd.env_remove("TERM_SESSION_ID");
+        cmd.env_remove("TERM_PROGRAM_VERSION");
     }
 
     fn find_shell(shell: Option<&str>) -> Result<PathBuf> {
@@ -163,6 +173,7 @@ impl TerminalBackend for PtyBackend {
 
         let mut cmd = CommandBuilder::new(&shell_path);
         cmd.cwd(cwd_path);
+        Self::configure_shell_env(&mut cmd);
 
         let child = pair
             .slave

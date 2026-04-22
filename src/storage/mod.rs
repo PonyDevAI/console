@@ -291,10 +291,7 @@ impl CloudCodePaths {
         // Initialize credential index
         let creds = self.credentials_index_file();
         if !creds.exists() {
-            write_json(
-                &creds,
-                &crate::models::CredentialIndex::default(),
-            )?;
+            write_json(&creds, &crate::models::CredentialIndex::default())?;
         }
 
         // Initialize server index

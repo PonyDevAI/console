@@ -1,5 +1,5 @@
-use crate::runtime::models::{RuntimeCapabilities, RuntimeEvent, RuntimeRequest};
 use crate::runtime::errors::Result;
+use crate::runtime::models::{RuntimeCapabilities, RuntimeEvent, RuntimeRequest};
 use tokio::sync::mpsc;
 
 /// Handle for a running runtime instance
@@ -21,7 +21,9 @@ impl CancelHandle {
 
     pub async fn cancel(self) -> Result<()> {
         self.cancel_tx.send(()).await.map_err(|_| {
-            crate::runtime::errors::RuntimeError::InternalError("Failed to send cancel signal".into())
+            crate::runtime::errors::RuntimeError::InternalError(
+                "Failed to send cancel signal".into(),
+            )
         })?;
         Ok(())
     }
@@ -32,19 +34,15 @@ impl CancelHandle {
 pub trait RuntimeAdapter: Send + Sync {
     /// Internal name (e.g. "codex", "claude")
     fn name(&self) -> &str;
-    
+
     /// Human-readable name
     fn display_name(&self) -> &str;
-    
+
     /// Capabilities of this adapter
     fn capabilities(&self) -> RuntimeCapabilities;
 
     /// Start a new run
-    async fn start_run(
-        &self,
-        request: RuntimeRequest,
-        run_id: String,
-    ) -> Result<RunHandle>;
+    async fn start_run(&self, request: RuntimeRequest, run_id: String) -> Result<RunHandle>;
 
     /// Cancel a running run
     async fn cancel_run(&self, run_id: &str) -> Result<()>;
@@ -65,10 +63,7 @@ impl RuntimeRegistry {
     }
 
     pub fn find(&self, name: &str) -> Option<std::sync::Arc<dyn RuntimeAdapter>> {
-        self.adapters
-            .iter()
-            .find(|a| a.name() == name)
-            .cloned()
+        self.adapters.iter().find(|a| a.name() == name).cloned()
     }
 
     pub fn adapters(&self) -> &[std::sync::Arc<dyn RuntimeAdapter>] {

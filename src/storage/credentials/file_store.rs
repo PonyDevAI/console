@@ -24,8 +24,12 @@ pub fn save_credentials_index(paths: &CloudCodePaths, index: &CredentialIndex) -
 pub fn upsert_credential_metadata(index: &mut CredentialIndex, credential: Credential) {
     // Remove existing if present
     index.credentials.retain(|c| c.id != credential.id);
-    index.private_keys.retain(|pk| pk.credential_id != credential.id);
-    index.passwords.retain(|pw| pw.credential_id != credential.id);
+    index
+        .private_keys
+        .retain(|pk| pk.credential_id != credential.id);
+    index
+        .passwords
+        .retain(|pw| pw.credential_id != credential.id);
 
     index.credentials.push(credential);
 }
@@ -39,13 +43,17 @@ pub fn remove_credential_metadata(index: &mut CredentialIndex, id: &str) {
 
 /// Add private key metadata to the index.
 pub fn add_private_key_meta(index: &mut CredentialIndex, meta: PrivateKeyMeta) {
-    index.private_keys.retain(|pk| pk.credential_id != meta.credential_id);
+    index
+        .private_keys
+        .retain(|pk| pk.credential_id != meta.credential_id);
     index.private_keys.push(meta);
 }
 
 /// Add password metadata to the index.
 pub fn add_password_meta(index: &mut CredentialIndex, meta: PasswordMeta) {
-    index.passwords.retain(|pw| pw.credential_id != meta.credential_id);
+    index
+        .passwords
+        .retain(|pw| pw.credential_id != meta.credential_id);
     index.passwords.push(meta);
 }
 
@@ -55,17 +63,32 @@ pub fn get_credential<'a>(index: &'a CredentialIndex, id: &str) -> Option<&'a Cr
 }
 
 /// Get private key metadata by credential_id.
-pub fn get_private_key_meta<'a>(index: &'a CredentialIndex, credential_id: &str) -> Option<&'a PrivateKeyMeta> {
-    index.private_keys.iter().find(|pk| pk.credential_id == credential_id)
+pub fn get_private_key_meta<'a>(
+    index: &'a CredentialIndex,
+    credential_id: &str,
+) -> Option<&'a PrivateKeyMeta> {
+    index
+        .private_keys
+        .iter()
+        .find(|pk| pk.credential_id == credential_id)
 }
 
 /// Get password metadata by credential_id.
-pub fn get_password_meta<'a>(index: &'a CredentialIndex, credential_id: &str) -> Option<&'a PasswordMeta> {
-    index.passwords.iter().find(|pw| pw.credential_id == credential_id)
+pub fn get_password_meta<'a>(
+    index: &'a CredentialIndex,
+    credential_id: &str,
+) -> Option<&'a PasswordMeta> {
+    index
+        .passwords
+        .iter()
+        .find(|pw| pw.credential_id == credential_id)
 }
 
 /// Find all credential ids that match a given kind.
-pub fn list_credential_ids_by_kind(index: &CredentialIndex, kind: &crate::models::CredentialKind) -> Vec<String> {
+pub fn list_credential_ids_by_kind(
+    index: &CredentialIndex,
+    kind: &crate::models::CredentialKind,
+) -> Vec<String> {
     index
         .credentials
         .iter()

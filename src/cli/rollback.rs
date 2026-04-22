@@ -9,7 +9,11 @@ pub async fn run(version: Option<String>) -> Result<()> {
     }
 
     let target = if let Some(v) = version {
-        if v.starts_with('v') { v } else { format!("v{v}") }
+        if v.starts_with('v') {
+            v
+        } else {
+            format!("v{v}")
+        }
     } else {
         println!("Available versions:");
         let mut versions: Vec<String> = std::fs::read_dir(&versions_dir)?
@@ -27,7 +31,11 @@ pub async fn run(version: Option<String>) -> Result<()> {
             parse(a).cmp(&parse(b))
         });
         for v in &versions {
-            let marker = if is_current(&paths.root, v) { " (current)" } else { "" };
+            let marker = if is_current(&paths.root, v) {
+                " (current)"
+            } else {
+                ""
+            };
             println!("  {v}{marker}");
         }
 
@@ -40,7 +48,11 @@ pub async fn run(version: Option<String>) -> Result<()> {
             println!("Cancelled.");
             return Ok(());
         }
-        if input.starts_with('v') { input } else { format!("v{input}") }
+        if input.starts_with('v') {
+            input
+        } else {
+            format!("v{input}")
+        }
     };
 
     let target_dir = versions_dir.join(&target);

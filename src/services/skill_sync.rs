@@ -22,7 +22,10 @@ fn app_skills_dir(app_name: &str) -> Result<PathBuf> {
 pub fn sync_skill_to_apps(skill: &Skill) -> Result<u32> {
     let ssot_skill_dir = ssot_dir().join(&skill.name);
     if !ssot_skill_dir.exists() {
-        anyhow::bail!("skill SSOT directory not found: {}", ssot_skill_dir.display());
+        anyhow::bail!(
+            "skill SSOT directory not found: {}",
+            ssot_skill_dir.display()
+        );
     }
 
     let mut count = 0u32;
@@ -46,12 +49,19 @@ pub fn sync_skill_to_apps(skill: &Skill) -> Result<u32> {
         {
             match std::os::unix::fs::symlink(&ssot_skill_dir, &link_path) {
                 Ok(()) => {
-                    tracing::info!("Symlinked skill '{}' to {}", skill.name, link_path.display());
+                    tracing::info!(
+                        "Symlinked skill '{}' to {}",
+                        skill.name,
+                        link_path.display()
+                    );
                     count += 1;
                     continue;
                 }
                 Err(e) => {
-                    tracing::warn!("Symlink failed for '{}': {e}, falling back to copy", skill.name);
+                    tracing::warn!(
+                        "Symlink failed for '{}': {e}, falling back to copy",
+                        skill.name
+                    );
                 }
             }
         }
@@ -77,7 +87,11 @@ pub fn remove_skill_from_apps(skill: &Skill) -> Result<()> {
             } else {
                 std::fs::remove_file(&link_path)?;
             }
-            tracing::info!("Removed skill '{}' from {}", skill.name, link_path.display());
+            tracing::info!(
+                "Removed skill '{}' from {}",
+                skill.name,
+                link_path.display()
+            );
         }
     }
     Ok(())

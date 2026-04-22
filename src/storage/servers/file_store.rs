@@ -99,9 +99,7 @@ pub fn move_server_to_group(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        OsDetectedFrom, OsDetectionStatus, OsType, ServerAuthMethod,
-    };
+    use crate::models::{OsDetectedFrom, OsDetectionStatus, OsType, ServerAuthMethod};
     use chrono::Utc;
 
     fn make_server(id: &str, group_id: Option<String>) -> Server {
@@ -148,7 +146,11 @@ mod tests {
         let mut index = ServerIndex {
             servers: vec![make_server("s1", None)],
         };
-        assert!(move_server_to_group(&mut index, "s1", Some("g1".to_string())));
+        assert!(move_server_to_group(
+            &mut index,
+            "s1",
+            Some("g1".to_string())
+        ));
         assert_eq!(index.servers[0].group_id, Some("g1".to_string()));
     }
 

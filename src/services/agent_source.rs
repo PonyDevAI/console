@@ -150,7 +150,7 @@ pub async fn scan_all_with_refresh() -> Result<AgentSourcesState> {
     crate::services::version::save(&cli_state)?;
 
     let mut sources = list_agent_sources()?;
-    
+
     for source in sources.iter_mut() {
         if source.source_type == AgentSourceType::RemoteOpenClawWs {
             let result = crate::services::openclaw::test_source(&source).await;
@@ -162,7 +162,11 @@ pub async fn scan_all_with_refresh() -> Result<AgentSourcesState> {
                 source.supported_models = vec![];
                 match crate::services::openclaw::list_agents(&source).await {
                     Ok(agents_result) => {
-                        source.supported_models = agents_result.agents.iter().map(|a| a.name.clone()).collect();
+                        source.supported_models = agents_result
+                            .agents
+                            .iter()
+                            .map(|a| a.name.clone())
+                            .collect();
                     }
                     Err(e) => {
                         tracing::warn!("Failed to list agents for {}: {}", source.id, e);
@@ -176,7 +180,7 @@ pub async fn scan_all_with_refresh() -> Result<AgentSourcesState> {
             }
         }
     }
-    
+
     let state = AgentSourcesState { sources };
     save(&state)?;
 

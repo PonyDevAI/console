@@ -50,6 +50,8 @@
   --accent: #111827;
   --accent-subtle: rgba(17, 24, 39, 0.06);
   --accent-hover: #000000;
+  --logo-bg: #111827;
+  --logo-text: #ffffff;
   --success: #059669;
   --warning: #d97706;
   --danger: #dc2626;
@@ -58,6 +60,11 @@
   --success-subtle: rgba(5, 150, 105, 0.08);
   --danger-subtle: rgba(220, 38, 38, 0.08);
   --warn-subtle: rgba(217, 119, 6, 0.08);
+  --terminal-bg: #f7fafc;
+  --terminal-surface: #eef3f8;
+  --terminal-text: #1f2937;
+  --terminal-muted: #6b7280;
+  --terminal-selection: rgba(59, 130, 246, 0.18);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -84,6 +91,8 @@
   --accent: #fcfcfc;
   --accent-subtle: rgba(252, 252, 252, 0.08);
   --accent-hover: #ffffff;
+  --logo-bg: #ffffff;
+  --logo-text: #000000;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
@@ -92,6 +101,11 @@
   --success-subtle: rgba(16, 185, 129, 0.08);
   --danger-subtle: rgba(239, 68, 68, 0.08);
   --warn-subtle: rgba(245, 158, 11, 0.08);
+  --terminal-bg: #0a0d12;
+  --terminal-surface: #121722;
+  --terminal-text: #edf2f7;
+  --terminal-muted: #94a3b8;
+  --terminal-selection: rgba(148, 163, 184, 0.28);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
@@ -128,6 +142,15 @@ body {
 button {
   font: inherit;
   cursor: pointer;
+}
+
+.terminal-tab-strip {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.terminal-tab-strip::-webkit-scrollbar {
+  display: none;
 }
 
 /* ── Scrollbars ── */

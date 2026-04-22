@@ -1,9 +1,9 @@
+use crate::models::{Session, SessionMessage, SessionMeta, SessionParticipant};
+use crate::storage::{read_json, write_json, CloudCodePaths};
 use anyhow::Result;
 use chrono::Utc;
 use std::fs;
 use std::sync::Mutex;
-use crate::models::{Session, SessionMeta, SessionMessage, SessionParticipant};
-use crate::storage::{CloudCodePaths, read_json, write_json};
 
 static MESSAGES_LOCK: Mutex<()> = Mutex::new(());
 
@@ -19,7 +19,8 @@ fn save_meta(meta: &SessionMeta) -> Result<()> {
 
 pub fn list() -> Result<Vec<Session>> {
     let mut meta = load_meta()?;
-    meta.sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+    meta.sessions
+        .sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(meta.sessions)
 }
 
@@ -27,7 +28,8 @@ pub async fn create(title: &str, participant_ids: &[String]) -> Result<Session> 
     let paths = CloudCodePaths::default();
 
     let employees = crate::services::employee::list().await?;
-    let participants: Vec<SessionParticipant> = participant_ids.iter()
+    let participants: Vec<SessionParticipant> = participant_ids
+        .iter()
         .filter_map(|id| employees.iter().find(|e| e.id == *id))
         .map(|e| SessionParticipant {
             employee_id: e.id.clone(),
@@ -46,7 +48,10 @@ pub async fn create(title: &str, participant_ids: &[String]) -> Result<Session> 
 
     let session_dir = paths.session_dir(&session.id);
     fs::create_dir_all(&session_dir)?;
-    write_json(&paths.session_messages_file(&session.id), &Vec::<SessionMessage>::new())?;
+    write_json(
+        &paths.session_messages_file(&session.id),
+        &Vec::<SessionMessage>::new(),
+    )?;
 
     let mut meta = load_meta()?;
     meta.sessions.push(session.clone());
@@ -59,8 +64,14 @@ pub async fn create(title: &str, participant_ids: &[String]) -> Result<Session> 
         role: crate::models::MessageRole::User,
         author_id: None,
         author_label: "System".to_string(),
-        content: format!("协作空间已创建，参与者：{}",
-            session.participants.iter().map(|p| p.display_name.as_str()).collect::<Vec<_>>().join(","),
+        content: format!(
+            "协作空间已创建，参与者：{}",
+            session
+                .participants
+                .iter()
+                .map(|p| p.display_name.as_str())
+                .collect::<Vec<_>>()
+                .join(","),
         ),
         mentions: vec![],
         created_at: Utc::now(),
@@ -72,7 +83,9 @@ pub async fn create(title: &str, participant_ids: &[String]) -> Result<Session> 
 
 pub fn get(id: &str) -> Result<Session> {
     let meta = load_meta()?;
-    meta.sessions.into_iter().find(|s| s.id == id)
+    meta.sessions
+        .into_iter()
+        .find(|s| s.id == id)
         .ok_or_else(|| anyhow::anyhow!("Session not found"))
 }
 
@@ -82,14 +95,18 @@ pub fn delete(id: &str) -> Result<()> {
     meta.sessions.retain(|s| s.id != id);
     save_meta(&meta)?;
     let dir = paths.session_dir(id);
-    if dir.exists() { fs::remove_dir_all(dir)?; }
+    if dir.exists() {
+        fs::remove_dir_all(dir)?;
+    }
     Ok(())
 }
 
 pub fn list_messages(session_id: &str) -> Result<Vec<SessionMessage>> {
     let paths = CloudCodePaths::default();
     let path = paths.session_messages_file(session_id);
-    if !path.exists() { return Ok(vec![]); }
+    if !path.exists() {
+        return Ok(vec![]);
+    }
     read_json(&path)
 }
 
@@ -99,7 +116,9 @@ pub fn append_message(session_id: &str, msg: SessionMessage) -> Result<()> {
     let path = paths.session_messages_file(session_id);
     let mut messages: Vec<SessionMessage> = if path.exists() {
         read_json(&path).unwrap_or_default()
-    } else { vec![] };
+    } else {
+        vec![]
+    };
     messages.push(msg);
     write_json(&path, &messages)?;
 
@@ -114,15 +133,26 @@ pub fn append_message(session_id: &str, msg: SessionMessage) -> Result<()> {
 pub async fn update_participants(id: &str, add: &[String], remove: &[String]) -> Result<Session> {
     let employees = crate::services::employee::list().await?;
     let mut meta = load_meta()?;
-    let session = meta.sessions.iter_mut().find(|s| s.id == id)
+    let session = meta
+        .sessions
+        .iter_mut()
+        .find(|s| s.id == id)
         .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
 
     // remove
-    session.participants.retain(|p| !remove.contains(&p.employee_id));
+    session
+        .participants
+        .retain(|p| !remove.contains(&p.employee_id));
 
     // add (dedup)
     for emp_id in add {
-        if session.participants.iter().any(|p| p.employee_id == *emp_id) { continue; }
+        if session
+            .participants
+            .iter()
+            .any(|p| p.employee_id == *emp_id)
+        {
+            continue;
+        }
         if let Some(e) = employees.iter().find(|e| e.id == *emp_id) {
             session.participants.push(SessionParticipant {
                 employee_id: e.id.clone(),
@@ -139,7 +169,10 @@ pub async fn update_participants(id: &str, add: &[String], remove: &[String]) ->
 
 pub fn update_title(id: &str, title: &str) -> Result<Session> {
     let mut meta = load_meta()?;
-    let session = meta.sessions.iter_mut().find(|s| s.id == id)
+    let session = meta
+        .sessions
+        .iter_mut()
+        .find(|s| s.id == id)
         .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
     session.title = title.to_string();
     session.updated_at = Utc::now();

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, X, Terminal as TerminalIcon, Monitor, Server, ChevronDown, Power, RotateCcw, AlertCircle } from "lucide-react";
+import { Plus, X, Terminal as TerminalIcon, Monitor, Server, ChevronDown, AlertCircle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { XtermCanvas } from "../features/terminal/XtermCanvas";
 import {
@@ -9,7 +9,6 @@ import {
   terminateTerminalSession,
   listTerminalBackends,
   type ServerDto,
-  type TerminalSessionDto,
   type BackendInfoDto,
 } from "../lib/server-commands";
 
@@ -27,6 +26,7 @@ interface DesktopTab {
   backend: string;
   persistence: string;
   status: string;
+  restored?: boolean;
   terminateError?: string;
 }
 
@@ -44,89 +44,23 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
   const [targetMenuOpen, setTargetMenuOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [backends, setBackends] = useState<BackendInfoDto[]>([]);
-  const [defaultBackend, setDefaultBackend] = useState<string>("");
-  const [closedSessions, setClosedSessions] = useState<TerminalSessionDto[]>([]);
-  const [showClosedMenu, setShowClosedMenu] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Load existing sessions and backends on mount
-  const loadSessions = useCallback(async () => {
-    try {
-      const [sessions, backendsResp] = await Promise.all([
-        listTerminalSessions(),
-        listTerminalBackends(),
-      ]);
-      setBackends(backendsResp.available);
-      setDefaultBackend(backendsResp.default_backend);
-
-      // Only restore persistent sessions
-      const persistent = sessions.filter((s) => s.persistence === "persistent");
-      if (persistent.length > 0) {
-        const restoredTabs: DesktopTab[] = persistent.map((s) => ({
-          id: `tab-${s.id}`,
-          sessionId: s.id,
-          title: s.title,
-          targetType: s.target_type as TargetType,
-          targetId: s.target_id,
-          targetLabel: s.target_label,
-          backend: s.backend,
-          persistence: s.persistence,
-          status: s.status,
-        }));
-        setTabs(restoredTabs);
-        setActiveTabId(restoredTabs[0].id);
-      } else {
-        // Create default local tab (no session yet)
-        addLocalTab();
-      }
-    } catch {
-      addLocalTab();
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const addLocalTab = () => {
-    const id = `tab-local-${Date.now()}`;
-    const newTab: DesktopTab = {
-      id,
-      sessionId: null,
-      title: "Local",
-      targetType: "local",
-      targetId: null,
-      targetLabel: "Local",
-      backend: "pending",
-      persistence: "pending",
-      status: "created",
-    };
-    setTabs((prev) => [...prev, newTab]);
-    setActiveTabId(id);
-  };
-
-  useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
-
-  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
-
-  const addTab = async () => {
-    let targetType: TargetType = selectedTarget;
-    let targetId: string | null = null;
-    let targetLabel = "Local";
-
-    if (targetType === "server" && selectedServerId) {
-      const srv = servers.find((s) => s.id === selectedServerId);
-      if (srv) {
-        targetId = srv.id;
-        targetLabel = srv.name;
-      }
-    }
-
-    // Create real session for both local and server targets
-    try {
+  const createSessionTab = useCallback(
+    async ({
+      targetType,
+      targetId,
+      targetLabel,
+    }: {
+      targetType: TargetType;
+      targetId: string | null;
+      targetLabel: string;
+    }) => {
       setCreateError(null);
       const session = await createTerminalSession({
         title: targetLabel,
+        cwd: targetType === "local" ? "~" : undefined,
+        backend: "auto",
         target_type: targetType,
         target_id: targetId,
         target_label: targetLabel,
@@ -142,10 +76,105 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
         backend: session.backend,
         persistence: session.persistence,
         status: session.status,
+        restored: false,
       };
 
-      setTabs((prev) => [...prev, newTab]);
+      setTabs((prev) => {
+        const withoutPendingLocal = prev.filter(
+          (tab) => !(tab.sessionId === null && tab.targetType === "local" && tab.status === "created")
+        );
+        return [...withoutPendingLocal, newTab];
+      });
       setActiveTabId(newTab.id);
+      return newTab;
+    },
+    []
+  );
+
+  // Load existing sessions and backends on mount
+  const loadSessions = useCallback(async () => {
+    try {
+      const [sessions, backendsResp] = await Promise.all([
+        listTerminalSessions(),
+        listTerminalBackends(),
+      ]);
+      setBackends(backendsResp.available);
+
+      const persistent = sessions.filter(
+        (s) => s.persistence === "persistent" && s.status === "running"
+      );
+      if (persistent.length > 0) {
+        const restoredTabs: DesktopTab[] = persistent.map((s) => ({
+          id: `tab-${s.id}`,
+          sessionId: s.id,
+          title: s.title,
+          targetType: s.target_type as TargetType,
+          targetId: s.target_id,
+          targetLabel: s.target_label,
+          backend: s.backend,
+          persistence: s.persistence,
+          status: s.status,
+          restored: true,
+        }));
+        setTabs(restoredTabs);
+        setActiveTabId(restoredTabs[0].id);
+        setSelectedTarget(restoredTabs[0].targetType);
+        setSelectedServerId(restoredTabs[0].targetId);
+      } else {
+        await createSessionTab({
+          targetType: "local",
+          targetId: null,
+          targetLabel: "Local",
+        });
+      }
+    } catch {
+      try {
+        await createSessionTab({
+          targetType: "local",
+          targetId: null,
+          targetLabel: "Local",
+        });
+      } catch (e) {
+        setCreateError(
+          e instanceof Error ? e.message : "Failed to create initial local terminal session"
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [createSessionTab]);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+
+  useEffect(() => {
+    if (!activeTab) return;
+    setSelectedTarget(activeTab.targetType);
+    setSelectedServerId(activeTab.targetId);
+  }, [activeTab]);
+
+  const addTab = async () => {
+    let targetType: TargetType = selectedTarget;
+    let targetId: string | null = null;
+    let targetLabel = "Local";
+
+    if (targetType === "server" && selectedServerId) {
+      const srv = servers.find((s) => s.id === selectedServerId);
+      if (srv) {
+        targetId = srv.id;
+        targetLabel = srv.name;
+      }
+    }
+
+    try {
+      await createSessionTab({
+        targetType,
+        targetId,
+        targetLabel,
+      });
     } catch (e) {
       setCreateError(
         e instanceof Error ? e.message : `Failed to create terminal session for ${targetLabel}`
@@ -154,51 +183,12 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
   };
 
   const closeTab = (tabId: string) => {
-    // Closing a tab does NOT terminate the session.
-    // Persistent sessions survive tab close and can be restored.
     setTabs((prev) => {
-      const closingTab = prev.find((t) => t.id === tabId);
-      // Track closed persistent sessions for restore
-      if (closingTab?.sessionId && closingTab.persistence === "persistent") {
-        setClosedSessions((cs) => {
-          // Avoid duplicates
-          if (cs.find((s) => s.id === closingTab.sessionId)) return cs;
-          return [...cs, {
-            id: closingTab.sessionId!,
-            title: closingTab.title,
-            cwd: "",
-            shell: "",
-            backend: closingTab.backend,
-            persistence: closingTab.persistence,
-            status: closingTab.status,
-            target_type: closingTab.targetType,
-            target_id: closingTab.targetId,
-            target_label: closingTab.targetLabel,
-            created_at: "",
-            updated_at: "",
-          }];
-        });
-      }
-
       const filtered = prev.filter((t) => t.id !== tabId);
       if (tabId === activeTabId && filtered.length > 0) {
         setActiveTabId(filtered[filtered.length - 1].id);
       } else if (filtered.length === 0) {
-        // Always keep at least one tab
-        const id = `tab-local-${Date.now()}`;
-        const newTab: DesktopTab = {
-          id,
-          sessionId: null,
-          title: "Local",
-          targetType: "local",
-          targetId: null,
-          targetLabel: "Local",
-          backend: "pending",
-          persistence: "pending",
-          status: "created",
-        };
-        setActiveTabId(id);
-        return [newTab];
+        setActiveTabId(null);
       }
       return filtered;
     });
@@ -211,59 +201,30 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
       return;
     }
 
+    if (tab.persistence === "ephemeral") {
+      closeTab(tabId);
+      return;
+    }
+
     try {
       await terminateTerminalSession(tab.sessionId);
       // Only close the tab after successful termination
       closeTab(tabId);
     } catch (e) {
+      const message =
+        typeof e === "string"
+          ? e
+          : e instanceof Error
+            ? e.message
+            : "Failed to terminate session";
       // Termination failed — keep the tab visible, show error
       setTabs((prev) =>
         prev.map((t) =>
           t.id === tabId
-            ? { ...t, terminateError: e instanceof Error ? e.message : "Failed to terminate session" }
+            ? { ...t, terminateError: message }
             : t
         )
       );
-    }
-  };
-
-  const restoreSession = async (session: TerminalSessionDto) => {
-    // Check if session is already open
-    const existingTab = tabs.find((t) => t.sessionId === session.id);
-    if (existingTab) {
-      setActiveTabId(existingTab.id);
-      setShowClosedMenu(false);
-      return;
-    }
-
-    // Verify session still exists on the backend
-    try {
-      const sessions = await listTerminalSessions();
-      const live = sessions.find((s) => s.id === session.id);
-      if (!live) {
-        // Session no longer exists, remove from closed list
-        setClosedSessions((cs) => cs.filter((s) => s.id !== session.id));
-        return;
-      }
-
-      const newTab: DesktopTab = {
-        id: `tab-${live.id}`,
-        sessionId: live.id,
-        title: live.title,
-        targetType: live.target_type as TargetType,
-        targetId: live.target_id,
-        targetLabel: live.target_label,
-        backend: live.backend,
-        persistence: live.persistence,
-        status: live.status,
-      };
-      setTabs((prev) => [...prev, newTab]);
-      setActiveTabId(newTab.id);
-      setClosedSessions((cs) => cs.filter((s) => s.id !== session.id));
-      setShowClosedMenu(false);
-    } catch {
-      // If verification fails, remove from closed list
-      setClosedSessions((cs) => cs.filter((s) => s.id !== session.id));
     }
   };
 
@@ -276,68 +237,26 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[var(--bg)]">
+    <div className="flex h-full flex-col bg-[var(--terminal-bg)]">
       {createError && (
         <div className="border-b border-[var(--danger)]/20 bg-[var(--danger)]/8 px-3 py-2 text-[11px] text-[var(--danger)]">
           {createError}
         </div>
       )}
       {/* ── Tab Strip ── */}
-      <div className="flex items-end gap-0 border-b border-[var(--border)] bg-[var(--bg-accent)] px-2 pt-2">
+      <div className="flex items-end gap-0 bg-[var(--terminal-surface)] px-2 pt-2">
         {/* Tabs */}
-        <div className="flex flex-1 items-end gap-1 overflow-x-auto">
+        <div className="terminal-tab-strip flex flex-1 items-end gap-1 overflow-x-auto">
           {tabs.map((tab) => (
             <TabCard
               key={tab.id}
               tab={tab}
               isActive={tab.id === activeTabId}
               onSelect={() => setActiveTabId(tab.id)}
-              onClose={() => closeTab(tab.id)}
-              onTerminate={() => terminateTabSession(tab.id)}
+              onClose={() => terminateTabSession(tab.id)}
             />
           ))}
         </div>
-
-        {/* Restore closed sessions */}
-        {closedSessions.length > 0 && (
-          <div className="relative mb-1">
-            <button
-              type="button"
-              onClick={() => setShowClosedMenu(!showClosedMenu)}
-              className="mb-1 flex h-8 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text)]"
-              title="Restore closed sessions"
-            >
-              <RotateCcw size={13} />
-              <span>{closedSessions.length}</span>
-            </button>
-            {showClosedMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowClosedMenu(false)} />
-                <div className="absolute right-0 z-20 mt-1 w-56 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-1 shadow-[var(--shadow-lg)]">
-                  <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--muted)]">
-                    Closed Sessions
-                  </div>
-                  {closedSessions.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => restoreSession(s)}
-                      className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-2 text-left text-[12px] text-[var(--text)] transition-colors hover:bg-[var(--bg-hover)]"
-                    >
-                      {s.target_type === "local" ? (
-                        <Monitor size={12} className="shrink-0 text-[var(--muted)]" />
-                      ) : (
-                        <Server size={12} className="shrink-0 text-[var(--info)]" />
-                      )}
-                      <span className="flex-1 truncate">{s.title}</span>
-                      <span className="text-[10px] text-[var(--muted)]">{s.backend}</span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
 
         {/* Add tab */}
         <button
@@ -436,9 +355,13 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
       </div>
 
       {/* ── Terminal Canvas ── */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden bg-[var(--terminal-bg)]">
         {activeTab ? (
-          <TerminalCanvas tab={activeTab} backends={backends} defaultBackend={defaultBackend} />
+          <TerminalCanvasStack
+            tabs={tabs}
+            activeTabId={activeTabId}
+            backends={backends}
+          />
         ) : (
           <EmptyCanvas onNewTab={addTab} />
         )}
@@ -454,24 +377,22 @@ function TabCard({
   isActive,
   onSelect,
   onClose,
-  onTerminate,
 }: {
   tab: DesktopTab;
   isActive: boolean;
   onSelect: () => void;
   onClose: () => void;
-  onTerminate: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
       className={cn(
-        "group relative flex h-8 shrink-0 items-center gap-1.5 rounded-t-lg border border-b-0 px-3 text-[12px] font-medium transition-all",
+        "group relative flex h-8 shrink-0 items-center gap-1.5 rounded-t-lg px-3 text-[12px] font-medium transition-all",
         isActive
-          ? "border-[var(--border-strong)] bg-[var(--bg-elevated)] text-[var(--text-strong)]"
-          : "border-transparent bg-transparent text-[var(--muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)]",
-        tab.terminateError && "border-[var(--danger)]/50"
+          ? "-mb-px bg-[var(--terminal-bg)] text-[var(--text-strong)] shadow-none"
+          : "border border-transparent border-b-0 bg-transparent text-[var(--muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)]",
+        tab.terminateError && !isActive && "border-[var(--danger)]/50"
       )}
     >
       {/* Target icon */}
@@ -484,13 +405,6 @@ function TabCard({
       {/* Title */}
       <span className="max-w-24 truncate">{tab.title}</span>
 
-      {/* Backend badge */}
-      {tab.backend !== "pending" && (
-        <span className="rounded bg-[var(--bg-accent)] px-1 py-0.5 text-[9px] font-medium text-[var(--muted)]">
-          {tab.backend}
-        </span>
-      )}
-
       {/* Error indicator */}
       {tab.terminateError && (
         <span className="text-[var(--danger)]" title={tab.terminateError}>
@@ -499,43 +413,25 @@ function TabCard({
       )}
 
       {/* Actions on hover */}
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {tab.sessionId && !tab.terminateError && (
-          <span
-            role="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onTerminate();
-            }}
-            className="flex h-4 w-4 items-center justify-center rounded text-[var(--danger)] hover:bg-[var(--danger-subtle)]"
-            title="Terminate session"
-          >
-            <Power size={9} />
-          </span>
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-0.5 transition-opacity",
+          isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
         )}
-        {tab.terminateError && (
-          <span
-            role="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onTerminate();
-            }}
-            className="flex h-4 w-4 items-center justify-center rounded text-[var(--danger)] hover:bg-[var(--danger-subtle)]"
-            title="Retry terminate"
-          >
-            <Power size={9} />
-          </span>
-        )}
+      >
         <span
           role="button"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
           }}
-          className="flex h-4 w-4 items-center justify-center rounded text-[var(--muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)]"
-          title="Close tab"
+          className={cn(
+            "flex h-5 w-5 items-center justify-center rounded hover:bg-[var(--danger-subtle)]",
+            tab.terminateError ? "text-[var(--danger)]" : "text-[var(--muted)] hover:text-[var(--danger)]"
+          )}
+          title={tab.terminateError ? "Retry close terminal" : "Close terminal"}
         >
-          <X size={10} />
+          <X size={11} />
         </span>
       </div>
     </button>
@@ -544,42 +440,20 @@ function TabCard({
 
 // ── Terminal Canvas ──
 
-function TerminalCanvas({ tab, backends, defaultBackend }: { tab: DesktopTab; backends: BackendInfoDto[]; defaultBackend: string }) {
+function TerminalCanvas({
+  tab,
+  backends,
+  active = true,
+}: {
+  tab: DesktopTab;
+  backends: BackendInfoDto[];
+  active?: boolean;
+}) {
   const isAttachable = tab.sessionId !== null && tab.backend !== "pending";
   const availableBackends = backends.filter((b) => b.available).map((b) => b.kind);
 
   return (
     <div className="flex h-full flex-col">
-      {/* Tab info bar */}
-      <div className="flex items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-accent)] px-4 py-1.5">
-        {tab.targetType === "local" ? (
-          <Monitor size={12} className="text-[var(--muted)]" />
-        ) : (
-          <Server size={12} className="text-[var(--info)]" />
-        )}
-        <span className="text-[11px] text-[var(--muted)]">
-          {tab.targetType === "local" ? "Local shell" : `Remote: ${tab.targetLabel}`}
-        </span>
-        {tab.backend !== "pending" && (
-          <>
-            <span className="text-[var(--border)]">·</span>
-            <span className="text-[11px] text-[var(--muted)]">
-              {tab.backend} · {tab.persistence}
-            </span>
-          </>
-        )}
-        {!isAttachable && tab.targetType === "local" && (
-          <span className="ml-auto text-[10px] text-[var(--muted)]">
-            Available: {availableBackends.length > 0 ? availableBackends.join(", ") : "none"} · Default: {defaultBackend}
-          </span>
-        )}
-        {!isAttachable && tab.targetType === "server" && (
-          <span className="ml-auto text-[10px] text-[var(--muted)]">
-            Select a server target and click + to create a remote session
-          </span>
-        )}
-      </div>
-
       {/* Error banner */}
       {tab.terminateError && (
         <div className="flex items-center gap-2 border-b border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-2">
@@ -590,51 +464,56 @@ function TerminalCanvas({ tab, backends, defaultBackend }: { tab: DesktopTab; ba
 
       {/* Terminal area */}
       {isAttachable ? (
-        <XtermCanvas
-          sessionId={tab.sessionId!}
-          className="flex-1"
-          onExit={() => {}}
-          onError={() => {}}
-        />
+        <div className="flex-1 p-1">
+          <div className="h-full overflow-hidden rounded-[var(--radius-md)] bg-[var(--terminal-bg)]">
+            <XtermCanvas
+              sessionId={tab.sessionId!}
+              active={active}
+              className="flex-1"
+              onExit={() => {}}
+              onError={() => {}}
+            />
+          </div>
+        </div>
       ) : tab.targetType === "server" ? (
-        <div className="flex flex-1 items-center justify-center bg-[var(--bg)]">
+        <div className="flex flex-1 items-center justify-center bg-[var(--terminal-bg)] p-1">
           <div className="flex flex-col items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-accent)] text-[var(--muted)]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--terminal-surface)] text-[var(--terminal-muted)]">
               <TerminalIcon size={22} />
             </div>
             <div className="text-center">
-              <p className="text-[13px] font-medium text-[var(--text-strong)]">
+              <p className="text-[13px] font-medium text-[var(--terminal-text)]">
                 Remote Terminal
               </p>
-              <p className="mt-1 max-w-xs text-[12px] text-[var(--muted)]">
+              <p className="mt-1 max-w-xs text-[12px] text-[var(--terminal-muted)]">
                 Select a server from the target menu and click + to create a remote SSH session.
-                Backend priority: tmux → screen → pty (all SSH-backed).
+                Mode: auto. Resolved backend priority is tmux → screen → pty.
               </p>
             </div>
-            <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] px-3 py-2 font-mono text-[11px] text-[var(--muted)]">
+            <div className="mt-2 rounded-[var(--radius-md)] border border-white/8 bg-[var(--terminal-surface)] px-3 py-2 font-mono text-[11px] text-[var(--terminal-muted)]">
               <span className="text-[var(--success)]">$</span> select target and click +
             </div>
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 items-center justify-center bg-[var(--bg)]">
+        <div className="flex flex-1 items-center justify-center bg-[var(--terminal-bg)] p-1">
           <div className="flex flex-col items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-accent)] text-[var(--muted)]">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--terminal-surface)] text-[var(--terminal-muted)]">
               <TerminalIcon size={22} />
             </div>
             <div className="text-center">
-              <p className="text-[13px] font-medium text-[var(--text-strong)]">
+              <p className="text-[13px] font-medium text-[var(--terminal-text)]">
                 Local Terminal Ready
               </p>
-              <p className="mt-1 max-w-xs text-[12px] text-[var(--muted)]">
-                Backend priority: tmux → screen → pty.
+              <p className="mt-1 max-w-xs text-[12px] text-[var(--terminal-muted)]">
+                Mode: auto. Resolved backend priority is tmux → pty → screen.
                 {availableBackends.length > 0
                   ? ` Available: ${availableBackends.join(", ")}.`
                   : " No terminal backend found on this system."}
                 Click + to create a session and start a real terminal.
               </p>
             </div>
-            <div className="mt-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-accent)] px-3 py-2 font-mono text-[11px] text-[var(--muted)]">
+            <div className="mt-2 rounded-[var(--radius-md)] border border-white/8 bg-[var(--terminal-surface)] px-3 py-2 font-mono text-[11px] text-[var(--terminal-muted)]">
               <span className="text-[var(--success)]">$</span> click + to create a session
             </div>
           </div>
@@ -644,20 +523,109 @@ function TerminalCanvas({ tab, backends, defaultBackend }: { tab: DesktopTab; ba
   );
 }
 
+function TerminalCanvasStack({
+  tabs,
+  activeTabId,
+  backends,
+}: {
+  tabs: DesktopTab[];
+  activeTabId: string | null;
+  backends: BackendInfoDto[];
+}) {
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+  const [mountedEphemeralTabs, setMountedEphemeralTabs] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (
+      activeTab &&
+      activeTab.persistence === "ephemeral" &&
+      activeTab.sessionId !== null &&
+      activeTab.backend !== "pending"
+    ) {
+      setMountedEphemeralTabs((prev) => {
+        if (prev.has(activeTab.id)) return prev;
+        const next = new Set(prev);
+        next.add(activeTab.id);
+        return next;
+      });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    setMountedEphemeralTabs((prev) => {
+      const next = new Set(
+        [...prev].filter((tabId) =>
+          tabs.some(
+            (tab) =>
+              tab.id === tabId &&
+              tab.persistence === "ephemeral" &&
+              tab.sessionId !== null &&
+              tab.backend !== "pending"
+          )
+        )
+      );
+
+      if (next.size === prev.size && [...next].every((id) => prev.has(id))) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [tabs]);
+
+  if (!activeTab) {
+    return <EmptyCanvas onNewTab={() => {}} />;
+  }
+
+  const activeIsAttachable = activeTab.sessionId !== null && activeTab.backend !== "pending";
+
+  if (!activeIsAttachable) {
+    return <TerminalCanvas tab={activeTab} backends={backends} />;
+  }
+
+  return (
+    <div className="relative h-full">
+      {tabs
+        .filter((tab) => {
+          if (tab.sessionId === null || tab.backend === "pending") {
+            return false;
+          }
+
+          if (tab.id === activeTabId) {
+            return true;
+          }
+
+          return tab.persistence === "ephemeral" && mountedEphemeralTabs.has(tab.id);
+        })
+        .map((tab) => (
+          <div
+            key={tab.id}
+            className={cn(
+              "absolute inset-0",
+              tab.id === activeTabId ? "visible z-10" : "invisible pointer-events-none z-0"
+            )}
+          >
+            <TerminalCanvas tab={tab} backends={backends} active={tab.id === activeTabId} />
+          </div>
+        ))}
+    </div>
+  );
+}
+
 // ── Empty Canvas ──
 
 function EmptyCanvas({ onNewTab }: { onNewTab: () => void }) {
   return (
-    <div className="flex h-full items-center justify-center bg-[var(--bg)]">
+    <div className="flex h-full items-center justify-center bg-[var(--terminal-bg)] p-1">
       <div className="flex flex-col items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-accent)] text-[var(--muted)]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--terminal-surface)] text-[var(--terminal-muted)]">
           <TerminalIcon size={22} />
         </div>
-        <p className="text-[13px] text-[var(--muted)]">No open terminals</p>
+        <p className="text-[13px] text-[var(--terminal-muted)]">No open terminals</p>
         <button
           type="button"
           onClick={onNewTab}
-          className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-[12px] font-medium text-[var(--text)] transition-colors hover:bg-[var(--bg-hover)]"
+          className="rounded-[var(--radius-md)] border border-white/8 bg-[var(--terminal-surface)] px-3 py-1.5 text-[12px] font-medium text-[var(--terminal-text)] transition-colors hover:bg-white/10"
         >
           Open Terminal
         </button>

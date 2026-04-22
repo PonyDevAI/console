@@ -1,7 +1,7 @@
 mod routes;
 mod sse;
-mod threads;
 mod terminal;
+mod threads;
 
 use anyhow::Result;
 use axum::Router;
@@ -10,11 +10,11 @@ use std::sync::{Arc, OnceLock};
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::services::task_queue::TaskQueue;
-use crate::services::session_stream::SharedSessionRegistry;
-use crate::runtime::{RuntimeGateway, RuntimeManager};
-use crate::runtime::adapters::{codex::CodexRuntimeAdapter, claude::ClaudeRuntimeAdapter};
+use crate::runtime::adapters::{claude::ClaudeRuntimeAdapter, codex::CodexRuntimeAdapter};
 use crate::runtime::registry::RuntimeRegistry;
+use crate::runtime::{RuntimeGateway, RuntimeManager};
+use crate::services::session_stream::SharedSessionRegistry;
+use crate::services::task_queue::TaskQueue;
 
 static SESSION_REGISTRY: OnceLock<SharedSessionRegistry> = OnceLock::new();
 
@@ -26,10 +26,10 @@ fn build_runtime() -> (Arc<RuntimeGateway>, Arc<RuntimeManager>) {
     let mut registry = RuntimeRegistry::new();
     registry.register(std::sync::Arc::new(CodexRuntimeAdapter::new()));
     registry.register(std::sync::Arc::new(ClaudeRuntimeAdapter::new()));
-    
+
     let manager = Arc::new(RuntimeManager::new());
     let gateway = Arc::new(RuntimeGateway::new(registry, manager.clone()));
-    
+
     (gateway, manager)
 }
 
@@ -69,21 +69,45 @@ pub async fn serve(addr: &str) -> Result<()> {
     }
 
     let stateful_routes = Router::new()
-        .route("/api/cli-tools/:name/install", axum::routing::post(routes::install_tool))
-        .route("/api/cli-tools/:name/upgrade", axum::routing::post(routes::upgrade_tool))
-        .route("/api/cli-tools/:name/uninstall", axum::routing::post(routes::uninstall_tool))
+        .route(
+            "/api/cli-tools/:name/install",
+            axum::routing::post(routes::install_tool),
+        )
+        .route(
+            "/api/cli-tools/:name/upgrade",
+            axum::routing::post(routes::upgrade_tool),
+        )
+        .route(
+            "/api/cli-tools/:name/uninstall",
+            axum::routing::post(routes::uninstall_tool),
+        )
         .route("/api/tasks", axum::routing::get(routes::list_tasks))
         .route("/api/tasks/stream", axum::routing::get(sse::task_stream))
         .route("/api/tasks/:id", axum::routing::get(routes::get_task))
-        .route("/api/employees/:id/dispatch", axum::routing::post(routes::dispatch_employee))
-        .route("/api/agent-sources/:id/scan", axum::routing::post(routes::scan_single_agent_source))
-        .route("/api/agent-sources/:id/install", axum::routing::post(routes::install_agent_source))
-        .route("/api/agent-sources/:id/upgrade", axum::routing::post(routes::upgrade_agent_source))
-        .route("/api/agent-sources/:id/uninstall", axum::routing::post(routes::uninstall_agent_source))
+        .route(
+            "/api/employees/:id/dispatch",
+            axum::routing::post(routes::dispatch_employee),
+        )
+        .route(
+            "/api/agent-sources/:id/scan",
+            axum::routing::post(routes::scan_single_agent_source),
+        )
+        .route(
+            "/api/agent-sources/:id/install",
+            axum::routing::post(routes::install_agent_source),
+        )
+        .route(
+            "/api/agent-sources/:id/upgrade",
+            axum::routing::post(routes::upgrade_agent_source),
+        )
+        .route(
+            "/api/agent-sources/:id/uninstall",
+            axum::routing::post(routes::uninstall_agent_source),
+        )
         .with_state(queue.clone());
 
     let stateless_routes = routes::api_routes();
-    
+
     // Thread routes
     let thread_routes = threads::thread_routes(thread_state);
 
@@ -101,20 +125,62 @@ pub async fn serve(addr: &str) -> Result<()> {
         .route("/api/sessions", axum::routing::get(routes::list_sessions))
         .route("/api/sessions", axum::routing::post(routes::create_session))
         .route("/api/sessions/:id", axum::routing::get(routes::get_session))
-        .route("/api/sessions/:id", axum::routing::delete(routes::delete_session))
-        .route("/api/sessions/:id/messages", axum::routing::get(routes::list_session_messages))
-        .route("/api/sessions/:id/messages", axum::routing::post(routes::post_session_message))
-        .route("/api/sessions/:id/stream", axum::routing::get(routes::session_stream))
-        .route("/api/sessions/:id/title", axum::routing::patch(routes::update_session_title))
-        .route("/api/sessions/:id/participants", axum::routing::patch(routes::update_session_participants))
-        .route("/api/sessions/:id/proposals", axum::routing::get(routes::list_proposals))
-        .route("/api/sessions/:id/proposals", axum::routing::post(routes::create_proposal))
-        .route("/api/sessions/:id/proposals/:pid/confirm", axum::routing::post(routes::confirm_proposal))
-        .route("/api/sessions/:id/proposals/:pid/cancel", axum::routing::post(routes::cancel_proposal))
-        .route("/api/sessions/:id/proposals/:pid/done", axum::routing::post(routes::done_proposal))
-        .route("/api/sessions/:id/proposals/:pid/review", axum::routing::post(routes::review_proposal))
-        .route("/api/sessions/:id/proposals/:pid/revise", axum::routing::post(routes::revise_proposal))
-        .route("/api/proposals", axum::routing::get(routes::list_all_proposals))
+        .route(
+            "/api/sessions/:id",
+            axum::routing::delete(routes::delete_session),
+        )
+        .route(
+            "/api/sessions/:id/messages",
+            axum::routing::get(routes::list_session_messages),
+        )
+        .route(
+            "/api/sessions/:id/messages",
+            axum::routing::post(routes::post_session_message),
+        )
+        .route(
+            "/api/sessions/:id/stream",
+            axum::routing::get(routes::session_stream),
+        )
+        .route(
+            "/api/sessions/:id/title",
+            axum::routing::patch(routes::update_session_title),
+        )
+        .route(
+            "/api/sessions/:id/participants",
+            axum::routing::patch(routes::update_session_participants),
+        )
+        .route(
+            "/api/sessions/:id/proposals",
+            axum::routing::get(routes::list_proposals),
+        )
+        .route(
+            "/api/sessions/:id/proposals",
+            axum::routing::post(routes::create_proposal),
+        )
+        .route(
+            "/api/sessions/:id/proposals/:pid/confirm",
+            axum::routing::post(routes::confirm_proposal),
+        )
+        .route(
+            "/api/sessions/:id/proposals/:pid/cancel",
+            axum::routing::post(routes::cancel_proposal),
+        )
+        .route(
+            "/api/sessions/:id/proposals/:pid/done",
+            axum::routing::post(routes::done_proposal),
+        )
+        .route(
+            "/api/sessions/:id/proposals/:pid/review",
+            axum::routing::post(routes::review_proposal),
+        )
+        .route(
+            "/api/sessions/:id/proposals/:pid/revise",
+            axum::routing::post(routes::revise_proposal),
+        )
+        .route(
+            "/api/proposals",
+            axum::routing::get(routes::list_all_proposals),
+        )
         .fallback_service(static_files)
         .layer(CorsLayer::permissive());
 

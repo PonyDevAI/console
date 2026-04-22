@@ -1,3 +1,4 @@
+use axum::extract::ws::{Message, WebSocket};
 use axum::{
     extract::{Path, Query, State, WebSocketUpgrade},
     http::StatusCode,
@@ -5,7 +6,6 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use axum::extract::ws::{Message, WebSocket};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use cloudcode_contracts::terminal::{
     ClientMessage, CreateSessionRequest, ServerMessage, TerminalWsQuery,
@@ -30,9 +30,7 @@ pub fn router() -> Router<TerminalApiState> {
         .route("/sessions/:id/terminate", post(terminate_session))
 }
 
-async fn list_backends(
-    State(state): State<TerminalApiState>,
-) -> impl IntoResponse {
+async fn list_backends(State(state): State<TerminalApiState>) -> impl IntoResponse {
     match state.terminal_service.get_backends() {
         Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(resp).unwrap())),
         Err(e) => {
@@ -45,9 +43,7 @@ async fn list_backends(
     }
 }
 
-async fn list_sessions(
-    State(state): State<TerminalApiState>,
-) -> impl IntoResponse {
+async fn list_sessions(State(state): State<TerminalApiState>) -> impl IntoResponse {
     match state.terminal_service.list_sessions() {
         Ok(resp) => (StatusCode::OK, Json(serde_json::to_value(resp).unwrap())),
         Err(e) => {
@@ -119,28 +115,44 @@ async fn terminal_ws(
     ws.on_upgrade(move |socket| handle_socket(socket, state, session_id, cols, rows))
 }
 
-async fn handle_socket(socket: WebSocket, state: TerminalApiState, session_id: String, cols: u16, rows: u16) {
+async fn handle_socket(
+    socket: WebSocket,
+    state: TerminalApiState,
+    session_id: String,
+    cols: u16,
+    rows: u16,
+) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     // Get session meta to determine cleanup behavior
     let session_meta = state.terminal_service.get_session(&session_id);
-    let is_ephemeral = session_meta.as_ref().map(|m| m.persistence == "ephemeral").unwrap_or(false);
+    let is_ephemeral = session_meta
+        .as_ref()
+        .map(|m| m.persistence == "ephemeral")
+        .unwrap_or(false);
 
-    let components = match state.terminal_service.spawn_attach_bridge(&session_id, cols, rows) {
+    let components = match state
+        .terminal_service
+        .spawn_attach_bridge(&session_id, cols, rows)
+    {
         Ok(c) => c,
         Err(e) => {
             tracing::error!(session_id = %session_id, "Failed to spawn attach bridge: {}", e);
-            
+
             // Cleanup ephemeral session if attach failed
             if is_ephemeral {
                 tracing::info!(session_id = %session_id, "Cleaning up ephemeral session after attach failure");
-                let _ = state.terminal_service.cleanup_ephemeral_session(&session_id);
+                let _ = state
+                    .terminal_service
+                    .cleanup_ephemeral_session(&session_id);
             }
-            
+
             let _ = ws_sender
                 .send(Message::Text(
-                    serde_json::to_string(&ServerMessage::Error { message: e.to_string() })
-                        .unwrap(),
+                    serde_json::to_string(&ServerMessage::Error {
+                        message: e.to_string(),
+                    })
+                    .unwrap(),
                 ))
                 .await;
             return;
@@ -169,7 +181,8 @@ async fn handle_socket(socket: WebSocket, state: TerminalApiState, session_id: S
                     let mut buf = [0u8; 8192];
                     guard.read(&mut buf).map(|n| (n, buf))
                 }
-            }).await;
+            })
+            .await;
 
             match read_result {
                 Ok(Ok((n, buf))) => {
@@ -179,16 +192,21 @@ async fn handle_socket(socket: WebSocket, state: TerminalApiState, session_id: S
                             data,
                             encoding: "base64".to_string(),
                         };
-                        if ws_sender.send(Message::Text(serde_json::to_string(&msg).unwrap())).await.is_err() {
+                        if ws_sender
+                            .send(Message::Text(serde_json::to_string(&msg).unwrap()))
+                            .await
+                            .is_err()
+                        {
                             tracing::info!(session_id = %session_id_for_log, "WebSocket send failed");
                             break;
                         }
                     } else {
                         tracing::info!(session_id = %session_id_for_log, "PTY EOF");
-                        let _ = ws_sender.send(Message::Text(
-                            serde_json::to_string(&ServerMessage::Exit { code: None }).unwrap()
-                        ))
-                        .await;
+                        let _ = ws_sender
+                            .send(Message::Text(
+                                serde_json::to_string(&ServerMessage::Exit { code: None }).unwrap(),
+                            ))
+                            .await;
                         break;
                     }
                 }
@@ -228,7 +246,8 @@ async fn handle_socket(socket: WebSocket, state: TerminalApiState, session_id: S
                                         guard.flush()?;
                                         Ok::<(), anyhow::Error>(())
                                     }
-                                }).await;
+                                })
+                                .await;
 
                                 match write_result {
                                     Ok(Ok(())) => {}
@@ -249,9 +268,9 @@ async fn handle_socket(socket: WebSocket, state: TerminalApiState, session_id: S
                             }
                             ClientMessage::Resize { cols, rows } => {
                                 let resize_fn = resize_for_write.clone();
-                                let result = tokio::task::spawn_blocking(move || {
-                                    resize_fn(cols, rows)
-                                }).await;
+                                let result =
+                                    tokio::task::spawn_blocking(move || resize_fn(cols, rows))
+                                        .await;
                                 if let Ok(Err(e)) = result {
                                     tracing::warn!(session_id = %session_id_for_log2, "Resize failed: {}", e);
                                 }
@@ -282,14 +301,14 @@ async fn handle_socket(socket: WebSocket, state: TerminalApiState, session_id: S
     }
 
     tracing::info!(session_id = %session_id, "Closing attach bridge");
-    let _ = tokio::task::spawn_blocking(move || {
-        close_fn()
-    }).await;
+    let _ = tokio::task::spawn_blocking(move || close_fn()).await;
     tracing::info!(session_id = %session_id, "Attach bridge closed");
 
     // Cleanup ephemeral session (pty sessions: disconnect ends session)
     if is_ephemeral {
         tracing::info!(session_id = %session_id, "Cleaning up ephemeral session");
-        let _ = state.terminal_service.cleanup_ephemeral_session(&session_id);
+        let _ = state
+            .terminal_service
+            .cleanup_ephemeral_session(&session_id);
     }
 }

@@ -11,7 +11,9 @@ use std::sync::Arc;
 use cloudcode_contracts::agent_sources::{
     CreateAgentSourceRequest, SetDefaultModelRequest, UpdateAgentSourceRequest,
 };
-use cloudcode_contracts::employees::{CreateEmployeeRequest, PersonaFiles, SoulFiles, UpdateEmployeeRequest};
+use cloudcode_contracts::employees::{
+    CreateEmployeeRequest, PersonaFiles, SoulFiles, UpdateEmployeeRequest,
+};
 use cloudcode_contracts::mcp::CreateMcpServerRequest;
 use cloudcode_contracts::prompts::{CreatePromptRequest, UpdatePromptRequest};
 use cloudcode_contracts::providers::{
@@ -42,19 +44,31 @@ pub fn api_routes() -> Router {
         .route("/agent-sources", get(list_agent_sources))
         .route("/agent-sources", post(create_agent_source))
         .route("/agent-sources/scan", post(scan_agent_sources))
-        .route("/agent-sources/check-updates", post(check_agent_source_updates))
+        .route(
+            "/agent-sources/check-updates",
+            post(check_agent_source_updates),
+        )
         .route("/agent-sources/:id", get(get_agent_source))
         .route("/agent-sources/:id", put(update_agent_source))
         .route("/agent-sources/:id", delete(delete_agent_source))
-        .route("/agent-sources/:id/check-update", post(check_single_agent_source_update))
+        .route(
+            "/agent-sources/:id/check-update",
+            post(check_single_agent_source_update),
+        )
         .route("/agent-sources/:id/test", post(test_agent_source))
         .route("/agent-sources/:id/models", get(get_agent_source_models))
-        .route("/agent-sources/:id/default-model", put(set_agent_source_default_model))
+        .route(
+            "/agent-sources/:id/default-model",
+            put(set_agent_source_default_model),
+        )
         .route("/agent-sources/:id/agents", get(list_agent_source_agents))
         .route("/agents", get(list_agents))
         .route("/agents/:id", get(get_agent))
         .route("/agents/source/:source_id", get(get_agents_by_source))
-        .route("/agents/source/:source_id/remote", get(fetch_remote_agents_for_source))
+        .route(
+            "/agents/source/:source_id/remote",
+            get(fetch_remote_agents_for_source),
+        )
         .route("/providers", get(list_providers))
         .route("/providers", post(create_provider))
         .route("/providers/export", get(export_providers))
@@ -103,7 +117,10 @@ pub fn api_routes() -> Router {
         .route("/remote-agents", get(list_remote_agents))
         .route("/remote-agents", post(add_remote_agent))
         .route("/remote-agents/ping-all", post(ping_all_remote_agents))
-        .route("/remote-agents/latest-version", get(get_remote_agent_latest_version))
+        .route(
+            "/remote-agents/latest-version",
+            get(get_remote_agent_latest_version),
+        )
         .route("/remote-agents/:id/detail", get(get_remote_agent_detail))
         .route("/remote-agents/:id", put(update_remote_agent))
         .route("/remote-agents/:id", delete(delete_remote_agent))
@@ -122,7 +139,10 @@ pub fn api_routes() -> Router {
         .route("/employees/:id/bindings", post(add_binding))
         .route("/employees/:id/bindings/:bid", put(update_binding))
         .route("/employees/:id/bindings/:bid", delete(delete_binding))
-        .route("/employees/:id/bindings/:bid/test", post(test_employee_binding))
+        .route(
+            "/employees/:id/bindings/:bid/test",
+            post(test_employee_binding),
+        )
         .route("/employees/:id/history", get(get_dispatch_history))
         .route("/prompts", get(list_prompts))
         .route("/prompts", post(create_prompt))
@@ -202,15 +222,24 @@ fn spawn_tool_task(
     let q = queue.clone();
     let action_label = action.to_string();
     tokio::spawn(async move {
-        q.update_status(&task_id, TaskStatus::Running, Some(format!("{}ing {}...", action_label, name)));
+        q.update_status(
+            &task_id,
+            TaskStatus::Running,
+            Some(format!("{}ing {}...", action_label, name)),
+        );
         match tokio::task::spawn_blocking(move || op(&name)).await {
             Ok(Ok(())) => {
                 let _ = tokio::task::spawn_blocking(|| {
                     if let Ok(state) = services::version::scan_all() {
                         let _ = services::version::save(&state);
                     }
-                }).await;
-                q.update_status(&task_id, TaskStatus::Completed, Some(format!("{} completed", action_label)));
+                })
+                .await;
+                q.update_status(
+                    &task_id,
+                    TaskStatus::Completed,
+                    Some(format!("{} completed", action_label)),
+                );
             }
             Ok(Err(e)) => {
                 q.update_status(&task_id, TaskStatus::Failed, Some(e.to_string()));
@@ -230,12 +259,13 @@ async fn list_agent_sources() -> Result<Json<Value>, StatusCode> {
 }
 
 async fn get_agent_source(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let source = services::agent_source::get_source(&id)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let source = services::agent_source::get_source(&id).map_err(|_| StatusCode::NOT_FOUND)?;
     Ok(Json(json!(source)))
 }
 
-async fn create_agent_source(Json(req): Json<CreateAgentSourceRequest>) -> Result<Json<Value>, StatusCode> {
+async fn create_agent_source(
+    Json(req): Json<CreateAgentSourceRequest>,
+) -> Result<Json<Value>, StatusCode> {
     let source_type = match req.source_type.as_str() {
         "remote_openclaw_ws" => crate::models::AgentSourceType::RemoteOpenClawWs,
         "openai_compatible" => crate::models::AgentSourceType::OpenAiCompatible,
@@ -281,12 +311,10 @@ async fn update_agent_source(
 }
 
 async fn delete_agent_source(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    tokio::task::spawn_blocking(move || {
-        services::agent_source::delete_source(&id)
-    })
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-    .map_err(map_not_found)?;
+    tokio::task::spawn_blocking(move || services::agent_source::delete_source(&id))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(map_not_found)?;
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -299,8 +327,8 @@ async fn scan_agent_sources() -> Result<Json<Value>, StatusCode> {
 }
 
 async fn check_agent_source_updates() -> Result<Json<Value>, StatusCode> {
-    let state = services::agent_source::check_updates()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let state =
+        services::agent_source::check_updates().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(state)))
 }
 
@@ -313,13 +341,23 @@ pub async fn scan_single_agent_source(
     let q = queue.clone();
     let source_id = id.clone();
     tokio::spawn(async move {
-        q.update_status(&task_id, TaskStatus::Running, Some(format!("Scanning {}...", source_id)));
+        q.update_status(
+            &task_id,
+            TaskStatus::Running,
+            Some(format!("Scanning {}...", source_id)),
+        );
         match tokio::task::spawn_blocking(move || {
             let state = services::agent_source::scan_all()?;
             services::agent_source::save(&state)
-        }).await {
+        })
+        .await
+        {
             Ok(Ok(())) => {
-                q.update_status(&task_id, TaskStatus::Completed, Some("Scan completed".into()));
+                q.update_status(
+                    &task_id,
+                    TaskStatus::Completed,
+                    Some("Scan completed".into()),
+                );
             }
             Ok(Err(e)) => {
                 q.update_status(&task_id, TaskStatus::Failed, Some(e.to_string()));
@@ -341,13 +379,22 @@ pub async fn install_agent_source(
     let q = queue.clone();
     let source_id = id.clone();
     tokio::spawn(async move {
-        q.update_status(&task_id, TaskStatus::Running, Some(format!("Installing {}...", source_id)));
-        match tokio::task::spawn_blocking(move || services::agent_source::install(&source_id)).await {
+        q.update_status(
+            &task_id,
+            TaskStatus::Running,
+            Some(format!("Installing {}...", source_id)),
+        );
+        match tokio::task::spawn_blocking(move || services::agent_source::install(&source_id)).await
+        {
             Ok(Ok(())) => {
                 if let Ok(state) = services::agent_source::scan_all() {
                     let _ = services::agent_source::save(&state);
                 }
-                q.update_status(&task_id, TaskStatus::Completed, Some("Install completed".into()));
+                q.update_status(
+                    &task_id,
+                    TaskStatus::Completed,
+                    Some("Install completed".into()),
+                );
             }
             Ok(Err(e)) => {
                 q.update_status(&task_id, TaskStatus::Failed, Some(e.to_string()));
@@ -369,13 +416,22 @@ pub async fn upgrade_agent_source(
     let q = queue.clone();
     let source_id = id.clone();
     tokio::spawn(async move {
-        q.update_status(&task_id, TaskStatus::Running, Some(format!("Upgrading {}...", source_id)));
-        match tokio::task::spawn_blocking(move || services::agent_source::upgrade(&source_id)).await {
+        q.update_status(
+            &task_id,
+            TaskStatus::Running,
+            Some(format!("Upgrading {}...", source_id)),
+        );
+        match tokio::task::spawn_blocking(move || services::agent_source::upgrade(&source_id)).await
+        {
             Ok(Ok(())) => {
                 if let Ok(state) = services::agent_source::scan_all() {
                     let _ = services::agent_source::save(&state);
                 }
-                q.update_status(&task_id, TaskStatus::Completed, Some("Upgrade completed".into()));
+                q.update_status(
+                    &task_id,
+                    TaskStatus::Completed,
+                    Some("Upgrade completed".into()),
+                );
             }
             Ok(Err(e)) => {
                 q.update_status(&task_id, TaskStatus::Failed, Some(e.to_string()));
@@ -397,13 +453,23 @@ pub async fn uninstall_agent_source(
     let q = queue.clone();
     let source_id = id.clone();
     tokio::spawn(async move {
-        q.update_status(&task_id, TaskStatus::Running, Some(format!("Uninstalling {}...", source_id)));
-        match tokio::task::spawn_blocking(move || services::agent_source::uninstall(&source_id)).await {
+        q.update_status(
+            &task_id,
+            TaskStatus::Running,
+            Some(format!("Uninstalling {}...", source_id)),
+        );
+        match tokio::task::spawn_blocking(move || services::agent_source::uninstall(&source_id))
+            .await
+        {
             Ok(Ok(())) => {
                 if let Ok(state) = services::agent_source::scan_all() {
                     let _ = services::agent_source::save(&state);
                 }
-                q.update_status(&task_id, TaskStatus::Completed, Some("Uninstall completed".into()));
+                q.update_status(
+                    &task_id,
+                    TaskStatus::Completed,
+                    Some("Uninstall completed".into()),
+                );
             }
             Ok(Err(e)) => {
                 q.update_status(&task_id, TaskStatus::Failed, Some(e.to_string()));
@@ -416,21 +482,26 @@ pub async fn uninstall_agent_source(
     Ok(Json(json!({ "task_id": task.id, "status": "pending" })))
 }
 
-async fn check_single_agent_source_update(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+async fn check_single_agent_source_update(
+    Path(id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
     let remote = services::agent_source::check_remote_version(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "source_id": id, "remote_version": remote })))
 }
 
 async fn test_agent_source(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let source = services::agent_source::get_source(&id)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let source = services::agent_source::get_source(&id).map_err(|_| StatusCode::NOT_FOUND)?;
 
     match source.source_type {
         crate::models::AgentSourceType::RemoteOpenClawWs => {
             let result = services::openclaw::test_source(&source).await;
             if !result.ok {
-                tracing::warn!("OpenClaw source {} health check failed: {:?}", id, result.error);
+                tracing::warn!(
+                    "OpenClaw source {} health check failed: {:?}",
+                    id,
+                    result.error
+                );
             }
             Ok(Json(json!({
                 "ok": result.ok,
@@ -450,12 +521,12 @@ async fn test_agent_source(Path(id): Path<String>) -> Result<Json<Value>, Status
 }
 
 async fn get_agent_source_models(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let source = services::agent_source::get_source(&id)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
+    let source = services::agent_source::get_source(&id).map_err(|_| StatusCode::NOT_FOUND)?;
 
     match source.source_type {
         crate::models::AgentSourceType::RemoteOpenClawWs => {
-            let result = services::openclaw::list_models(&source).await
+            let result = services::openclaw::list_models(&source)
+                .await
                 .map_err(|e| {
                     tracing::error!("Failed to list OpenClaw models: {}", e);
                     StatusCode::INTERNAL_SERVER_ERROR
@@ -486,21 +557,20 @@ async fn set_agent_source_default_model(
     Path(id): Path<String>,
     Json(req): Json<SetDefaultModelRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    services::agent_source::set_default_model(&id, &req.model)
-        .map_err(|e| {
-            tracing::error!("Failed to set default model: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    services::agent_source::set_default_model(&id, &req.model).map_err(|e| {
+        tracing::error!("Failed to set default model: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     Ok(Json(json!({ "source_id": id, "default_model": req.model })))
 }
 
 async fn list_agent_source_agents(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let source = services::agent_source::get_source(&id)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    
+    let source = services::agent_source::get_source(&id).map_err(|_| StatusCode::NOT_FOUND)?;
+
     match source.source_type {
         crate::models::AgentSourceType::RemoteOpenClawWs => {
-            let result = services::openclaw::list_agents(&source).await
+            let result = services::openclaw::list_agents(&source)
+                .await
                 .map_err(|e| {
                     tracing::error!("Failed to list OpenClaw agents: {}", e);
                     StatusCode::INTERNAL_SERVER_ERROR
@@ -513,12 +583,12 @@ async fn list_agent_source_agents(Path(id): Path<String>) -> Result<Json<Value>,
 
 #[allow(dead_code)]
 async fn list_openclaw_models(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let source = services::agent_source::get_source(&id)
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    
+    let source = services::agent_source::get_source(&id).map_err(|_| StatusCode::NOT_FOUND)?;
+
     match source.source_type {
         crate::models::AgentSourceType::RemoteOpenClawWs => {
-            let result = services::openclaw::list_models(&source).await
+            let result = services::openclaw::list_models(&source)
+                .await
                 .map_err(|e| {
                     tracing::error!("Failed to list OpenClaw models: {}", e);
                     StatusCode::INTERNAL_SERVER_ERROR
@@ -530,8 +600,8 @@ async fn list_openclaw_models(Path(id): Path<String>) -> Result<Json<Value>, Sta
 }
 
 async fn list_agents() -> Result<Json<Value>, StatusCode> {
-    let agents = services::agent_registry::list_agents()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agents =
+        services::agent_registry::list_agents().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "agents": agents })))
 }
 
@@ -548,7 +618,9 @@ async fn get_agents_by_source(Path(source_id): Path<String>) -> Result<Json<Valu
     Ok(Json(json!({ "agents": agents })))
 }
 
-async fn fetch_remote_agents_for_source(Path(source_id): Path<String>) -> Result<Json<Value>, StatusCode> {
+async fn fetch_remote_agents_for_source(
+    Path(source_id): Path<String>,
+) -> Result<Json<Value>, StatusCode> {
     let agents = services::agent_registry::fetch_remote_agents_from_source(&source_id)
         .await
         .map_err(|e| {
@@ -562,21 +634,36 @@ pub async fn install_tool(
     axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
     Path(name): Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
-    Ok(spawn_tool_task(&queue, "install", name, services::version::install))
+    Ok(spawn_tool_task(
+        &queue,
+        "install",
+        name,
+        services::version::install,
+    ))
 }
 
 pub async fn upgrade_tool(
     axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
     Path(name): Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
-    Ok(spawn_tool_task(&queue, "upgrade", name, services::version::upgrade))
+    Ok(spawn_tool_task(
+        &queue,
+        "upgrade",
+        name,
+        services::version::upgrade,
+    ))
 }
 
 pub async fn uninstall_tool(
     axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,
     Path(name): Path<String>,
 ) -> Result<Json<Value>, StatusCode> {
-    Ok(spawn_tool_task(&queue, "uninstall", name, services::version::uninstall))
+    Ok(spawn_tool_task(
+        &queue,
+        "uninstall",
+        name,
+        services::version::uninstall,
+    ))
 }
 
 pub async fn list_tasks(
@@ -601,7 +688,8 @@ async fn list_providers() -> Result<Json<Value>, StatusCode> {
 }
 
 async fn get_switch_modes() -> Result<Json<Value>, StatusCode> {
-    let modes = services::provider::get_switch_modes().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let modes =
+        services::provider::get_switch_modes().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "modes": modes })))
 }
 
@@ -609,11 +697,14 @@ async fn set_switch_mode(
     Path(app): Path<String>,
     Json(req): Json<SetSwitchModeRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    services::provider::set_switch_mode(&app, req.mode).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::provider::set_switch_mode(&app, req.mode)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "ok": true })))
 }
 
-async fn create_provider(Json(req): Json<CreateProviderRequest>) -> Result<Json<Value>, StatusCode> {
+async fn create_provider(
+    Json(req): Json<CreateProviderRequest>,
+) -> Result<Json<Value>, StatusCode> {
     let provider = services::provider::create(
         req.name,
         req.api_endpoint,
@@ -621,19 +712,21 @@ async fn create_provider(Json(req): Json<CreateProviderRequest>) -> Result<Json<
         req.apps,
         req.models,
     )
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(provider)))
 }
 
 async fn export_providers() -> Result<Json<Value>, StatusCode> {
-    let state = services::provider::export_state().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let state =
+        services::provider::export_state().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(state))
 }
 
 async fn import_providers(
     Json(req): Json<ImportProvidersRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let imported = services::provider::import_all(&req.data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let imported =
+        services::provider::import_all(&req.data).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "imported": imported })))
 }
 
@@ -649,7 +742,7 @@ async fn update_provider(
         req.apps,
         req.models,
     )
-        .map_err(map_not_found)?;
+    .map_err(map_not_found)?;
     Ok(Json(json!(updated)))
 }
 
@@ -691,7 +784,10 @@ async fn test_provider(Path(id): Path<String>) -> Result<Json<Value>, StatusCode
     // NOTE: api_key_ref is currently used directly as the API key.
     // TODO: Phase 2 — resolve key references (e.g. env var names, keychain refs)
     let result = client
-        .get(format!("{}/models", provider.api_endpoint.trim_end_matches('/')))
+        .get(format!(
+            "{}/models",
+            provider.api_endpoint.trim_end_matches('/')
+        ))
         .header("Authorization", format!("Bearer {}", provider.api_key_ref))
         .timeout(std::time::Duration::from_secs(10))
         .send()
@@ -723,7 +819,10 @@ async fn fetch_provider_models(Path(id): Path<String>) -> Result<Json<Value>, St
 
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("{}/models", provider.api_endpoint.trim_end_matches('/')))
+        .get(format!(
+            "{}/models",
+            provider.api_endpoint.trim_end_matches('/')
+        ))
         .header("Authorization", format!("Bearer {}", provider.api_key_ref))
         .timeout(std::time::Duration::from_secs(10))
         .send()
@@ -734,10 +833,7 @@ async fn fetch_provider_models(Path(id): Path<String>) -> Result<Json<Value>, St
         return Err(StatusCode::BAD_GATEWAY);
     }
 
-    let body: Value = response
-        .json()
-        .await
-        .map_err(|_| StatusCode::BAD_GATEWAY)?;
+    let body: Value = response.json().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
     let models = body
         .get("data")
         .and_then(|value| value.as_array())
@@ -764,7 +860,8 @@ async fn fetch_provider_models(Path(id): Path<String>) -> Result<Json<Value>, St
 }
 
 async fn list_model_assignments() -> Result<Json<Value>, StatusCode> {
-    let assignments = services::model_assignment::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let assignments =
+        services::model_assignment::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "assignments": assignments })))
 }
 
@@ -815,7 +912,8 @@ async fn get_current_model(Path(app): Path<String>) -> Result<Json<Value>, Statu
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    let assignment = services::model_assignment::get(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let assignment =
+        services::model_assignment::get(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let current_model = adapter
         .read_model_config()
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -839,7 +937,8 @@ async fn create_mcp_server(
 }
 
 async fn import_mcp_from_app(Path(app): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let imported = services::mcp::import_from_app(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let imported =
+        services::mcp::import_from_app(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "imported": imported })))
 }
 
@@ -901,7 +1000,9 @@ async fn ping_mcp_server(Path(id): Path<String>) -> Result<Json<Value>, StatusCo
                     .unwrap_or(false);
                 Ok(Json(json!({ "ok": exists, "transport": "stdio" })))
             } else {
-                Ok(Json(json!({ "ok": false, "error": "no command configured" })))
+                Ok(Json(
+                    json!({ "ok": false, "error": "no command configured" }),
+                ))
             }
         }
     }
@@ -917,10 +1018,9 @@ async fn list_skill_repos() -> Result<Json<Value>, StatusCode> {
     Ok(Json(json!({ "repos": repos })))
 }
 
-async fn add_skill_repo(
-    Json(req): Json<AddSkillRepoRequest>,
-) -> Result<Json<Value>, StatusCode> {
-    let repo = services::skill::add_repo(req.name, req.url).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+async fn add_skill_repo(Json(req): Json<AddSkillRepoRequest>) -> Result<Json<Value>, StatusCode> {
+    let repo = services::skill::add_repo(req.name, req.url)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(repo)))
 }
 
@@ -933,7 +1033,8 @@ async fn toggle_skill_repo(
     Path(id): Path<String>,
     Json(req): Json<ToggleSkillRepoRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    services::skill::toggle_repo(&id, req.enabled).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::skill::toggle_repo(&id, req.enabled)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -952,7 +1053,9 @@ async fn update_skill(
     Json(req): Json<UpdateSkillRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let updated = services::skill::update_apps(&id, req.apps).map_err(map_not_found)?;
-    Ok(Json(serde_json::to_value(updated).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?))
+    Ok(Json(
+        serde_json::to_value(updated).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    ))
 }
 
 async fn uninstall_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
@@ -962,9 +1065,17 @@ async fn uninstall_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCo
 
 async fn sync_skill(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     let skills = services::skill::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let skill = skills.into_iter().find(|s| s.id == id).ok_or(StatusCode::NOT_FOUND)?;
-    let count = services::skill_sync::sync_skill_to_apps(&skill).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    services::logs::push("info", "skill", &format!("Synced skill '{}' to {} apps", skill.name, count));
+    let skill = skills
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let count = services::skill_sync::sync_skill_to_apps(&skill)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::logs::push(
+        "info",
+        "skill",
+        &format!("Synced skill '{}' to {} apps", skill.name, count),
+    );
     Ok(Json(json!({ "ok": true, "synced_count": count })))
 }
 
@@ -976,8 +1087,8 @@ async fn fetch_skill_repo(Path(id): Path<String>) -> Result<Json<Value>, StatusC
 }
 
 async fn get_skill_repo_cache(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let skills = services::skill::get_repo_cache(&id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let skills =
+        services::skill::get_repo_cache(&id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "skills": skills })))
 }
 
@@ -987,17 +1098,29 @@ async fn install_skill_from_url(
     let skill = services::skill::install_from_url(&req.name, &req.source_url, req.apps)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    services::logs::push("info", "skill", &format!("Installed skill '{}' from URL", skill.name));
-    Ok(Json(serde_json::to_value(skill).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?))
+    services::logs::push(
+        "info",
+        "skill",
+        &format!("Installed skill '{}' from URL", skill.name),
+    );
+    Ok(Json(
+        serde_json::to_value(skill).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    ))
 }
 
-async fn install_skill_from_zip(
-    mut multipart: Multipart,
-) -> Result<Json<Value>, StatusCode> {
+async fn install_skill_from_zip(mut multipart: Multipart) -> Result<Json<Value>, StatusCode> {
     let mut zip_data = Vec::new();
-    while let Some(field) = multipart.next_field().await.map_err(|_| StatusCode::BAD_REQUEST)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| StatusCode::BAD_REQUEST)?
+    {
         if field.name() == Some("file") {
-            zip_data = field.bytes().await.map_err(|_| StatusCode::BAD_REQUEST)?.to_vec();
+            zip_data = field
+                .bytes()
+                .await
+                .map_err(|_| StatusCode::BAD_REQUEST)?
+                .to_vec();
             break;
         }
     }
@@ -1013,30 +1136,44 @@ async fn install_skill_from_zip(
     let installed = services::skill::install_from_zip(&zip_data)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    services::logs::push("info", "skill", &format!("Installed {} skills from ZIP", installed.len()));
+    services::logs::push(
+        "info",
+        "skill",
+        &format!("Installed {} skills from ZIP", installed.len()),
+    );
     Ok(Json(json!({ "installed": installed })))
 }
 
 async fn import_skills_from_app(Path(app): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let imported = services::skill::import_from_app(&app)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    services::logs::push("info", "skill", &format!("Imported {} skills from {}", imported.len(), app));
+    let imported =
+        services::skill::import_from_app(&app).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::logs::push(
+        "info",
+        "skill",
+        &format!("Imported {} skills from {}", imported.len(), app),
+    );
     Ok(Json(json!({ "imported": imported })))
 }
 
 async fn get_settings() -> Result<Json<Value>, StatusCode> {
     let settings = services::settings::load().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(serde_json::to_value(settings).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?))
+    Ok(Json(
+        serde_json::to_value(settings).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    ))
 }
 
 async fn update_settings(Json(body): Json<Value>) -> Result<Json<Value>, StatusCode> {
     let settings: services::settings::Settings =
         serde_json::from_value(body).map_err(|_| StatusCode::BAD_REQUEST)?;
     services::settings::save(&settings).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(serde_json::to_value(settings).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?))
+    Ok(Json(
+        serde_json::to_value(settings).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
+    ))
 }
 
-async fn get_logs(Query(params): Query<HashMap<String, String>>) -> Result<Json<Value>, StatusCode> {
+async fn get_logs(
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Value>, StatusCode> {
     let level = params.get("level").map(String::as_str);
     let source = params.get("source").map(String::as_str);
     let limit = params.get("limit").and_then(|s| s.parse().ok());
@@ -1113,15 +1250,17 @@ async fn sync_single_config(Path(id): Path<String>) -> Result<Json<Value>, Statu
     }
 
     // Return the matching entry or a default one
-    let entry = entries.into_iter().next().unwrap_or_else(|| json!({
-        "id": id,
-        "app": "unknown",
-        "config_type": "unknown",
-        "status": "synced",
-        "last_synced": chrono::Utc::now(),
-        "local_hash": "",
-        "remote_hash": "",
-    }));
+    let entry = entries.into_iter().next().unwrap_or_else(|| {
+        json!({
+            "id": id,
+            "app": "unknown",
+            "config_type": "unknown",
+            "status": "synced",
+            "last_synced": chrono::Utc::now(),
+            "local_hash": "",
+            "remote_hash": "",
+        })
+    });
     Ok(Json(entry))
 }
 
@@ -1134,7 +1273,9 @@ fn map_not_found(err: anyhow::Error) -> StatusCode {
 }
 
 async fn list_remote_agents() -> Result<Json<Value>, StatusCode> {
-    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agents = services::remote_agent::list()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "agents": agents })))
 }
 
@@ -1181,7 +1322,7 @@ async fn update_remote_agent(
         let endpoint = req.endpoint.clone();
         let api_key = req.api_key.clone();
         let origin = req.origin.clone();
-        
+
         let updated = tokio::task::spawn_blocking(move || {
             services::agent_source::update_source(
                 &id,
@@ -1214,9 +1355,7 @@ async fn update_remote_agent(
 async fn delete_remote_agent(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     let source_result = tokio::task::spawn_blocking({
         let id = id.clone();
-        move || {
-            services::agent_source::get_source_by_id(&id)
-        }
+        move || services::agent_source::get_source_by_id(&id)
     })
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
@@ -1235,19 +1374,27 @@ async fn delete_remote_agent(Path(id): Path<String>) -> Result<Json<Value>, Stat
         }
     }
 
-    services::remote_agent::remove(&id).await.map_err(map_not_found)?;
+    services::remote_agent::remove(&id)
+        .await
+        .map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
 
 async fn ping_remote_agent(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let agent = services::remote_agent::ping_by_id(&id).await.map_err(map_not_found)?;
+    let agent = services::remote_agent::ping_by_id(&id)
+        .await
+        .map_err(map_not_found)?;
     Ok(Json(json!(agent)))
 }
 
 async fn ping_all_remote_agents() -> Result<Json<Value>, StatusCode> {
-    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agents = services::remote_agent::list()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let mut state = RemoteAgentsState { agents };
-    services::remote_agent::ping_all(&mut state).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::remote_agent::ping_all(&mut state)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     services::remote_agent::save(&state).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "agents": state.agents })))
 }
@@ -1260,7 +1407,9 @@ async fn get_remote_agent_latest_version() -> Result<Json<Value>, StatusCode> {
 }
 
 async fn get_remote_agent_detail(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agents = services::remote_agent::list()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let agent = agents
         .into_iter()
         .find(|a| a.id == id)
@@ -1309,7 +1458,9 @@ async fn get_remote_agent_detail(Path(id): Path<String>) -> Result<Json<Value>, 
 }
 
 async fn list_remote_workers(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let agents = services::remote_agent::list().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let agents = services::remote_agent::list()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let agent = agents
         .into_iter()
         .find(|a| a.id == id)
@@ -1340,15 +1491,15 @@ async fn list_remote_workers(Path(id): Path<String>) -> Result<Json<Value>, Stat
             arr.iter()
                 .filter_map(|item| {
                     let raw_id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                    if raw_id.is_empty() { return None; }
+                    if raw_id.is_empty() {
+                        return None;
+                    }
                     let final_id = if raw_id.starts_with("openclaw/") {
                         raw_id.to_string()
                     } else {
                         format!("openclaw/{}", raw_id)
                     };
-                    let display_name = item.get("name")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or(raw_id);
+                    let display_name = item.get("name").and_then(|v| v.as_str()).unwrap_or(raw_id);
                     Some(json!({ "id": final_id, "display_name": display_name }))
                 })
                 .collect::<Vec<_>>()
@@ -1399,7 +1550,9 @@ struct CreateBackupRequest {
     label: Option<String>,
 }
 
-async fn create_employee(Json(req): Json<CreateEmployeeRequest>) -> Result<Json<Value>, StatusCode> {
+async fn create_employee(
+    Json(req): Json<CreateEmployeeRequest>,
+) -> Result<Json<Value>, StatusCode> {
     let employee_type = match req.employee_type.as_deref() {
         Some("local") => Some(crate::models::EmployeeType::Local),
         Some("remote") => Some(crate::models::EmployeeType::Remote),
@@ -1464,8 +1617,8 @@ async fn delete_employee(Path(id): Path<String>) -> Result<Json<Value>, StatusCo
 }
 
 async fn get_soul_files(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
-    let soul_files = services::employee::read_soul_files(&id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let soul_files =
+        services::employee::read_soul_files(&id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(soul_files)))
 }
 
@@ -1579,7 +1732,9 @@ async fn test_employee(Path(id): Path<String>) -> Result<Json<Value>, StatusCode
             }
         }
         crate::models::AgentSourceType::OpenAiCompatible => {
-            let endpoint = source.endpoint.as_ref()
+            let endpoint = source
+                .endpoint
+                .as_ref()
                 .ok_or_else(|| StatusCode::BAD_REQUEST)?;
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(5))
@@ -1618,9 +1773,11 @@ async fn test_employee(Path(id): Path<String>) -> Result<Json<Value>, StatusCode
             }
         }
         crate::models::AgentSourceType::RemoteAgent => {
-            let endpoint = source.endpoint.as_ref()
+            let endpoint = source
+                .endpoint
+                .as_ref()
                 .ok_or_else(|| StatusCode::BAD_REQUEST)?;
-            
+
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(5))
                 .danger_accept_invalid_certs(true)
@@ -1719,9 +1876,7 @@ pub async fn dispatch_employee(
     Path(id): Path<String>,
     Json(req): Json<DispatchRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let employee = services::employee::get(&id)
-        .await
-        .map_err(map_not_found)?;
+    let employee = services::employee::get(&id).await.map_err(map_not_found)?;
 
     let agent_id = match &employee.agent_id {
         Some(id) => id.clone(),
@@ -1765,7 +1920,7 @@ pub async fn dispatch_employee(
     } else {
         PersonaFiles::default()
     };
-    
+
     let task = queue.submit("dispatch", &employee.display_name);
     let task_id = task.id.clone();
     let q = queue.clone();
@@ -1780,8 +1935,11 @@ pub async fn dispatch_employee(
 
     tokio::spawn(async move {
         let started_at = chrono::Utc::now();
-        q.update_status(&task_id_spawn, TaskStatus::Running,
-            Some(format!("Dispatching to {}...", emp_name)));
+        q.update_status(
+            &task_id_spawn,
+            TaskStatus::Running,
+            Some(format!("Dispatching to {}...", emp_name)),
+        );
 
         match services::employee_dispatch::dispatch_via_agent(
             &agent_clone,
@@ -1790,33 +1948,43 @@ pub async fn dispatch_employee(
             &persona,
             &task_str,
             cwd_clone.as_deref(),
-        ).await {
+        )
+        .await
+        {
             Ok(result) => {
-                services::logs::push("info", "dispatch",
-                    &format!("Dispatched to {} - exit code {}", emp_name, result.exit_code));
-                
+                services::logs::push(
+                    "info",
+                    "dispatch",
+                    &format!(
+                        "Dispatched to {} - exit code {}",
+                        emp_name, result.exit_code
+                    ),
+                );
+
                 let record = crate::models::DispatchRecord {
                     id: uuid::Uuid::new_v4().to_string(),
                     task: task_str.clone(),
                     binding_label: source_clone.name.clone(),
-                    status: if result.exit_code == 0 { "completed".into() } else { "failed".into() },
+                    status: if result.exit_code == 0 {
+                        "completed".into()
+                    } else {
+                        "failed".into()
+                    },
                     output: result.output.clone(),
                     exit_code: result.exit_code,
                     started_at,
                     completed_at: chrono::Utc::now(),
                 };
                 let _ = services::employee::append_dispatch_record(&emp_id, record);
-                let _ = services::employee::record_dispatch_result(&emp_id, result.exit_code == 0).await;
-                
-                q.update_status(&task_id_spawn, TaskStatus::Completed,
-                    Some(result.output));
+                let _ = services::employee::record_dispatch_result(&emp_id, result.exit_code == 0)
+                    .await;
+
+                q.update_status(&task_id_spawn, TaskStatus::Completed, Some(result.output));
             }
             Err(e) => {
-                services::logs::push("error", "dispatch",
-                    &format!("Dispatch failed: {}", e));
-                q.update_status(&task_id_spawn, TaskStatus::Failed,
-                    Some(e.to_string()));
-                
+                services::logs::push("error", "dispatch", &format!("Dispatch failed: {}", e));
+                q.update_status(&task_id_spawn, TaskStatus::Failed, Some(e.to_string()));
+
                 let record = crate::models::DispatchRecord {
                     id: uuid::Uuid::new_v4().to_string(),
                     task: task_str.clone(),
@@ -1839,12 +2007,9 @@ pub async fn dispatch_employee(
 async fn test_employee_binding(
     Path((id, bid)): Path<(String, String)>,
 ) -> Result<Json<Value>, StatusCode> {
-    let employee = services::employee::get(&id)
-        .await
-        .map_err(map_not_found)?;
+    let employee = services::employee::get(&id).await.map_err(map_not_found)?;
 
-    let bindings = employee.bindings.as_ref()
-        .ok_or(StatusCode::BAD_REQUEST)?;
+    let bindings = employee.bindings.as_ref().ok_or(StatusCode::BAD_REQUEST)?;
     let binding = bindings
         .iter()
         .find(|b| b.id == bid)
@@ -1861,12 +2026,18 @@ async fn test_employee_binding(
                 .map(|o| o.status.success())
                 .unwrap_or(false);
             if exists {
-                Ok(Json(json!({ "ok": true, "type": "local_process", "executable": executable })))
+                Ok(Json(
+                    json!({ "ok": true, "type": "local_process", "executable": executable }),
+                ))
             } else {
-                Ok(Json(json!({ "ok": false, "type": "local_process", "error": format!("'{}' not found in PATH", executable) })))
+                Ok(Json(
+                    json!({ "ok": false, "type": "local_process", "error": format!("'{}' not found in PATH", executable) }),
+                ))
             }
         }
-        crate::models::AgentProtocol::OpenAiCompatible { endpoint, api_key, .. } => {
+        crate::models::AgentProtocol::OpenAiCompatible {
+            endpoint, api_key, ..
+        } => {
             let client = reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(5))
                 .danger_accept_invalid_certs(true)
@@ -1883,21 +2054,38 @@ async fn test_employee_binding(
                 Ok(resp) => {
                     let latency = start.elapsed().as_millis();
                     if resp.status().is_success() {
-                        Ok(Json(json!({ "ok": true, "type": "openai_compatible", "latency_ms": latency })))
+                        Ok(Json(
+                            json!({ "ok": true, "type": "openai_compatible", "latency_ms": latency }),
+                        ))
                     } else {
-                        Ok(Json(json!({ "ok": false, "type": "openai_compatible", "error": format!("HTTP {}", resp.status()) })))
+                        Ok(Json(
+                            json!({ "ok": false, "type": "openai_compatible", "error": format!("HTTP {}", resp.status()) }),
+                        ))
                     }
                 }
-                Err(e) => Ok(Json(json!({ "ok": false, "type": "openai_compatible", "error": e.to_string() }))),
+                Err(e) => Ok(Json(
+                    json!({ "ok": false, "type": "openai_compatible", "error": e.to_string() }),
+                )),
             }
         }
-        crate::models::AgentProtocol::SshExec { host, port, user, key_path, .. } => {
+        crate::models::AgentProtocol::SshExec {
+            host,
+            port,
+            user,
+            key_path,
+            ..
+        } => {
             let result = tokio::process::Command::new("ssh")
-                .arg("-i").arg(key_path.as_str())
-                .arg("-p").arg(port.to_string())
-                .arg("-o").arg("ConnectTimeout=5")
-                .arg("-o").arg("BatchMode=yes")
-                .arg("-o").arg("StrictHostKeyChecking=accept-new")
+                .arg("-i")
+                .arg(key_path.as_str())
+                .arg("-p")
+                .arg(port.to_string())
+                .arg("-o")
+                .arg("ConnectTimeout=5")
+                .arg("-o")
+                .arg("BatchMode=yes")
+                .arg("-o")
+                .arg("StrictHostKeyChecking=accept-new")
                 .arg(format!("{}@{}", user, host))
                 .arg("echo ok")
                 .output()
@@ -1905,36 +2093,35 @@ async fn test_employee_binding(
 
             let latency = start.elapsed().as_millis();
             match result {
-                Ok(out) if out.status.success() => {
-                    Ok(Json(json!({ "ok": true, "type": "ssh_exec", "latency_ms": latency })))
-                }
+                Ok(out) if out.status.success() => Ok(Json(
+                    json!({ "ok": true, "type": "ssh_exec", "latency_ms": latency }),
+                )),
                 Ok(out) => {
                     let err = String::from_utf8_lossy(&out.stderr).to_string();
-                    Ok(Json(json!({ "ok": false, "type": "ssh_exec", "error": err })))
+                    Ok(Json(
+                        json!({ "ok": false, "type": "ssh_exec", "error": err }),
+                    ))
                 }
-                Err(e) => Ok(Json(json!({ "ok": false, "type": "ssh_exec", "error": e.to_string() }))),
+                Err(e) => Ok(Json(
+                    json!({ "ok": false, "type": "ssh_exec", "error": e.to_string() }),
+                )),
             }
         }
     }
 }
 
-async fn get_dispatch_history(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
+async fn get_dispatch_history(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     let history = services::employee::get_dispatch_history(&id)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(history)))
 }
 
 async fn list_prompts() -> Result<Json<Value>, StatusCode> {
-    let prompts = services::prompt::list()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let prompts = services::prompt::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "prompts": prompts })))
 }
 
-async fn create_prompt(
-    Json(req): Json<CreatePromptRequest>,
-) -> Result<Json<Value>, StatusCode> {
+async fn create_prompt(Json(req): Json<CreatePromptRequest>) -> Result<Json<Value>, StatusCode> {
     let preset = crate::models::PromptPreset {
         id: uuid::Uuid::new_v4().to_string(),
         name: req.name,
@@ -1944,8 +2131,8 @@ async fn create_prompt(
         created_at: chrono::Utc::now(),
         modified_at: chrono::Utc::now(),
     };
-    let created = services::prompt::create(preset)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let created =
+        services::prompt::create(preset).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(created)))
 }
 
@@ -1953,63 +2140,47 @@ async fn update_prompt(
     Path(id): Path<String>,
     Json(req): Json<UpdatePromptRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let updated = services::prompt::update(&id, req.name.as_deref(), req.content.as_deref(), req.apps)
-        .map_err(map_not_found)?;
+    let updated =
+        services::prompt::update(&id, req.name.as_deref(), req.content.as_deref(), req.apps)
+            .map_err(map_not_found)?;
     Ok(Json(json!(updated)))
 }
 
-async fn delete_prompt(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    services::prompt::delete(&id)
-        .map_err(map_not_found)?;
+async fn delete_prompt(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    services::prompt::delete(&id).map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
 
-async fn activate_prompt(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    services::prompt::activate(&id)
-        .map_err(map_not_found)?;
+async fn activate_prompt(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    services::prompt::activate(&id).map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
 
 async fn list_backups() -> Result<Json<Value>, StatusCode> {
-    let backups = services::backup::list()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let backups = services::backup::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "backups": backups })))
 }
 
-async fn create_backup(
-    Json(req): Json<CreateBackupRequest>,
-) -> Result<Json<Value>, StatusCode> {
+async fn create_backup(Json(req): Json<CreateBackupRequest>) -> Result<Json<Value>, StatusCode> {
     let label = req.label.unwrap_or_else(|| "手动备份".to_string());
-    let meta = services::backup::create(&label)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let meta = services::backup::create(&label).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!(meta)))
 }
 
-async fn restore_backup(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    services::backup::restore(&id)
-        .map_err(map_not_found)?;
+async fn restore_backup(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    services::backup::restore(&id).map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
 
-async fn delete_backup(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    services::backup::delete(&id)
-        .map_err(map_not_found)?;
+async fn delete_backup(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    services::backup::delete(&id).map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
 
 // ── Session Handlers ──
 
 pub async fn list_sessions() -> Result<Json<Value>, StatusCode> {
-    let sessions = services::session::list()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let sessions = services::session::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "sessions": sessions })))
 }
 
@@ -2022,26 +2193,20 @@ pub async fn create_session(
     Ok(Json(json!(session)))
 }
 
-pub async fn get_session(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
+pub async fn get_session(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     let session = services::session::get(&id).map_err(map_not_found)?;
     let messages = services::session::list_messages(&id).unwrap_or_default();
     Ok(Json(json!({ "session": session, "messages": messages })))
 }
 
-pub async fn delete_session(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
+pub async fn delete_session(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
     services::session::delete(&id).map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
 
-pub async fn list_session_messages(
-    Path(id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    let messages = services::session::list_messages(&id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+pub async fn list_session_messages(Path(id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let messages =
+        services::session::list_messages(&id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "messages": messages })))
 }
 
@@ -2066,16 +2231,19 @@ pub async fn post_session_message(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let registry = crate::api::session_registry();
-    registry.publish(&id, crate::services::session_stream::SessionEvent::MessageCreated {
-        message_id: user_msg.id.clone(),
-        author_label: user_msg.author_label.clone(),
-        author_id: None,
-        kind: "chat".into(),
-        role: "user".into(),
-        content: user_msg.content.clone(),
-        mentions: user_msg.mentions.clone(),
-        created_at: user_msg.created_at.to_rfc3339(),
-    });
+    registry.publish(
+        &id,
+        crate::services::session_stream::SessionEvent::MessageCreated {
+            message_id: user_msg.id.clone(),
+            author_label: user_msg.author_label.clone(),
+            author_id: None,
+            kind: "chat".into(),
+            role: "user".into(),
+            content: user_msg.content.clone(),
+            mentions: user_msg.mentions.clone(),
+            created_at: user_msg.created_at.to_rfc3339(),
+        },
+    );
 
     if !req.mentions.is_empty() {
         let session_id = id.clone();
@@ -2096,50 +2264,69 @@ pub async fn post_session_message(
                         Some(b) => b,
                         None => {
                             tracing::warn!("Employee {} has no bindings - this is a legacy path that needs migration to source_id", emp_id);
-                            registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageDone {
-                                message_id: message_id.clone(),
-                                content: format!("（员工 {} 尚未配置 bindings，请联系管理员）", emp.display_name),
-                            });
+                            registry.publish(
+                                &session_id,
+                                crate::services::session_stream::SessionEvent::MessageDone {
+                                    message_id: message_id.clone(),
+                                    content: format!(
+                                        "（员工 {} 尚未配置 bindings，请联系管理员）",
+                                        emp.display_name
+                                    ),
+                                },
+                            );
                             continue;
                         }
                     };
-                    match bindings.iter().find(|b| b.is_primary)
-                        .or_else(|| bindings.first()) {
+                    match bindings
+                        .iter()
+                        .find(|b| b.is_primary)
+                        .or_else(|| bindings.first())
+                    {
                         Some(b) => b.clone(),
                         None => {
                             tracing::warn!("Employee {} has no primary binding - this is a legacy path that needs migration to source_id", emp_id);
-                            registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageDone {
-                                message_id: message_id.clone(),
-                                content: format!("（员工 {} 尚未配置有效的 binding，请联系管理员）", emp.display_name),
-                            });
+                            registry.publish(
+                                &session_id,
+                                crate::services::session_stream::SessionEvent::MessageDone {
+                                    message_id: message_id.clone(),
+                                    content: format!(
+                                        "（员工 {} 尚未配置有效的 binding，请联系管理员）",
+                                        emp.display_name
+                                    ),
+                                },
+                            );
                             continue;
                         }
                     }
                 };
 
-                let soul_files = services::employee::read_soul_files(emp_id)
-                    .unwrap_or_default();
+                let soul_files = services::employee::read_soul_files(emp_id).unwrap_or_default();
 
-                registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageCreated {
-                    message_id: message_id.clone(),
-                    author_label: emp.display_name.clone(),
-                    author_id: Some(emp_id.clone()),
-                    kind: "chat".into(),
-                    role: "assistant".into(),
-                    content: String::new(),
-                    mentions: vec![],
-                    created_at: chrono::Utc::now().to_rfc3339(),
-                });
+                registry.publish(
+                    &session_id,
+                    crate::services::session_stream::SessionEvent::MessageCreated {
+                        message_id: message_id.clone(),
+                        author_label: emp.display_name.clone(),
+                        author_id: Some(emp_id.clone()),
+                        kind: "chat".into(),
+                        role: "assistant".into(),
+                        content: String::new(),
+                        mentions: vec![],
+                        created_at: chrono::Utc::now().to_rfc3339(),
+                    },
+                );
 
-                let history = services::session::list_messages(&session_id)
-                    .unwrap_or_default();
+                let history = services::session::list_messages(&session_id).unwrap_or_default();
 
                 let system_prompt = services::employee_dispatch::build_system_prompt(&soul_files);
                 let mut full_content = String::new();
 
                 match &binding.protocol {
                     crate::models::AgentProtocol::OpenAiCompatible {
-                        endpoint, api_key, model, ..
+                        endpoint,
+                        api_key,
+                        model,
+                        ..
                     } => {
                         let mut messages_payload = vec![];
                         if !system_prompt.is_empty() {
@@ -2148,7 +2335,10 @@ pub async fn post_session_message(
                                 "content": system_prompt
                             }));
                         }
-                        let chat_history: Vec<_> = history.iter().filter(|m| m.kind == crate::models::MessageKind::Chat).collect();
+                        let chat_history: Vec<_> = history
+                            .iter()
+                            .filter(|m| m.kind == crate::models::MessageKind::Chat)
+                            .collect();
                         for msg in chat_history.iter().rev().take(20).rev() {
                             let role = match msg.role {
                                 crate::models::MessageRole::User => "user",
@@ -2163,10 +2353,12 @@ pub async fn post_session_message(
                         let client = reqwest::Client::builder()
                             .timeout(std::time::Duration::from_secs(120))
                             .danger_accept_invalid_certs(true)
-                            .build().unwrap();
+                            .build()
+                            .unwrap();
 
                         let base = endpoint.trim_end_matches('/');
-                        let mut req_builder = client.post(format!("{}/v1/chat/completions", base))
+                        let mut req_builder = client
+                            .post(format!("{}/v1/chat/completions", base))
                             .json(&serde_json::json!({
                                 "model": model,
                                 "messages": messages_payload,
@@ -2174,7 +2366,8 @@ pub async fn post_session_message(
                             }));
 
                         if let Some(key) = api_key {
-                            req_builder = req_builder.header("Authorization", format!("Bearer {}", key));
+                            req_builder =
+                                req_builder.header("Authorization", format!("Bearer {}", key));
                         }
 
                         if let Ok(resp) = req_builder.send().await {
@@ -2187,10 +2380,16 @@ pub async fn post_session_message(
                                         let text = String::from_utf8_lossy(&chunk);
                                         for line in text.lines() {
                                             if let Some(data) = line.strip_prefix("data: ") {
-                                                if data == "[DONE]" { done = true; break; }
-                                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                                if data == "[DONE]" {
+                                                    done = true;
+                                                    break;
+                                                }
+                                                if let Ok(json) =
+                                                    serde_json::from_str::<serde_json::Value>(data)
+                                                {
                                                     if let Some(delta) = json
-                                                        .get("choices").and_then(|c| c.get(0))
+                                                        .get("choices")
+                                                        .and_then(|c| c.get(0))
                                                         .and_then(|c| c.get("delta"))
                                                         .and_then(|d| d.get("content"))
                                                         .and_then(|c| c.as_str())
@@ -2211,11 +2410,23 @@ pub async fn post_session_message(
                             }
                         }
                     }
-                    crate::models::AgentProtocol::LocalProcess { executable, soul_arg, extra_args } => {
-                        let chat_history: Vec<_> = history.iter().filter(|m| m.kind == crate::models::MessageKind::Chat).collect();
-                        let history_text = chat_history.iter().rev().take(10).rev()
+                    crate::models::AgentProtocol::LocalProcess {
+                        executable,
+                        soul_arg,
+                        extra_args,
+                    } => {
+                        let chat_history: Vec<_> = history
+                            .iter()
+                            .filter(|m| m.kind == crate::models::MessageKind::Chat)
+                            .collect();
+                        let history_text = chat_history
+                            .iter()
+                            .rev()
+                            .take(10)
+                            .rev()
                             .map(|m| format!("[{}] {}", m.author_label, m.content))
-                            .collect::<Vec<_>>().join("\n");
+                            .collect::<Vec<_>>()
+                            .join("\n");
 
                         let combined_prompt = if history_text.is_empty() {
                             system_prompt
@@ -2227,7 +2438,9 @@ pub async fn post_session_message(
                         if !combined_prompt.is_empty() {
                             cmd.arg(soul_arg.as_str()).arg(&combined_prompt);
                         }
-                        for arg in extra_args { cmd.arg(arg); }
+                        for arg in extra_args {
+                            cmd.arg(arg);
+                        }
                         cmd.arg(&content);
                         cmd.stdout(std::process::Stdio::piped());
 
@@ -2253,10 +2466,13 @@ pub async fn post_session_message(
                     }
                 }
 
-                registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageDone {
-                    message_id: message_id.clone(),
-                    content: full_content.clone(),
-                });
+                registry.publish(
+                    &session_id,
+                    crate::services::session_stream::SessionEvent::MessageDone {
+                        message_id: message_id.clone(),
+                        content: full_content.clone(),
+                    },
+                );
 
                 let agent_msg = crate::models::SessionMessage {
                     id: message_id,
@@ -2279,7 +2495,9 @@ pub async fn post_session_message(
 
 pub async fn session_stream(
     Path(id): Path<String>,
-) -> axum::response::sse::Sse<impl futures::stream::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>> {
+) -> axum::response::sse::Sse<
+    impl futures::stream::Stream<Item = Result<axum::response::sse::Event, std::convert::Infallible>>,
+> {
     let registry = crate::api::session_registry();
     let mut rx = registry.subscribe(&id);
 
@@ -2297,9 +2515,9 @@ pub async fn session_stream(
         }
     };
 
-    axum::response::sse::Sse::new(stream)
-        .keep_alive(axum::response::sse::KeepAlive::new()
-            .interval(std::time::Duration::from_secs(15)))
+    axum::response::sse::Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new().interval(std::time::Duration::from_secs(15)),
+    )
 }
 
 // ── Session Title & Participants ──
@@ -2324,11 +2542,9 @@ pub async fn update_session_participants(
 
 // ── Proposal Handlers ──
 
-pub async fn list_proposals(
-    Path(session_id): Path<String>,
-) -> Result<Json<Value>, StatusCode> {
-    let proposals = services::proposal::list(&session_id)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+pub async fn list_proposals(Path(session_id): Path<String>) -> Result<Json<Value>, StatusCode> {
+    let proposals =
+        services::proposal::list(&session_id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(json!({ "proposals": proposals })))
 }
 
@@ -2337,33 +2553,43 @@ pub async fn create_proposal(
     Json(req): Json<CreateProposalRequest>,
 ) -> Result<Json<Value>, StatusCode> {
     let proposal = services::proposal::create(
-        &session_id, &req.title, &req.description, &req.assigned_employee_id,
-    ).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        &session_id,
+        &req.title,
+        &req.description,
+        &req.assigned_employee_id,
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let registry = crate::api::session_registry();
     let content = serde_json::to_string(&proposal).unwrap_or_default();
-    registry.publish(&session_id, crate::services::session_stream::SessionEvent::MessageCreated {
-        message_id: proposal.id.clone(),
-        author_label: "System".to_string(),
-        author_id: None,
-        kind: "proposal".into(),
-        role: "user".into(),
-        content,
-        mentions: vec![],
-        created_at: proposal.created_at.to_rfc3339(),
-    });
+    registry.publish(
+        &session_id,
+        crate::services::session_stream::SessionEvent::MessageCreated {
+            message_id: proposal.id.clone(),
+            author_label: "System".to_string(),
+            author_id: None,
+            kind: "proposal".into(),
+            role: "user".into(),
+            content,
+            mentions: vec![],
+            created_at: proposal.created_at.to_rfc3339(),
+        },
+    );
 
-    let _ = services::session::append_message(&session_id, crate::models::SessionMessage {
-        id: proposal.id.clone(),
-        session_id: session_id.clone(),
-        kind: crate::models::MessageKind::Proposal,
-        role: crate::models::MessageRole::User,
-        author_id: None,
-        author_label: "System".to_string(),
-        content: serde_json::to_string(&proposal).unwrap_or_default(),
-        mentions: vec![],
-        created_at: proposal.created_at,
-    });
+    let _ = services::session::append_message(
+        &session_id,
+        crate::models::SessionMessage {
+            id: proposal.id.clone(),
+            session_id: session_id.clone(),
+            kind: crate::models::MessageKind::Proposal,
+            role: crate::models::MessageRole::User,
+            author_id: None,
+            author_label: "System".to_string(),
+            content: serde_json::to_string(&proposal).unwrap_or_default(),
+            mentions: vec![],
+            created_at: proposal.created_at,
+        },
+    );
 
     Ok(Json(json!(proposal)))
 }
@@ -2371,15 +2597,18 @@ pub async fn create_proposal(
 pub async fn confirm_proposal(
     Path((session_id, proposal_id)): Path<(String, String)>,
 ) -> Result<Json<Value>, StatusCode> {
-    let proposal = services::proposal::get(&session_id, &proposal_id)
-        .map_err(map_not_found)?;
+    let proposal = services::proposal::get(&session_id, &proposal_id).map_err(map_not_found)?;
 
     if proposal.status != crate::models::ProposalStatus::Pending {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Executing)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::proposal::update_status(
+        &session_id,
+        &proposal_id,
+        crate::models::ProposalStatus::Executing,
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let registry = crate::api::session_registry();
 
@@ -2400,22 +2629,37 @@ pub async fn confirm_proposal(
                 Some(b) => b,
                 None => {
                     tracing::warn!("Employee {} has no bindings - this is a legacy path that needs migration to source_id", emp_id);
-                    reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
-                        message_id: message_id.clone(),
-                        content: format!("（员工 {} 尚未配置 bindings，请联系管理员）", emp.display_name),
-                    });
+                    reg.publish(
+                        &sid,
+                        crate::services::session_stream::SessionEvent::MessageDone {
+                            message_id: message_id.clone(),
+                            content: format!(
+                                "（员工 {} 尚未配置 bindings，请联系管理员）",
+                                emp.display_name
+                            ),
+                        },
+                    );
                     return;
                 }
             };
-            match bindings.iter().find(|b| b.is_primary)
-                .or_else(|| bindings.first()) {
+            match bindings
+                .iter()
+                .find(|b| b.is_primary)
+                .or_else(|| bindings.first())
+            {
                 Some(b) => b.clone(),
                 None => {
                     tracing::warn!("Employee {} has no primary binding - this is a legacy path that needs migration to source_id", emp_id);
-                    reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
-                        message_id: message_id.clone(),
-                        content: format!("（员工 {} 尚未配置有效的 binding，请联系管理员）", emp.display_name),
-                    });
+                    reg.publish(
+                        &sid,
+                        crate::services::session_stream::SessionEvent::MessageDone {
+                            message_id: message_id.clone(),
+                            content: format!(
+                                "（员工 {} 尚未配置有效的 binding，请联系管理员）",
+                                emp.display_name
+                            ),
+                        },
+                    );
                     return;
                 }
             }
@@ -2423,31 +2667,41 @@ pub async fn confirm_proposal(
         let soul_files = services::employee::read_soul_files(&emp_id).unwrap_or_default();
         let system_prompt = services::employee_dispatch::build_system_prompt(&soul_files);
 
-        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageCreated {
-            message_id: message_id.clone(),
-            author_label: emp.display_name.clone(),
-            author_id: Some(emp_id.clone()),
-            kind: "chat".into(),
-            role: "assistant".into(),
-            content: String::new(),
-            mentions: vec![],
-            created_at: chrono::Utc::now().to_rfc3339(),
-        });
+        reg.publish(
+            &sid,
+            crate::services::session_stream::SessionEvent::MessageCreated {
+                message_id: message_id.clone(),
+                author_label: emp.display_name.clone(),
+                author_id: Some(emp_id.clone()),
+                kind: "chat".into(),
+                role: "assistant".into(),
+                content: String::new(),
+                mentions: vec![],
+                created_at: chrono::Utc::now().to_rfc3339(),
+            },
+        );
 
         let mut full_content = String::new();
 
         match &binding.protocol {
-            crate::models::AgentProtocol::OpenAiCompatible { endpoint, api_key, model, .. } => {
+            crate::models::AgentProtocol::OpenAiCompatible {
+                endpoint,
+                api_key,
+                model,
+                ..
+            } => {
                 let mut messages_payload = vec![];
                 if !system_prompt.is_empty() {
-                    messages_payload.push(serde_json::json!({"role": "system", "content": system_prompt}));
+                    messages_payload
+                        .push(serde_json::json!({"role": "system", "content": system_prompt}));
                 }
                 messages_payload.push(serde_json::json!({"role": "user", "content": task_content}));
 
                 let client = reqwest::Client::builder()
                     .timeout(std::time::Duration::from_secs(300))
                     .danger_accept_invalid_certs(true)
-                    .build().unwrap();
+                    .build()
+                    .unwrap();
 
                 let base = endpoint.trim_end_matches('/');
                 let mut req_builder = client.post(format!("{}/v1/chat/completions", base))
@@ -2466,10 +2720,16 @@ pub async fn confirm_proposal(
                                 let text = String::from_utf8_lossy(&chunk);
                                 for line in text.lines() {
                                     if let Some(data) = line.strip_prefix("data: ") {
-                                        if data == "[DONE]" { done = true; break; }
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                        if data == "[DONE]" {
+                                            done = true;
+                                            break;
+                                        }
+                                        if let Ok(json) =
+                                            serde_json::from_str::<serde_json::Value>(data)
+                                        {
                                             if let Some(delta) = json
-                                                .get("choices").and_then(|c| c.get(0))
+                                                .get("choices")
+                                                .and_then(|c| c.get(0))
                                                 .and_then(|c| c.get("delta"))
                                                 .and_then(|d| d.get("content"))
                                                 .and_then(|c| c.as_str())
@@ -2489,12 +2749,18 @@ pub async fn confirm_proposal(
                     }
                 }
             }
-            crate::models::AgentProtocol::LocalProcess { executable, soul_arg, extra_args } => {
+            crate::models::AgentProtocol::LocalProcess {
+                executable,
+                soul_arg,
+                extra_args,
+            } => {
                 let mut cmd = tokio::process::Command::new(executable.as_str());
                 if !system_prompt.is_empty() {
                     cmd.arg(soul_arg.as_str()).arg(&system_prompt);
                 }
-                for arg in extra_args { cmd.arg(arg); }
+                for arg in extra_args {
+                    cmd.arg(arg);
+                }
                 cmd.arg(&task_content);
                 cmd.stdout(std::process::Stdio::piped());
 
@@ -2505,22 +2771,30 @@ pub async fn confirm_proposal(
                         while let Ok(Some(line)) = reader.next_line().await {
                             let delta = format!("{}\n", line);
                             full_content.push_str(&delta);
-                            reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDelta {
-                                message_id: message_id.clone(),
-                                delta,
-                            });
+                            reg.publish(
+                                &sid,
+                                crate::services::session_stream::SessionEvent::MessageDelta {
+                                    message_id: message_id.clone(),
+                                    delta,
+                                },
+                            );
                         }
                     }
                     let _ = child.wait().await;
                 }
             }
-            _ => { full_content = "（SSH 协议暂不支持）".to_string(); }
+            _ => {
+                full_content = "（SSH 协议暂不支持）".to_string();
+            }
         }
 
-        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
-            message_id: message_id.clone(),
-            content: full_content.clone(),
-        });
+        reg.publish(
+            &sid,
+            crate::services::session_stream::SessionEvent::MessageDone {
+                message_id: message_id.clone(),
+                content: full_content.clone(),
+            },
+        );
 
         let agent_msg = crate::models::SessionMessage {
             id: message_id,
@@ -2535,12 +2809,16 @@ pub async fn confirm_proposal(
         };
         let _ = services::session::append_message(&sid, agent_msg);
 
-        let _ = services::proposal::update_status(&sid, &pid, crate::models::ProposalStatus::Reviewing);
+        let _ =
+            services::proposal::update_status(&sid, &pid, crate::models::ProposalStatus::Reviewing);
 
-        reg.publish(&sid, crate::services::session_stream::SessionEvent::ProposalUpdated {
-            proposal_id: pid.clone(),
-            status: "reviewing".to_string(),
-        });
+        reg.publish(
+            &sid,
+            crate::services::session_stream::SessionEvent::ProposalUpdated {
+                proposal_id: pid.clone(),
+                status: "reviewing".to_string(),
+            },
+        );
     });
 
     Ok(Json(json!({ "ok": true })))
@@ -2549,21 +2827,32 @@ pub async fn confirm_proposal(
 pub async fn cancel_proposal(
     Path((session_id, proposal_id)): Path<(String, String)>,
 ) -> Result<Json<Value>, StatusCode> {
-    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Cancelled)
-        .map_err(map_not_found)?;
+    services::proposal::update_status(
+        &session_id,
+        &proposal_id,
+        crate::models::ProposalStatus::Cancelled,
+    )
+    .map_err(map_not_found)?;
     Ok(Json(json!({ "ok": true })))
 }
 
 pub async fn done_proposal(
     Path((session_id, proposal_id)): Path<(String, String)>,
 ) -> Result<Json<Value>, StatusCode> {
-    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Done)
-        .map_err(map_not_found)?;
+    services::proposal::update_status(
+        &session_id,
+        &proposal_id,
+        crate::models::ProposalStatus::Done,
+    )
+    .map_err(map_not_found)?;
     let registry = crate::api::session_registry();
-    registry.publish(&session_id, crate::services::session_stream::SessionEvent::ProposalUpdated {
-        proposal_id: proposal_id.clone(),
-        status: "done".to_string(),
-    });
+    registry.publish(
+        &session_id,
+        crate::services::session_stream::SessionEvent::ProposalUpdated {
+            proposal_id: proposal_id.clone(),
+            status: "done".to_string(),
+        },
+    );
     Ok(Json(json!({ "ok": true })))
 }
 
@@ -2572,8 +2861,7 @@ pub async fn review_proposal(
     Path((session_id, proposal_id)): Path<(String, String)>,
     Json(req): Json<ReviewProposalRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let proposal = services::proposal::get(&session_id, &proposal_id)
-        .map_err(map_not_found)?;
+    let proposal = services::proposal::get(&session_id, &proposal_id).map_err(map_not_found)?;
 
     if proposal.status != crate::models::ProposalStatus::Reviewing {
         return Err(StatusCode::BAD_REQUEST);
@@ -2596,22 +2884,37 @@ pub async fn review_proposal(
                 Some(b) => b,
                 None => {
                     tracing::warn!("Reviewer {} has no bindings - this is a legacy path that needs migration to source_id", reviewer_id);
-                    reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
-                        message_id: message_id.clone(),
-                        content: format!("（评审员 {} 尚未配置 bindings，请联系管理员）", emp.display_name),
-                    });
+                    reg.publish(
+                        &sid,
+                        crate::services::session_stream::SessionEvent::MessageDone {
+                            message_id: message_id.clone(),
+                            content: format!(
+                                "（评审员 {} 尚未配置 bindings，请联系管理员）",
+                                emp.display_name
+                            ),
+                        },
+                    );
                     return;
                 }
             };
-            match bindings.iter().find(|b| b.is_primary)
-                .or_else(|| bindings.first()) {
+            match bindings
+                .iter()
+                .find(|b| b.is_primary)
+                .or_else(|| bindings.first())
+            {
                 Some(b) => b.clone(),
                 None => {
                     tracing::warn!("Reviewer {} has no primary binding - this is a legacy path that needs migration to source_id", reviewer_id);
-                    reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
-                        message_id: message_id.clone(),
-                        content: format!("（评审员 {} 尚未配置有效的 binding，请联系管理员）", emp.display_name),
-                    });
+                    reg.publish(
+                        &sid,
+                        crate::services::session_stream::SessionEvent::MessageDone {
+                            message_id: message_id.clone(),
+                            content: format!(
+                                "（评审员 {} 尚未配置有效的 binding，请联系管理员）",
+                                emp.display_name
+                            ),
+                        },
+                    );
                     return;
                 }
             }
@@ -2620,8 +2923,12 @@ pub async fn review_proposal(
         let system_prompt = services::employee_dispatch::build_system_prompt(&soul_files);
 
         let history = services::session::list_messages(&sid).unwrap_or_default();
-        let execution_result = history.iter()
-            .filter(|m| m.role == crate::models::MessageRole::Assistant && m.kind == crate::models::MessageKind::Chat)
+        let execution_result = history
+            .iter()
+            .filter(|m| {
+                m.role == crate::models::MessageRole::Assistant
+                    && m.kind == crate::models::MessageKind::Chat
+            })
             .last()
             .map(|m| m.content.as_str())
             .unwrap_or("（无执行结果）");
@@ -2631,31 +2938,42 @@ pub async fn review_proposal(
             task_desc, execution_result
         );
 
-        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageCreated {
-            message_id: message_id.clone(),
-            author_label: emp.display_name.clone(),
-            author_id: Some(reviewer_id.clone()),
-            kind: "chat".into(),
-            role: "assistant".into(),
-            content: String::new(),
-            mentions: vec![],
-            created_at: chrono::Utc::now().to_rfc3339(),
-        });
+        reg.publish(
+            &sid,
+            crate::services::session_stream::SessionEvent::MessageCreated {
+                message_id: message_id.clone(),
+                author_label: emp.display_name.clone(),
+                author_id: Some(reviewer_id.clone()),
+                kind: "chat".into(),
+                role: "assistant".into(),
+                content: String::new(),
+                mentions: vec![],
+                created_at: chrono::Utc::now().to_rfc3339(),
+            },
+        );
 
         let mut full_content = String::new();
 
         match &binding.protocol {
-            crate::models::AgentProtocol::OpenAiCompatible { endpoint, api_key, model, .. } => {
+            crate::models::AgentProtocol::OpenAiCompatible {
+                endpoint,
+                api_key,
+                model,
+                ..
+            } => {
                 let mut messages_payload = vec![];
                 if !system_prompt.is_empty() {
-                    messages_payload.push(serde_json::json!({"role": "system", "content": system_prompt}));
+                    messages_payload
+                        .push(serde_json::json!({"role": "system", "content": system_prompt}));
                 }
-                messages_payload.push(serde_json::json!({"role": "user", "content": review_prompt}));
+                messages_payload
+                    .push(serde_json::json!({"role": "user", "content": review_prompt}));
 
                 let client = reqwest::Client::builder()
                     .timeout(std::time::Duration::from_secs(300))
                     .danger_accept_invalid_certs(true)
-                    .build().unwrap();
+                    .build()
+                    .unwrap();
 
                 let base = endpoint.trim_end_matches('/');
                 let mut req_builder = client.post(format!("{}/v1/chat/completions", base))
@@ -2674,10 +2992,16 @@ pub async fn review_proposal(
                                 let text = String::from_utf8_lossy(&chunk);
                                 for line in text.lines() {
                                     if let Some(data) = line.strip_prefix("data: ") {
-                                        if data == "[DONE]" { done = true; break; }
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                                        if data == "[DONE]" {
+                                            done = true;
+                                            break;
+                                        }
+                                        if let Ok(json) =
+                                            serde_json::from_str::<serde_json::Value>(data)
+                                        {
                                             if let Some(delta) = json
-                                                .get("choices").and_then(|c| c.get(0))
+                                                .get("choices")
+                                                .and_then(|c| c.get(0))
                                                 .and_then(|c| c.get("delta"))
                                                 .and_then(|d| d.get("content"))
                                                 .and_then(|c| c.as_str())
@@ -2697,12 +3021,18 @@ pub async fn review_proposal(
                     }
                 }
             }
-            crate::models::AgentProtocol::LocalProcess { executable, soul_arg, extra_args } => {
+            crate::models::AgentProtocol::LocalProcess {
+                executable,
+                soul_arg,
+                extra_args,
+            } => {
                 let mut cmd = tokio::process::Command::new(executable.as_str());
                 if !system_prompt.is_empty() {
                     cmd.arg(soul_arg.as_str()).arg(&system_prompt);
                 }
-                for arg in extra_args { cmd.arg(arg); }
+                for arg in extra_args {
+                    cmd.arg(arg);
+                }
                 cmd.arg(&review_prompt);
                 cmd.stdout(std::process::Stdio::piped());
 
@@ -2713,21 +3043,30 @@ pub async fn review_proposal(
                         while let Ok(Some(line)) = reader.next_line().await {
                             let delta = format!("{}\n", line);
                             full_content.push_str(&delta);
-                            reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDelta {
-                                message_id: message_id.clone(), delta,
-                            });
+                            reg.publish(
+                                &sid,
+                                crate::services::session_stream::SessionEvent::MessageDelta {
+                                    message_id: message_id.clone(),
+                                    delta,
+                                },
+                            );
                         }
                     }
                     let _ = child.wait().await;
                 }
             }
-            _ => { full_content = "（SSH 暂不支持）".to_string(); }
+            _ => {
+                full_content = "（SSH 暂不支持）".to_string();
+            }
         }
 
-        reg.publish(&sid, crate::services::session_stream::SessionEvent::MessageDone {
-            message_id: message_id.clone(),
-            content: full_content.clone(),
-        });
+        reg.publish(
+            &sid,
+            crate::services::session_stream::SessionEvent::MessageDone {
+                message_id: message_id.clone(),
+                content: full_content.clone(),
+            },
+        );
 
         let agent_msg = crate::models::SessionMessage {
             id: message_id,
@@ -2751,8 +3090,7 @@ pub async fn revise_proposal(
     Path((session_id, proposal_id)): Path<(String, String)>,
     Json(req): Json<ReviseProposalRequest>,
 ) -> Result<Json<Value>, StatusCode> {
-    let proposal = services::proposal::get(&session_id, &proposal_id)
-        .map_err(map_not_found)?;
+    let proposal = services::proposal::get(&session_id, &proposal_id).map_err(map_not_found)?;
 
     if proposal.status != crate::models::ProposalStatus::Reviewing {
         return Err(StatusCode::BAD_REQUEST);
@@ -2763,22 +3101,28 @@ pub async fn revise_proposal(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
 
-    services::proposal::update_status(&session_id, &proposal_id, crate::models::ProposalStatus::Pending)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    services::proposal::update_status(
+        &session_id,
+        &proposal_id,
+        crate::models::ProposalStatus::Pending,
+    )
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let registry = crate::api::session_registry();
-    registry.publish(&session_id, crate::services::session_stream::SessionEvent::ProposalUpdated {
-        proposal_id: proposal_id.clone(),
-        status: "pending".to_string(),
-    });
+    registry.publish(
+        &session_id,
+        crate::services::session_stream::SessionEvent::ProposalUpdated {
+            proposal_id: proposal_id.clone(),
+            status: "pending".to_string(),
+        },
+    );
 
     Ok(Json(json!({ "ok": true })))
 }
 
 // 跨会话聚合所有 proposals
 pub async fn list_all_proposals() -> Result<Json<Value>, StatusCode> {
-    let sessions = services::session::list()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let sessions = services::session::list().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let mut all_proposals = vec![];
     for session in &sessions {
@@ -2791,7 +3135,9 @@ pub async fn list_all_proposals() -> Result<Json<Value>, StatusCode> {
     }
 
     all_proposals.sort_by(|a, b| {
-        b.get("created_at").and_then(|v| v.as_str()).unwrap_or("")
+        b.get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
             .cmp(a.get("created_at").and_then(|v| v.as_str()).unwrap_or(""))
     });
 

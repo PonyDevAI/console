@@ -3,9 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use chrono::Utc;
 
-use crate::models::{
-    OsDetectionStatus, OsDetectedFrom, OsType, Server, ServerIndex,
-};
+use crate::models::{OsDetectedFrom, OsDetectionStatus, OsType, Server, ServerIndex};
 
 use super::detect::detect_server_os;
 
@@ -75,10 +73,7 @@ pub fn sync_all_server_os(
     };
 
     for (server_id, probe_output) in &probe_outputs {
-        let server = server_index
-            .servers
-            .iter()
-            .find(|s| s.id == *server_id);
+        let server = server_index.servers.iter().find(|s| s.id == *server_id);
 
         let prev_os = server.map(|s| s.os_type.clone());
 

@@ -62,10 +62,16 @@ pub struct CreateSessionRequest {
     pub ssh_identity_file: Option<String>,
 }
 
-fn default_ssh_port() -> u16 { 22 }
+fn default_ssh_port() -> u16 {
+    22
+}
 
-fn default_cols() -> u16 { 80 }
-fn default_rows() -> u16 { 24 }
+fn default_cols() -> u16 {
+    80
+}
+fn default_rows() -> u16 {
+    24
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSessionResponse {

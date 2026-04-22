@@ -3,7 +3,9 @@ use chrono::Utc;
 
 use crate::models::{CredentialIndex, CredentialKind};
 use crate::storage::credentials::{
-    file_store::{get_credential, get_password_meta, get_private_key_meta, upsert_credential_metadata},
+    file_store::{
+        get_credential, get_password_meta, get_private_key_meta, upsert_credential_metadata,
+    },
     secure_store::SecureStore,
 };
 
@@ -20,8 +22,8 @@ pub fn validate_credential(
     index: &mut CredentialIndex,
     store: &dyn SecureStore,
 ) -> Result<()> {
-    let credential = get_credential(index, id)
-        .ok_or_else(|| anyhow!("credential not found: {}", id))?;
+    let credential =
+        get_credential(index, id).ok_or_else(|| anyhow!("credential not found: {}", id))?;
 
     let secret_bytes = store.load_secret(&credential.storage_ref)?;
     if secret_bytes.is_empty() {

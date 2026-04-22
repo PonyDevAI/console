@@ -144,9 +144,7 @@ pub fn validate_private_key_meta(meta: &PrivateKeyMeta) -> Result<(), Credential
     Ok(())
 }
 
-pub fn validate_credential_index(
-    index: &CredentialIndex,
-) -> Result<(), CredentialValidationError> {
+pub fn validate_credential_index(index: &CredentialIndex) -> Result<(), CredentialValidationError> {
     // Check for duplicate credential IDs
     let mut seen = std::collections::HashSet::new();
     for cred in &index.credentials {
@@ -413,10 +411,7 @@ mod tests {
 
     #[test]
     fn test_classify_rsa_strength() {
-        assert_eq!(
-            classify_rsa_strength(4096),
-            CredentialStrength::Recommended
-        );
+        assert_eq!(classify_rsa_strength(4096), CredentialStrength::Recommended);
         assert_eq!(classify_rsa_strength(3072), CredentialStrength::Compatible);
         assert_eq!(classify_rsa_strength(2048), CredentialStrength::Legacy);
     }

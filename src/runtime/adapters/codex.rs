@@ -1,13 +1,12 @@
 use crate::runtime::{
-    RuntimeAdapter, RuntimeCapabilities, RuntimeEvent, RuntimeRequest,
-    CancelHandle, RunHandle,
     errors::{Result, RuntimeError},
+    CancelHandle, RunHandle, RuntimeAdapter, RuntimeCapabilities, RuntimeEvent, RuntimeRequest,
 };
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::{Command, Child};
+use tokio::process::{Child, Command};
+use tokio::sync::mpsc;
 
 /// Runtime adapter for Codex CLI
 pub struct CodexRuntimeAdapter;
@@ -17,12 +16,9 @@ impl CodexRuntimeAdapter {
         Self
     }
 
-    async fn spawn_codex_process(
-        &self,
-        request: &RuntimeRequest,
-    ) -> Result<Child> {
+    async fn spawn_codex_process(&self, request: &RuntimeRequest) -> Result<Child> {
         let mut cmd = Command::new("codex");
-        
+
         if let Some(workspace) = &request.workspace {
             cmd.current_dir(workspace);
         }
@@ -35,7 +31,12 @@ impl CodexRuntimeAdapter {
             cmd.arg("--reasoning-effort").arg(reasoning);
         }
 
-        if let Some(last_user_msg) = request.messages.iter().rev().find(|m| matches!(m.role, crate::runtime::RuntimeRole::User)) {
+        if let Some(last_user_msg) = request
+            .messages
+            .iter()
+            .rev()
+            .find(|m| matches!(m.role, crate::runtime::RuntimeRole::User))
+        {
             cmd.arg(&last_user_msg.content);
         }
 
@@ -43,9 +44,8 @@ impl CodexRuntimeAdapter {
             .stderr(Stdio::piped())
             .stdin(Stdio::null());
 
-        cmd.spawn().map_err(|e| {
-            RuntimeError::ProcessFailed(format!("Failed to spawn codex: {}", e))
-        })
+        cmd.spawn()
+            .map_err(|e| RuntimeError::ProcessFailed(format!("Failed to spawn codex: {}", e)))
     }
 }
 
@@ -70,22 +70,20 @@ impl RuntimeAdapter for CodexRuntimeAdapter {
         }
     }
 
-    async fn start_run(
-        &self,
-        request: RuntimeRequest,
-        run_id: String,
-    ) -> Result<RunHandle> {
+    async fn start_run(&self, request: RuntimeRequest, run_id: String) -> Result<RunHandle> {
         let (event_tx, event_rx) = mpsc::channel(100);
         let (cancel_tx, mut cancel_rx) = mpsc::channel::<()>(1);
 
         let mut child = self.spawn_codex_process(&request).await?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            RuntimeError::ProcessFailed("No stdout".into())
-        })?;
-        let stderr = child.stderr.take().ok_or_else(|| {
-            RuntimeError::ProcessFailed("No stderr".into())
-        })?;
-        
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| RuntimeError::ProcessFailed("No stdout".into()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| RuntimeError::ProcessFailed("No stderr".into()))?;
+
         let mut stdout_reader = BufReader::new(stdout).lines();
         let mut stderr_reader = BufReader::new(stderr).lines();
 
@@ -96,7 +94,9 @@ impl RuntimeAdapter for CodexRuntimeAdapter {
             let mut accumulated = String::new();
 
             let _ = tx_clone
-                .send(RuntimeEvent::RunStarted { run_id: run_id.clone() })
+                .send(RuntimeEvent::RunStarted {
+                    run_id: run_id.clone(),
+                })
                 .await;
 
             loop {
@@ -148,17 +148,26 @@ impl RuntimeAdapter for CodexRuntimeAdapter {
             match child.wait().await {
                 Ok(status) if status.success() => {
                     let _ = tx_clone
-                        .send(RuntimeEvent::RunCompleted { run_id: run_id.clone(), output: accumulated })
+                        .send(RuntimeEvent::RunCompleted {
+                            run_id: run_id.clone(),
+                            output: accumulated,
+                        })
                         .await;
                 }
                 Ok(status) => {
                     let _ = tx_clone
-                        .send(RuntimeEvent::RunFailed { run_id: run_id.clone(), error: format!("Process exited with code: {:?}", status.code()) })
+                        .send(RuntimeEvent::RunFailed {
+                            run_id: run_id.clone(),
+                            error: format!("Process exited with code: {:?}", status.code()),
+                        })
                         .await;
                 }
                 Err(e) => {
                     let _ = tx_clone
-                        .send(RuntimeEvent::RunFailed { run_id: run_id.clone(), error: format!("Process error: {}", e) })
+                        .send(RuntimeEvent::RunFailed {
+                            run_id: run_id.clone(),
+                            error: format!("Process error: {}", e),
+                        })
                         .await;
                 }
             }

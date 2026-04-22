@@ -1,9 +1,7 @@
 use anyhow::{anyhow, Result};
 use chrono::Utc;
 
-use crate::models::{
-    validate_credential_index, CredentialIndex, CredentialKind,
-};
+use crate::models::{validate_credential_index, CredentialIndex, CredentialKind};
 use crate::storage::credentials::{
     file_store::{get_credential, get_private_key_meta, upsert_credential_metadata},
     secure_store::SecureStore,
@@ -23,14 +21,11 @@ pub fn change_private_key_passphrase(
     index: &mut CredentialIndex,
     store: &dyn SecureStore,
 ) -> Result<()> {
-    let credential = get_credential(index, id)
-        .ok_or_else(|| anyhow!("credential not found: {}", id))?;
+    let credential =
+        get_credential(index, id).ok_or_else(|| anyhow!("credential not found: {}", id))?;
 
     if credential.kind != CredentialKind::PrivateKey {
-        return Err(anyhow!(
-            "credential {} is not a private key credential",
-            id
-        ));
+        return Err(anyhow!("credential {} is not a private key credential", id));
     }
 
     let pk_meta = get_private_key_meta(index, id)
@@ -94,9 +89,7 @@ pub fn change_private_key_passphrase(
     };
 
     // Verify fingerprint after re-encryption
-    let final_fingerprint = final_key
-        .fingerprint(ssh_key::HashAlg::Sha256)
-        .to_string();
+    let final_fingerprint = final_key.fingerprint(ssh_key::HashAlg::Sha256).to_string();
     if final_fingerprint != original_fingerprint {
         return Err(anyhow!(
             "fingerprint changed after passphrase update: {} -> {}",
@@ -222,6 +215,9 @@ mod tests {
         };
         let result = change_private_key_passphrase(&cred.id, input, &mut index, &store);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not a private key"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not a private key"));
     }
 }

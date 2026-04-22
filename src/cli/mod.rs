@@ -1,10 +1,10 @@
-mod init;
-mod start;
 mod doctor;
-mod scan;
-mod upgrade;
+mod init;
 mod rollback;
+mod scan;
+mod start;
 mod uninstall;
+mod upgrade;
 
 use clap::Subcommand;
 

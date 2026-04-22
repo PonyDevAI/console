@@ -74,3 +74,12 @@ VITE_CLOUDCODE_BUILD_VERSION="$GITHUB_SHA" pnpm --dir apps/desktop build
 
 These are development helpers only.
 Validation claims still follow `docs/testing/`.
+
+## macOS window controls
+
+On macOS, the desktop shell now installs the sidebar collapse/expand control as a
+native titlebar accessory from the Rust/Tauri layer instead of positioning it in
+the web content area.
+
+This keeps the control in the same native window-control band as the traffic
+lights and avoids frontend layout drift inside the content surface.

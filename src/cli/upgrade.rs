@@ -22,14 +22,21 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
 
     let current = installed_version(&target_bin)?;
     let latest = if let Some(v) = version {
-        if v.starts_with('v') { v } else { format!("v{v}") }
+        if v.starts_with('v') {
+            v
+        } else {
+            format!("v{v}")
+        }
     } else {
         println!("Checking for updates...");
         crate::services::self_update::check_latest().await?
     };
 
     if !crate::services::self_update::update_available(&current, &latest) {
-        println!("Already up to date (v{})", crate::services::self_update::normalize_version(&current));
+        println!(
+            "Already up to date (v{})",
+            crate::services::self_update::normalize_version(&current)
+        );
         return Ok(());
     }
 
@@ -68,9 +75,7 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
         .await?;
     std::fs::write(&archive, &bytes)?;
 
-    let sums_url = format!(
-        "https://github.com/{repo}/releases/download/{latest}/SHA256SUMS",
-    );
+    let sums_url = format!("https://github.com/{repo}/releases/download/{latest}/SHA256SUMS",);
     if let Ok(sums_resp) = client
         .get(&sums_url)
         .header(USER_AGENT, "console-self-update")
@@ -85,7 +90,8 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
                     let _ = std::fs::remove_dir_all(&tmp_root);
                     anyhow::bail!(
                         "SHA256 checksum mismatch!\n  expected: {}\n  actual:   {}",
-                        expected_hash, actual_hash
+                        expected_hash,
+                        actual_hash
                     );
                 }
                 println!("Checksum verified.");
@@ -158,9 +164,7 @@ pub async fn run(version: Option<String>, dry_run: bool) -> Result<()> {
 }
 
 fn installed_version(path: &Path) -> Result<String> {
-    let output = std::process::Command::new(path)
-        .arg("--version")
-        .output()?;
+    let output = std::process::Command::new(path).arg("--version").output()?;
     if !output.status.success() {
         anyhow::bail!("failed to read installed version from {}", path.display());
     }

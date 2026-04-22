@@ -1,23 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use cloudcode::models::{
-    CredentialIndex, ServerAuthMethod,
-};
-use cloudcode::storage::{
-    credentials::{
-        file_store::{
-            get_password_meta, get_private_key_meta,
-            load_credentials_index, save_credentials_index,
-        },
-        secure_store::{create_secure_store, SecureStore},
-    },
-    servers::file_store::{
-        get_server as get_server_from_index, load_group_index,
-        load_server_index, move_server_to_group as move_server_to_group_store,
-        remove_server, save_group_index, save_server_index,
-    },
-    CloudCodePaths,
-};
+use cloudcode::models::{CredentialIndex, ServerAuthMethod};
 use cloudcode::services::credentials::{
     change_passphrase::{
         change_private_key_passphrase as svc_change_passphrase, ChangePassphraseInput,
@@ -32,6 +15,9 @@ use cloudcode::services::credentials::{
     },
     validate_credential::validate_credential as svc_validate_credential,
 };
+use cloudcode::services::server_os_sync::sync::{
+    sync_all_server_os as svc_sync_all_os, sync_server_os as svc_sync_os, SyncSummary,
+};
 use cloudcode::services::servers::{
     create_server::{create_server as svc_create_server, CreateServerInput},
     duplicate_server::duplicate_server as svc_duplicate_server,
@@ -41,11 +27,22 @@ use cloudcode::services::servers::{
     },
     update_server::{update_server as svc_update_server, UpdateServerInput},
 };
-use cloudcode::services::server_os_sync::sync::{
-    sync_all_server_os as svc_sync_all_os, sync_server_os as svc_sync_os, SyncSummary,
-};
-use cloudcode::services::terminal::TerminalService;
 use cloudcode::services::terminal::backends::SshConnection;
+use cloudcode::services::terminal::TerminalService;
+use cloudcode::storage::{
+    credentials::{
+        file_store::{
+            get_password_meta, get_private_key_meta, load_credentials_index, save_credentials_index,
+        },
+        secure_store::{create_secure_store, SecureStore},
+    },
+    servers::file_store::{
+        get_server as get_server_from_index, load_group_index, load_server_index,
+        move_server_to_group as move_server_to_group_store, remove_server, save_group_index,
+        save_server_index,
+    },
+    CloudCodePaths,
+};
 use cloudcode_contracts::terminal::TerminalSessionMeta;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -53,6 +50,155 @@ use std::fs;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 use tauri::Emitter;
+
+#[cfg(target_os = "macos")]
+mod macos_titlebar {
+    use std::sync::OnceLock;
+
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::{define_class, msg_send, sel, AnyThread};
+    use objc2_app_kit::{
+        NSBezelStyle, NSButton, NSCellImagePosition, NSImage, NSWindow, NSWindowButton,
+    };
+    use objc2_foundation::{
+        ns_string, MainThreadMarker, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize,
+    };
+    use tauri::{AppHandle, Manager, Wry};
+
+    static APP_HANDLE: OnceLock<AppHandle<Wry>> = OnceLock::new();
+    static SIDEBAR_TOGGLE_TARGET: OnceLock<Retained<SidebarToggleTarget>> = OnceLock::new();
+    const SIDEBAR_TOGGLE_TAG: isize = 9031;
+    const BUTTON_SIZE: f64 = 28.0;
+    const COLLAPSED_OFFSET_X: f64 = 48.0;
+    const EXPANDED_X: f64 = 226.0;
+    const Y_ADJUST: f64 = -7.0;
+
+    define_class!(
+        #[unsafe(super = NSObject)]
+        #[thread_kind = AnyThread]
+        struct SidebarToggleTarget;
+
+        unsafe impl NSObjectProtocol for SidebarToggleTarget {}
+
+        impl SidebarToggleTarget {
+            #[unsafe(method(toggleSidebar:))]
+            fn toggle_sidebar(&self, _sender: Option<&AnyObject>) {
+                if let Some(app) = APP_HANDLE.get() {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval(
+                            "window.__cloudcodeToggleSidebar && window.__cloudcodeToggleSidebar();",
+                        );
+                    }
+                }
+            }
+        }
+    );
+
+    impl SidebarToggleTarget {
+        fn new() -> Retained<Self> {
+            let this = Self::alloc();
+            unsafe { msg_send![this, init] }
+        }
+    }
+
+    fn titlebar_parent_and_close_button(
+        window: &NSWindow,
+    ) -> Result<(Retained<objc2_app_kit::NSView>, Retained<NSButton>), Box<dyn std::error::Error>>
+    {
+        let close_button = window
+            .standardWindowButton(NSWindowButton::CloseButton)
+            .ok_or("close button not found")?;
+        let parent = unsafe { close_button.superview() }.ok_or("titlebar container not found")?;
+        Ok((parent, close_button))
+    }
+
+    fn sidebar_button_frame(window: &NSWindow, collapsed: bool) -> Result<NSRect, Box<dyn std::error::Error>> {
+        let (_, close_button) = titlebar_parent_and_close_button(window)?;
+        let close_frame = close_button.frame();
+        let x = if collapsed {
+            close_frame.origin.x + close_frame.size.width + COLLAPSED_OFFSET_X
+        } else {
+            EXPANDED_X
+        };
+        let y = close_frame.origin.y + Y_ADJUST;
+        Ok(NSRect::new(
+            NSPoint::new(x, y),
+            NSSize::new(BUTTON_SIZE, BUTTON_SIZE),
+        ))
+    }
+
+    fn sidebar_button_image(
+        collapsed: bool,
+    ) -> Result<Retained<NSImage>, Box<dyn std::error::Error>> {
+        let symbol = if collapsed {
+            ns_string!("sidebar.left")
+        } else {
+            ns_string!("sidebar.right")
+        };
+        NSImage::imageWithSystemSymbolName_accessibilityDescription(
+            symbol,
+            Some(ns_string!("Toggle sidebar")),
+        )
+        .ok_or_else(|| "failed to create sidebar symbol image".into())
+    }
+
+    pub fn install_native_sidebar_toggle(
+        app: &AppHandle<Wry>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mtm = MainThreadMarker::new().ok_or("macOS titlebar controls require main thread")?;
+        let window = app
+            .get_webview_window("main")
+            .ok_or("main webview window not found")?;
+        let ns_window_ptr = window.ns_window()?;
+        let ns_window: &NSWindow = unsafe { &*ns_window_ptr.cast() };
+        let (titlebar_parent, _) = titlebar_parent_and_close_button(ns_window)?;
+
+        APP_HANDLE.get_or_init(|| app.clone());
+        let target = SIDEBAR_TOGGLE_TARGET.get_or_init(SidebarToggleTarget::new);
+
+        let image = sidebar_button_image(false)?;
+
+        let button = unsafe {
+            NSButton::buttonWithImage_target_action(
+                &image,
+                Some(target.as_ref() as &AnyObject),
+                Some(sel!(toggleSidebar:)),
+                mtm,
+            )
+        };
+        button.setBezelStyle(NSBezelStyle::AccessoryBarAction);
+        button.setBordered(true);
+        button.setShowsBorderOnlyWhileMouseInside(true);
+        button.setImagePosition(NSCellImagePosition::ImageOnly);
+        button.setToolTip(Some(ns_string!("Toggle sidebar")));
+        button.setTag(SIDEBAR_TOGGLE_TAG);
+        button.setFrame(sidebar_button_frame(ns_window, false)?);
+        titlebar_parent.addSubview(&button);
+        Ok(())
+    }
+
+    pub fn set_native_sidebar_toggle_state(
+        app: &AppHandle<Wry>,
+        collapsed: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let window = app
+            .get_webview_window("main")
+            .ok_or("main webview window not found")?;
+        let ns_window_ptr = window.ns_window()?;
+        let ns_window: &NSWindow = unsafe { &*ns_window_ptr.cast() };
+        let (titlebar_parent, _) = titlebar_parent_and_close_button(ns_window)?;
+        let button_view = titlebar_parent
+            .viewWithTag(SIDEBAR_TOGGLE_TAG)
+            .ok_or("native sidebar toggle button not found")?;
+        let button: Retained<NSButton> = unsafe { Retained::cast_unchecked(button_view) };
+
+        button.setFrame(sidebar_button_frame(ns_window, collapsed)?);
+        let image = sidebar_button_image(collapsed)?;
+        button.setImage(Some(&image));
+        Ok(())
+    }
+}
 
 // ── Active Terminal Attach ──
 
@@ -223,7 +369,10 @@ struct SyncServerOsArgs {
 
 // ── Helpers ──
 
-fn to_credential_dto(cred: &cloudcode::models::Credential, index: &CredentialIndex) -> CredentialDto {
+fn to_credential_dto(
+    cred: &cloudcode::models::Credential,
+    index: &CredentialIndex,
+) -> CredentialDto {
     let pk_meta = get_private_key_meta(index, &cred.id);
     let pw_meta = get_password_meta(index, &cred.id);
 
@@ -298,12 +447,17 @@ fn materialize_terminal_identity_file(
     scope: &str,
 ) -> Result<String, String> {
     if pk_meta.has_passphrase {
-        return Err("passphrase-protected private keys are not yet supported for remote terminal runtime".to_string());
+        return Err(
+            "passphrase-protected private keys are not yet supported for remote terminal runtime"
+                .to_string(),
+        );
     }
 
     let secret_bytes = {
         let store = state.store.lock().map_err(|e| e.to_string())?;
-        store.load_secret(&credential.storage_ref).map_err(|e| e.to_string())?
+        store
+            .load_secret(&credential.storage_ref)
+            .map_err(|e| e.to_string())?
     };
 
     let dir = state.paths.state_dir().join("terminal-ssh-identities");
@@ -330,16 +484,24 @@ fn resolve_terminal_ssh_connection(
         .ok_or_else(|| format!("Server '{}' not found", server_id))?;
 
     if server.auth_method != ServerAuthMethod::PrivateKey {
-        return Err("remote terminal runtime currently supports private_key servers only".to_string());
+        return Err(
+            "remote terminal runtime currently supports private_key servers only".to_string(),
+        );
     }
 
     let cred_index = load_credentials_index(&state.paths).map_err(|e| e.to_string())?;
-    let credential = cred_index.credentials.iter()
+    let credential = cred_index
+        .credentials
+        .iter()
         .find(|c| c.id == server.credential_id)
         .ok_or_else(|| format!("Credential '{}' not found", server.credential_id))?;
 
-    let pk_meta = get_private_key_meta(&cred_index, &credential.id)
-        .ok_or_else(|| format!("Private key metadata not found for credential '{}'", credential.id))?;
+    let pk_meta = get_private_key_meta(&cred_index, &credential.id).ok_or_else(|| {
+        format!(
+            "Private key metadata not found for credential '{}'",
+            credential.id
+        )
+    })?;
 
     let identity_file = materialize_terminal_identity_file(state, credential, pk_meta, scope)?;
 
@@ -354,7 +516,10 @@ fn resolve_terminal_ssh_connection(
 // ── Credential Commands ──
 
 #[tauri::command]
-fn list_credentials(kind: Option<String>, state: tauri::State<AppState>) -> Result<Vec<CredentialDto>, String> {
+fn list_credentials(
+    kind: Option<String>,
+    state: tauri::State<AppState>,
+) -> Result<Vec<CredentialDto>, String> {
     let paths = &state.paths;
     let index = load_credentials_index(paths).map_err(|e| e.to_string())?;
 
@@ -460,16 +625,14 @@ fn change_private_key_passphrase(
 }
 
 #[tauri::command]
-fn delete_credential_cmd(
-    id: String,
-    state: tauri::State<AppState>,
-) -> Result<(), String> {
+fn delete_credential_cmd(id: String, state: tauri::State<AppState>) -> Result<(), String> {
     let paths = &state.paths;
     let mut cred_index = load_credentials_index(paths).map_err(|e| e.to_string())?;
     let server_index = load_server_index(paths).map_err(|e| e.to_string())?;
     let store = state.store.lock().map_err(|e| e.to_string())?;
 
-    svc_delete_credential(&id, &mut cred_index, &**store, &server_index).map_err(|e| e.to_string())?;
+    svc_delete_credential(&id, &mut cred_index, &**store, &server_index)
+        .map_err(|e| e.to_string())?;
     save_credentials_index(paths, &cred_index).map_err(|e| e.to_string())?;
 
     Ok(())
@@ -499,7 +662,10 @@ fn validate_credential_cmd(
 // ── Server Commands ──
 
 #[tauri::command]
-fn list_servers(group_id: Option<String>, state: tauri::State<AppState>) -> Result<Vec<ServerDto>, String> {
+fn list_servers(
+    group_id: Option<String>,
+    state: tauri::State<AppState>,
+) -> Result<Vec<ServerDto>, String> {
     let paths = &state.paths;
     let index = load_server_index(paths).map_err(|e| e.to_string())?;
 
@@ -553,7 +719,8 @@ fn create_server_cmd(
         description: args.description,
         tags: args.tags.unwrap_or_default(),
     };
-    let server = svc_create_server(input, &mut server_index, &cred_index).map_err(|e| e.to_string())?;
+    let server =
+        svc_create_server(input, &mut server_index, &cred_index).map_err(|e| e.to_string())?;
     save_server_index(paths, &server_index).map_err(|e| e.to_string())?;
 
     Ok(to_server_dto(&server))
@@ -568,7 +735,11 @@ fn update_server_cmd(
     let mut server_index = load_server_index(paths).map_err(|e| e.to_string())?;
     let cred_index = load_credentials_index(paths).map_err(|e| e.to_string())?;
 
-    let auth_method = args.auth_method.as_ref().map(|s| parse_auth_method(s)).transpose()?;
+    let auth_method = args
+        .auth_method
+        .as_ref()
+        .map(|s| parse_auth_method(s))
+        .transpose()?;
 
     let input = UpdateServerInput {
         name: args.name,
@@ -585,7 +756,8 @@ fn update_server_cmd(
         description: Some(args.description),
         tags: args.tags,
     };
-    let server = svc_update_server(&args.id, input, &mut server_index, &cred_index).map_err(|e| e.to_string())?;
+    let server = svc_update_server(&args.id, input, &mut server_index, &cred_index)
+        .map_err(|e| e.to_string())?;
     save_server_index(paths, &server_index).map_err(|e| e.to_string())?;
 
     Ok(to_server_dto(&server))
@@ -658,10 +830,7 @@ fn move_server_to_group_cmd(
 }
 
 #[tauri::command]
-fn delete_group_cmd(
-    args: DeleteGroupArgs,
-    state: tauri::State<AppState>,
-) -> Result<(), String> {
+fn delete_group_cmd(args: DeleteGroupArgs, state: tauri::State<AppState>) -> Result<(), String> {
     let paths = &state.paths;
     let mut group_index = load_group_index(paths).map_err(|e| e.to_string())?;
     let mut server_index = load_server_index(paths).map_err(|e| e.to_string())?;
@@ -672,7 +841,8 @@ fn delete_group_cmd(
         _ => return Err(format!("invalid strategy: {}", args.strategy)),
     };
 
-    svc_delete_group(&args.id, strategy, &mut group_index, &mut server_index).map_err(|e| e.to_string())?;
+    svc_delete_group(&args.id, strategy, &mut group_index, &mut server_index)
+        .map_err(|e| e.to_string())?;
     save_group_index(paths, &group_index).map_err(|e| e.to_string())?;
     save_server_index(paths, &server_index).map_err(|e| e.to_string())?;
 
@@ -688,7 +858,8 @@ fn sync_server_os_cmd(
 ) -> Result<ServerDto, String> {
     let paths = &state.paths;
     let mut index = load_server_index(paths).map_err(|e| e.to_string())?;
-    let server = svc_sync_os(&mut index, &args.server_id, &args.probe_output).map_err(|e| e.to_string())?;
+    let server =
+        svc_sync_os(&mut index, &args.server_id, &args.probe_output).map_err(|e| e.to_string())?;
     save_server_index(paths, &index).map_err(|e| e.to_string())?;
     Ok(to_server_dto(&server))
 }
@@ -764,7 +935,10 @@ struct CreateTerminalSessionArgs {
 fn list_terminal_sessions(
     state: tauri::State<AppState>,
 ) -> Result<Vec<TerminalSessionDto>, String> {
-    let response = state.terminal_service.list_sessions().map_err(|e| e.to_string())?;
+    let response = state
+        .terminal_service
+        .list_sessions()
+        .map_err(|e| e.to_string())?;
     Ok(response.sessions.iter().map(to_session_dto).collect())
 }
 
@@ -773,7 +947,10 @@ fn get_terminal_session(
     session_id: String,
     state: tauri::State<AppState>,
 ) -> Result<TerminalSessionDto, String> {
-    let session = state.terminal_service.get_session(&session_id).map_err(|e| e.to_string())?;
+    let session = state
+        .terminal_service
+        .get_session(&session_id)
+        .map_err(|e| e.to_string())?;
     Ok(to_session_dto(&session))
 }
 
@@ -785,7 +962,9 @@ fn create_terminal_session(
     let target_type = args.target_type.as_deref().unwrap_or("local");
 
     let request = if target_type == "server" {
-        let target_id = args.target_id.as_ref()
+        let target_id = args
+            .target_id
+            .as_ref()
             .ok_or_else(|| "target_id required for server target".to_string())?;
         let server_index = load_server_index(&state.paths).map_err(|e| e.to_string())?;
         let server = get_server_from_index(&server_index, target_id)
@@ -825,7 +1004,10 @@ fn create_terminal_session(
         }
     };
 
-    let response = state.terminal_service.create_session(request).map_err(|e| e.to_string())?;
+    let response = state
+        .terminal_service
+        .create_session(request)
+        .map_err(|e| e.to_string())?;
     Ok(to_session_dto(&response.session))
 }
 
@@ -834,16 +1016,46 @@ fn terminate_terminal_session(
     session_id: String,
     state: tauri::State<AppState>,
 ) -> Result<(), String> {
-    let session = state.terminal_service.get_session(&session_id).map_err(|e| e.to_string())?;
+    if let Some(active_terminal) = {
+        let mut terminals = state.active_terminals.lock().map_err(|e| e.to_string())?;
+        terminals.remove(&session_id)
+    } {
+        if let Err(err) = (active_terminal.close_fn)() {
+            eprintln!(
+                "[terminal] failed to close active terminal before terminate for session {}: {}; continuing",
+                session_id, err
+            );
+        }
+    }
+
+    let session = match state.terminal_service.get_session(&session_id) {
+        Ok(session) => session,
+        Err(err) => {
+            let message = err.to_string();
+            if message.contains("Session not found") {
+                return Ok(());
+            }
+            return Err(message);
+        }
+    };
     if session.target_type == "server" {
-        let target_id = session.target_id
+        let target_id = session
+            .target_id
             .ok_or_else(|| format!("Remote session '{}' missing target_id", session_id))?;
-        let ssh_conn = resolve_terminal_ssh_connection(&state, &target_id, &format!("terminate-{}", session_id))?;
-        state.terminal_service
+        let ssh_conn = resolve_terminal_ssh_connection(
+            &state,
+            &target_id,
+            &format!("terminate-{}", session_id),
+        )?;
+        state
+            .terminal_service
             .terminate_session_with_ssh(&session_id, ssh_conn)
             .map_err(|e| e.to_string())
     } else {
-        state.terminal_service.terminate_session(&session_id).map_err(|e| e.to_string())
+        state
+            .terminal_service
+            .terminate_session(&session_id)
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -851,7 +1063,10 @@ fn terminate_terminal_session(
 fn list_terminal_backends(
     state: tauri::State<AppState>,
 ) -> Result<cloudcode_contracts::terminal::BackendsResponse, String> {
-    state.terminal_service.get_backends().map_err(|e| e.to_string())
+    state
+        .terminal_service
+        .get_backends()
+        .map_err(|e| e.to_string())
 }
 
 // ── Terminal Attach/Streaming Commands ──
@@ -865,19 +1080,27 @@ async fn attach_terminal_session(
     app: tauri::AppHandle,
 ) -> Result<(), String> {
     // Get session metadata to determine if it's local or remote
-    let session_meta = state.terminal_service.get_session(&session_id).map_err(|e| e.to_string())?;
+    let session_meta = state
+        .terminal_service
+        .get_session(&session_id)
+        .map_err(|e| e.to_string())?;
 
     let components = if session_meta.target_type == "server" {
-        let target_id = session_meta.target_id.as_ref()
+        let target_id = session_meta
+            .target_id
+            .as_ref()
             .ok_or_else(|| "Remote session missing target_id".to_string())?;
-        let ssh_conn = resolve_terminal_ssh_connection(&state, target_id, &format!("attach-{}", session_id))?;
+        let ssh_conn =
+            resolve_terminal_ssh_connection(&state, target_id, &format!("attach-{}", session_id))?;
 
-        state.terminal_service
+        state
+            .terminal_service
             .spawn_attach_bridge_with_ssh(&session_id, cols, rows, Some(ssh_conn))
             .map_err(|e| e.to_string())?
     } else {
         // Local session
-        state.terminal_service
+        state
+            .terminal_service
             .spawn_attach_bridge(&session_id, cols, rows)
             .map_err(|e| e.to_string())?
     };
@@ -963,7 +1186,9 @@ fn send_terminal_input(
     writer
         .write_all(data.as_bytes())
         .map_err(|e| format!("Failed to write input: {}", e))?;
-    writer.flush().map_err(|e| format!("Failed to flush: {}", e))?;
+    writer
+        .flush()
+        .map_err(|e| format!("Failed to flush: {}", e))?;
     Ok(())
 }
 
@@ -1012,6 +1237,26 @@ fn detach_terminal_session(
     Ok(())
 }
 
+#[tauri::command]
+fn set_native_sidebar_toggle_state(collapsed: bool, app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let app_handle = app.clone();
+        app.run_on_main_thread(move || {
+            let _ = macos_titlebar::set_native_sidebar_toggle_state(&app_handle, collapsed);
+        })
+        .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = collapsed;
+        let _ = app;
+    }
+
+    Ok(())
+}
+
 // ── Main ──
 
 fn main() {
@@ -1021,7 +1266,8 @@ fn main() {
 
     let store = create_secure_store(paths.clone());
     let terminal_service = TerminalService::new();
-    let active_terminals: Arc<Mutex<HashMap<String, ActiveTerminal>>> = Arc::new(Mutex::new(HashMap::new()));
+    let active_terminals: Arc<Mutex<HashMap<String, ActiveTerminal>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     tauri::Builder::default()
         .manage(AppState {
@@ -1029,6 +1275,13 @@ fn main() {
             store: Mutex::new(store),
             terminal_service,
             active_terminals,
+        })
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                macos_titlebar::install_native_sidebar_toggle(&app.handle())?;
+            }
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             desktop_shell_status,
@@ -1061,6 +1314,7 @@ fn main() {
             send_terminal_input,
             resize_terminal_session,
             detach_terminal_session,
+            set_native_sidebar_toggle_state,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run CloudCode desktop shell");

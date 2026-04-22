@@ -74,14 +74,11 @@ pub fn update_password_credential(
     index: &mut CredentialIndex,
     store: &dyn SecureStore,
 ) -> Result<()> {
-    let credential = get_credential(index, id)
-        .ok_or_else(|| anyhow!("credential not found: {}", id))?;
+    let credential =
+        get_credential(index, id).ok_or_else(|| anyhow!("credential not found: {}", id))?;
 
     if credential.kind != CredentialKind::Password {
-        return Err(anyhow!(
-            "credential {} is not a password credential",
-            id
-        ));
+        return Err(anyhow!("credential {} is not a password credential", id));
     }
 
     let secret_bytes = input.secret.as_bytes();
@@ -176,12 +173,14 @@ mod tests {
         let cred = crate::services::credentials::generate_private_key::generate_private_key(
             crate::services::credentials::generate_private_key::GeneratePrivateKeyInput {
                 name: "test key".to_string(),
-                algorithm: crate::services::credentials::generate_private_key::GenerateAlgorithm::Ed25519,
+                algorithm:
+                    crate::services::credentials::generate_private_key::GenerateAlgorithm::Ed25519,
                 rsa_bits: None,
             },
             &mut index,
             &store,
-        ).unwrap();
+        )
+        .unwrap();
 
         let update_input = UpdatePasswordCredentialInput {
             secret: "newsecret".to_string(),

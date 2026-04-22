@@ -45,7 +45,10 @@ ID=ubuntu"#;
 
     #[test]
     fn test_centos_maps_correctly() {
-        assert_eq!(map_probe_output_to_os_type("CentOS Linux 8"), OsType::Centos);
+        assert_eq!(
+            map_probe_output_to_os_type("CentOS Linux 8"),
+            OsType::Centos
+        );
     }
 
     #[test]
@@ -58,7 +61,10 @@ ID=ubuntu"#;
 
     #[test]
     fn test_alpine_maps_correctly() {
-        assert_eq!(map_probe_output_to_os_type("Alpine Linux v3.18"), OsType::Alpine);
+        assert_eq!(
+            map_probe_output_to_os_type("Alpine Linux v3.18"),
+            OsType::Alpine
+        );
     }
 
     #[test]

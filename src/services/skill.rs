@@ -196,9 +196,7 @@ pub async fn fetch_repo(id: &str) -> Result<Vec<SkillManifest>> {
 
     let mut url = repo.url.clone();
     if url.contains("github.com") {
-        let stripped = url
-            .trim_end_matches('/')
-            .trim_end_matches(".git");
+        let stripped = url.trim_end_matches('/').trim_end_matches(".git");
         let segments: Vec<&str> = stripped.split('/').collect();
         if segments.len() == 5 && segments[2] == "github.com" {
             let user = segments[3];

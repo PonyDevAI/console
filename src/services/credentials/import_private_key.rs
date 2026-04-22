@@ -7,7 +7,7 @@ use ssh_key::private::{Ed25519Keypair, RsaKeypair};
 
 use crate::models::{
     classify_rsa_strength, validate_credential_index, validate_private_key_meta, Credential,
-    CredentialIndex, CredentialKind, CredentialStrength, CredentialStorageMode, KeyFormat,
+    CredentialIndex, CredentialKind, CredentialStorageMode, CredentialStrength, KeyFormat,
     KeySource, PrivateKeyAlgorithm, PrivateKeyMeta,
 };
 use crate::storage::credentials::{
@@ -58,9 +58,7 @@ pub fn import_private_key(
         has_passphrase,
         source: KeySource::Imported,
         strength: match algorithm {
-            PrivateKeyAlgorithm::Rsa => {
-                classify_rsa_strength(rsa_bits.unwrap_or(4096))
-            }
+            PrivateKeyAlgorithm::Rsa => classify_rsa_strength(rsa_bits.unwrap_or(4096)),
             PrivateKeyAlgorithm::Ed25519 => CredentialStrength::Recommended,
         },
     };
@@ -127,7 +125,9 @@ pub(crate) fn parse_private_key(pem: &str, _passphrase: Option<&str>) -> Result<
         return build_parsed_key(ssh_key, KeyFormat::Pkcs8);
     }
 
-    Err(anyhow!("unable to parse private key: not a recognized format"))
+    Err(anyhow!(
+        "unable to parse private key: not a recognized format"
+    ))
 }
 
 fn build_parsed_key(key: ssh_key::PrivateKey, format: KeyFormat) -> Result<ParsedKey> {

@@ -46,7 +46,10 @@ pub async fn run(purge: bool, yes: bool) -> Result<()> {
         std::fs::remove_dir_all(&paths.root)?;
         println!("CloudCode removed, including ~/.cloudcode");
     } else {
-        println!("CloudCode removed. Preserved config at {}", paths.root.display());
+        println!(
+            "CloudCode removed. Preserved config at {}",
+            paths.root.display()
+        );
     }
 
     Ok(())
@@ -61,10 +64,7 @@ fn clean_shell_rc(bin_dir: &std::path::Path) {
 
     let dynamic_path_line = format!(r#"export PATH="{}:$PATH""#, bin_dir.display());
     let dynamic_fish_line = format!("set -gx PATH {} $PATH", bin_dir.display());
-    for rc_path in [
-        home.join(".zshrc"),
-        home.join(".bashrc"),
-    ] {
+    for rc_path in [home.join(".zshrc"), home.join(".bashrc")] {
         remove_line_from_file(&rc_path, &dynamic_path_line);
     }
 
@@ -76,7 +76,9 @@ fn remove_line_from_file(path: &std::path::Path, line: &str) {
     if !path.exists() {
         return;
     }
-    let Ok(content) = std::fs::read_to_string(path) else { return };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return;
+    };
     let filtered: Vec<&str> = content.lines().filter(|l| *l != line).collect();
     // Only rewrite if we actually removed something
     if filtered.len() < content.lines().count() {

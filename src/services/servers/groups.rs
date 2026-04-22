@@ -3,9 +3,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
 use crate::models::{GroupIndex, ServerGroup, ServerIndex};
-use crate::storage::servers::file_store::{
-    move_server_to_group, remove_group, upsert_group,
-};
+use crate::storage::servers::file_store::{move_server_to_group, remove_group, upsert_group};
 
 // ── Create Group ──
 
@@ -25,11 +23,7 @@ pub fn create_group(name: &str, group_index: &mut GroupIndex) -> Result<ServerGr
 
 // ── Rename Group ──
 
-pub fn rename_group(
-    id: &str,
-    name: &str,
-    group_index: &mut GroupIndex,
-) -> Result<ServerGroup> {
+pub fn rename_group(id: &str, name: &str, group_index: &mut GroupIndex) -> Result<ServerGroup> {
     let group = group_index
         .groups
         .iter_mut()
@@ -104,7 +98,9 @@ pub fn delete_group(
         }
         DeleteGroupStrategy::DeleteWithMembers => {
             // Remove all member servers
-            server_index.servers.retain(|s| s.group_id.as_deref() != Some(id));
+            server_index
+                .servers
+                .retain(|s| s.group_id.as_deref() != Some(id));
         }
     }
 
@@ -115,9 +111,7 @@ pub fn delete_group(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        OsDetectedFrom, OsDetectionStatus, OsType, Server, ServerAuthMethod,
-    };
+    use crate::models::{OsDetectedFrom, OsDetectionStatus, OsType, Server, ServerAuthMethod};
 
     fn make_server(id: &str, group_id: Option<String>) -> Server {
         Server {
@@ -199,9 +193,8 @@ mod tests {
     fn test_move_server_to_group_svc_server_not_found() {
         let group_index = GroupIndex::default();
         let mut server_index = ServerIndex::default();
-        let err =
-            move_server_to_group_svc("nonexistent", None, &mut server_index, &group_index)
-                .unwrap_err();
+        let err = move_server_to_group_svc("nonexistent", None, &mut server_index, &group_index)
+            .unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 

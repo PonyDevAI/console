@@ -55,10 +55,13 @@ fn parse_semver(version: &str) -> (u64, u64, u64) {
     let parts: Vec<&str> = version.split('.').collect();
     let major = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
     let minor = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-    let patch = parts.get(2).and_then(|s| {
-        // Handle pre-release suffixes like "1-beta" by taking only digits
-        let digits: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
-        digits.parse().ok()
-    }).unwrap_or(0);
+    let patch = parts
+        .get(2)
+        .and_then(|s| {
+            // Handle pre-release suffixes like "1-beta" by taking only digits
+            let digits: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
+            digits.parse().ok()
+        })
+        .unwrap_or(0);
     (major, minor, patch)
 }

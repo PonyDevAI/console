@@ -29,9 +29,7 @@ pub use cloudcode_contracts::providers::{
     CreateProviderRequest, ImportProvidersRequest, SetModelAssignmentRequest, SetSwitchModeRequest,
 };
 #[allow(unused_imports)]
-pub use cloudcode_contracts::remote_agents::{
-    CreateRemoteAgentRequest, UpdateRemoteAgentRequest,
-};
+pub use cloudcode_contracts::remote_agents::{CreateRemoteAgentRequest, UpdateRemoteAgentRequest};
 #[allow(unused_imports)]
 pub use cloudcode_contracts::sessions::{
     CreateProposalRequest, CreateSessionRequest, PostMessageRequest, UpdateParticipantsRequest,

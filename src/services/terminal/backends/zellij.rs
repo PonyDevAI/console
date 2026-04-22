@@ -1,7 +1,9 @@
 use anyhow::Result;
 
 use crate::services::terminal::backend::TerminalBackend;
-use crate::services::terminal::models::{AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta};
+use crate::services::terminal::models::{
+    AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta,
+};
 
 pub struct ZellijBackend;
 

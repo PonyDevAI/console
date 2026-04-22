@@ -1,7 +1,7 @@
-use axum::response::sse::{Event, Sse, KeepAlive};
+use crate::services::task_queue::TaskQueue;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use std::convert::Infallible;
 use std::sync::Arc;
-use crate::services::task_queue::TaskQueue;
 
 pub async fn task_stream(
     axum::extract::State(queue): axum::extract::State<Arc<TaskQueue>>,

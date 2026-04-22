@@ -4,13 +4,13 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+use super::backend::TerminalBackend;
+use super::backends::{SshConnection, SshPtyBackend, SshScreenBackend, SshTmuxBackend};
 use super::models::{
     AttachBridgeComponents, BackendKind, CloseFn, CreateSessionRequest, CreateSessionResponse,
-    TerminalSessionMeta, TerminalSessionListResponse, TerminalSessionsState,
+    TerminalSessionListResponse, TerminalSessionMeta, TerminalSessionsState,
 };
 use super::registry::BackendRegistry;
-use super::backend::TerminalBackend;
-use super::backends::{SshConnection, SshTmuxBackend, SshScreenBackend, SshPtyBackend};
 use crate::storage::{read_json, write_json, CloudCodePaths};
 
 pub struct TerminalService {
@@ -47,9 +47,15 @@ impl TerminalService {
             // Only sync persistent local sessions. Remote sessions require SSH
             // connection resolution from the desktop shell layer.
             if meta.persistence == "persistent" && meta.target_type == "local" {
+                if meta.backend == "screen" {
+                    tracing::info!(
+                        session_id = %meta.id,
+                        "Pruning local screen session during startup sync; desktop local auto no longer restores screen sessions"
+                    );
+                    continue;
+                }
                 if let Some(backend_name) = &meta.backend_session_name {
-                    let kind = BackendKind::from_str(&meta.backend)
-                        .unwrap_or(BackendKind::Tmux);
+                    let kind = BackendKind::from_str(&meta.backend).unwrap_or(BackendKind::Tmux);
                     if let Some(backend) = self.registry.find_backend(kind) {
                         let status = match backend.sync_status(backend_name) {
                             Ok(s) => s,
@@ -58,9 +64,17 @@ impl TerminalService {
                                 meta.status.clone()
                             }
                         };
-                        let mut updated = meta.clone();
-                        updated.status = status;
-                        sessions.insert(meta.id.clone(), updated);
+                        if status == "running" {
+                            let mut updated = meta.clone();
+                            updated.status = status;
+                            sessions.insert(meta.id.clone(), updated);
+                        } else {
+                            tracing::info!(
+                                session_id = %meta.id,
+                                status = %status,
+                                "Pruning non-running terminal session during startup sync"
+                            );
+                        }
                     }
                 }
             }
@@ -91,8 +105,7 @@ impl TerminalService {
         if let Some(meta) = sessions.get_mut(id) {
             if meta.persistence == "persistent" && meta.target_type == "local" {
                 if let Some(backend_name) = &meta.backend_session_name {
-                    let kind = BackendKind::from_str(&meta.backend)
-                        .unwrap_or(BackendKind::Pty);
+                    let kind = BackendKind::from_str(&meta.backend).unwrap_or(BackendKind::Pty);
                     if let Some(backend) = self.registry.find_backend(kind) {
                         match backend.sync_status(backend_name) {
                             Ok(status) => {
@@ -118,8 +131,7 @@ impl TerminalService {
         for meta in sessions.values_mut() {
             if meta.persistence == "persistent" && meta.target_type == "local" {
                 if let Some(backend_name) = &meta.backend_session_name {
-                    let kind = BackendKind::from_str(&meta.backend)
-                        .unwrap_or(BackendKind::Pty);
+                    let kind = BackendKind::from_str(&meta.backend).unwrap_or(BackendKind::Pty);
                     if let Some(backend) = self.registry.find_backend(kind) {
                         match backend.sync_status(backend_name) {
                             Ok(new_status) => {
@@ -137,6 +149,15 @@ impl TerminalService {
                 }
             }
         }
+
+        sessions.retain(|id, meta| {
+            let keep = meta.status == "running";
+            if !keep && meta.persistence == "persistent" {
+                tracing::info!(session_id = %id, status = %meta.status, "Pruning non-running terminal session");
+                has_changes = true;
+            }
+            keep
+        });
 
         if has_changes {
             self.save_state(&sessions)?;
@@ -156,7 +177,7 @@ impl TerminalService {
             self.create_remote_session(&id, &req)?
         } else {
             // Local target: use local backends
-            let backend = self.registry.resolve_backend(req.backend.as_deref())?;
+            let backend = self.registry.resolve_local_backend(req.backend.as_deref())?;
             backend.create_session(
                 &id,
                 req.cwd.as_deref(),
@@ -179,7 +200,7 @@ impl TerminalService {
         {
             let mut sessions = self.sessions.lock().unwrap();
             sessions.insert(id.clone(), meta.clone());
-            
+
             // Only save persistent sessions
             if meta.persistence == "persistent" {
                 self.save_state(&sessions)?;
@@ -200,10 +221,18 @@ impl TerminalService {
 
     /// Create a remote terminal session via SSH.
     /// Backend priority: tmux -> screen -> pty (all SSH-backed).
-    fn create_remote_session(&self, id: &str, req: &CreateSessionRequest) -> Result<TerminalSessionMeta> {
-        let ssh_host = req.ssh_host.as_ref()
+    fn create_remote_session(
+        &self,
+        id: &str,
+        req: &CreateSessionRequest,
+    ) -> Result<TerminalSessionMeta> {
+        let ssh_host = req
+            .ssh_host
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("SSH host required for server target"))?;
-        let ssh_username = req.ssh_username.as_ref()
+        let ssh_username = req
+            .ssh_username
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("SSH username required for server target"))?;
 
         let conn = SshConnection {
@@ -214,6 +243,9 @@ impl TerminalService {
         };
 
         if let Some(explicit) = req.backend.as_deref() {
+            if explicit == "auto" {
+                // Fall through to the standard remote auto priority below.
+            } else {
             return match explicit {
                 "tmux" => SshTmuxBackend::new(conn).create_session(
                     id,
@@ -238,6 +270,7 @@ impl TerminalService {
                 ),
                 other => Err(anyhow::anyhow!("unsupported remote backend '{}'", other)),
             };
+            }
         }
 
         // Try SSH backends in priority order: tmux -> screen -> pty
@@ -294,7 +327,10 @@ impl TerminalService {
     pub fn get_session(&self, id: &str) -> Result<TerminalSessionMeta> {
         self.sync_session_status(id)?;
         let sessions = self.sessions.lock().unwrap();
-        sessions.get(id).cloned().ok_or_else(|| anyhow::anyhow!("Session not found"))
+        sessions
+            .get(id)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Session not found"))
     }
 
     pub fn terminate_session(&self, id: &str) -> Result<()> {
@@ -302,7 +338,10 @@ impl TerminalService {
 
         let meta = {
             let sessions = self.sessions.lock().unwrap();
-            sessions.get(id).cloned().ok_or_else(|| anyhow::anyhow!("Session not found"))?
+            sessions
+                .get(id)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("Session not found"))?
         };
 
         if meta.persistence == "ephemeral" {
@@ -317,12 +356,23 @@ impl TerminalService {
             }
         }
 
-        if meta.persistence == "persistent" {
+        if meta.persistence == "persistent" && meta.status == "running" {
             if let Some(backend_name) = &meta.backend_session_name {
-                let kind = BackendKind::from_str(&meta.backend)
-                    .unwrap_or(BackendKind::Pty);
+                let kind = BackendKind::from_str(&meta.backend).unwrap_or(BackendKind::Pty);
                 if let Some(backend) = self.registry.find_backend(kind) {
-                    backend.terminate_session(backend_name)?;
+                    if let Err(err) = backend.terminate_session(backend_name) {
+                        match backend.sync_status(backend_name) {
+                            Ok(status) if status != "running" => {
+                                tracing::info!(
+                                    session_id = %id,
+                                    backend = %meta.backend,
+                                    status = %status,
+                                    "Backend terminate returned an error, but the session is already gone; treating as success"
+                                );
+                            }
+                            _ => return Err(err),
+                        }
+                    }
                 }
             }
         }
@@ -342,7 +392,10 @@ impl TerminalService {
 
         let meta = {
             let sessions = self.sessions.lock().unwrap();
-            sessions.get(id).cloned().ok_or_else(|| anyhow::anyhow!("Session not found"))?
+            sessions
+                .get(id)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("Session not found"))?
         };
 
         if meta.target_type != "server" {
@@ -358,12 +411,34 @@ impl TerminalService {
             if let Some(close_fn) = close_fn {
                 close_fn()?;
             }
-        } else if let Some(backend_name) = &meta.backend_session_name {
-            match meta.backend.as_str() {
-                "tmux" => SshTmuxBackend::new(conn).terminate_session(backend_name)?,
-                "screen" => SshScreenBackend::new(conn).terminate_session(backend_name)?,
-                "pty" => SshPtyBackend::new(conn).terminate_session(backend_name)?,
-                other => return Err(anyhow::anyhow!("unsupported remote backend '{}'", other)),
+        } else if meta.status == "running" {
+            if let Some(backend_name) = &meta.backend_session_name {
+                let backend: Box<dyn crate::services::terminal::backend::TerminalBackend> =
+                    match meta.backend.as_str() {
+                        "tmux" => Box::new(SshTmuxBackend::new(conn)),
+                        "screen" => Box::new(SshScreenBackend::new(conn)),
+                        "pty" => Box::new(SshPtyBackend::new(conn)),
+                        other => {
+                            return Err(anyhow::anyhow!(
+                                "unsupported remote backend '{}'",
+                                other
+                            ))
+                        }
+                    };
+
+                if let Err(err) = backend.terminate_session(backend_name) {
+                    match backend.sync_status(backend_name) {
+                        Ok(status) if status != "running" => {
+                            tracing::info!(
+                                session_id = %id,
+                                backend = %meta.backend,
+                                status = %status,
+                                "Remote backend terminate returned an error, but the session is already gone; treating as success"
+                            );
+                        }
+                        _ => return Err(err),
+                    }
+                }
             }
         }
 
@@ -376,7 +451,12 @@ impl TerminalService {
         Ok(())
     }
 
-    pub fn spawn_attach_bridge(&self, id: &str, cols: u16, rows: u16) -> Result<AttachBridgeComponents> {
+    pub fn spawn_attach_bridge(
+        &self,
+        id: &str,
+        cols: u16,
+        rows: u16,
+    ) -> Result<AttachBridgeComponents> {
         self.spawn_attach_bridge_with_ssh(id, cols, rows, None)
     }
 
@@ -390,7 +470,10 @@ impl TerminalService {
         // First check if session exists
         let meta = {
             let sessions = self.sessions.lock().unwrap();
-            sessions.get(id).cloned().ok_or_else(|| anyhow::anyhow!("Session '{}' not found", id))?
+            sessions
+                .get(id)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("Session '{}' not found", id))?
         };
 
         // Sync status for persistent sessions
@@ -398,16 +481,25 @@ impl TerminalService {
             self.sync_session_status(id)?;
             // Re-fetch after sync
             let sessions = self.sessions.lock().unwrap();
-            let updated_meta = sessions.get(id).cloned()
+            let updated_meta = sessions
+                .get(id)
+                .cloned()
                 .ok_or_else(|| anyhow::anyhow!("Session '{}' not found after sync", id))?;
-            
+
             if updated_meta.status != "running" {
-                return Err(anyhow::anyhow!("Session '{}' is not running (status: {})", id, updated_meta.status));
+                return Err(anyhow::anyhow!(
+                    "Session '{}' is not running (status: {})",
+                    id,
+                    updated_meta.status
+                ));
             }
         } else {
             // For ephemeral sessions, check if already running (single-attach)
             if meta.status == "running" {
-                return Err(anyhow::anyhow!("Ephemeral session '{}' already has an active connection", id));
+                return Err(anyhow::anyhow!(
+                    "Ephemeral session '{}' already has an active connection",
+                    id
+                ));
             }
         }
 
@@ -416,13 +508,16 @@ impl TerminalService {
             if let Some(conn) = ssh_conn {
                 return self.spawn_remote_attach_bridge(&meta, conn, cols, rows);
             }
-            return Err(anyhow::anyhow!("SSH connection info required for remote session"));
+            return Err(anyhow::anyhow!(
+                "SSH connection info required for remote session"
+            ));
         }
 
         // Local session: use registry backend
-        let kind = BackendKind::from_str(&meta.backend)
-            .unwrap_or(BackendKind::Pty);
-        let backend = self.registry.find_backend(kind)
+        let kind = BackendKind::from_str(&meta.backend).unwrap_or(BackendKind::Pty);
+        let backend = self
+            .registry
+            .find_backend(kind)
             .ok_or_else(|| anyhow::anyhow!("Backend '{}' not found", meta.backend))?;
 
         // For pty backend, backend_session_name is None, we pass id
@@ -443,7 +538,7 @@ impl TerminalService {
                 e
             })?;
 
-// For ephemeral sessions, store the close_fn and mark as running
+        // For ephemeral sessions, store the close_fn and mark as running
         if meta.persistence == "ephemeral" {
             {
                 let mut bridges = self.active_bridges.lock().unwrap();
@@ -470,9 +565,12 @@ impl TerminalService {
         rows: u16,
     ) -> Result<AttachBridgeComponents> {
         let backend = match meta.backend.as_str() {
-            "tmux" => Box::new(SshTmuxBackend::new(conn)) as Box<dyn crate::services::terminal::backend::TerminalBackend>,
-            "screen" => Box::new(SshScreenBackend::new(conn)) as Box<dyn crate::services::terminal::backend::TerminalBackend>,
-            _ => Box::new(SshPtyBackend::new(conn)) as Box<dyn crate::services::terminal::backend::TerminalBackend>,
+            "tmux" => Box::new(SshTmuxBackend::new(conn))
+                as Box<dyn crate::services::terminal::backend::TerminalBackend>,
+            "screen" => Box::new(SshScreenBackend::new(conn))
+                as Box<dyn crate::services::terminal::backend::TerminalBackend>,
+            _ => Box::new(SshPtyBackend::new(conn))
+                as Box<dyn crate::services::terminal::backend::TerminalBackend>,
         };
 
         let session_name = meta.backend_session_name.as_deref().unwrap_or(&meta.id);
@@ -493,7 +591,7 @@ impl TerminalService {
         if let Some(meta) = meta {
             if meta.persistence == "ephemeral" {
                 tracing::info!(session_id = %id, backend = %meta.backend, "Cleaning up ephemeral session (disconnect ends session)");
-                
+
                 let close_fn = {
                     let mut bridges = self.active_bridges.lock().unwrap();
                     bridges.remove(id)
@@ -503,16 +601,16 @@ impl TerminalService {
                     tracing::info!(session_id = %id, "Calling close_fn for ephemeral session");
                     close_fn()?;
                 }
-                
+
                 {
                     let mut sessions = self.sessions.lock().unwrap();
                     sessions.remove(id);
                 }
-                
+
                 tracing::info!(session_id = %id, "Ephemeral session removed");
             }
         }
-        
+
         Ok(())
     }
 }

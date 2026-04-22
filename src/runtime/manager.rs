@@ -1,5 +1,5 @@
-use crate::runtime::models::{RuntimeEvent, RuntimeRun, RuntimeRunStatus};
 use crate::runtime::errors::{Result, RuntimeError};
+use crate::runtime::models::{RuntimeEvent, RuntimeRun, RuntimeRunStatus};
 use std::collections::HashMap;
 use tokio::sync::{broadcast, RwLock};
 
@@ -49,7 +49,10 @@ impl RuntimeManager {
     }
 
     /// Get or create a broadcast channel for a run (get-or-create pattern)
-    pub async fn get_or_create_run_channel(&self, run_id: &str) -> broadcast::Receiver<RuntimeEvent> {
+    pub async fn get_or_create_run_channel(
+        &self,
+        run_id: &str,
+    ) -> broadcast::Receiver<RuntimeEvent> {
         // First check if channel exists with read lock
         {
             let channels = self.run_channels.read().await;
@@ -57,22 +60,25 @@ impl RuntimeManager {
                 return tx.subscribe();
             }
         }
-        
+
         // Channel doesn't exist, create it with write lock
         let (tx, rx) = broadcast::channel(100);
         let mut channels = self.run_channels.write().await;
-        
+
         // Double-check in case another task created it while we were waiting
         if let Some(existing_tx) = channels.get(run_id) {
             return existing_tx.subscribe();
         }
-        
+
         channels.insert(run_id.to_string(), tx);
         rx
     }
 
     /// Get or create a broadcast channel for a thread (RuntimeEvent)
-    pub async fn get_or_create_thread_channel(&self, thread_id: &str) -> broadcast::Receiver<RuntimeEvent> {
+    pub async fn get_or_create_thread_channel(
+        &self,
+        thread_id: &str,
+    ) -> broadcast::Receiver<RuntimeEvent> {
         // First check with read lock
         {
             let channels = self.thread_channels.read().await;
@@ -80,22 +86,25 @@ impl RuntimeManager {
                 return tx.subscribe();
             }
         }
-        
+
         // Create new channel
         let (tx, rx) = broadcast::channel(100);
         let mut channels = self.thread_channels.write().await;
-        
+
         // Double-check
         if let Some(existing_tx) = channels.get(thread_id) {
             return existing_tx.subscribe();
         }
-        
+
         channels.insert(thread_id.to_string(), tx);
         rx
     }
 
     /// Get or create a broadcast channel for a thread (ThreadEvent)
-    pub async fn get_or_create_thread_event_channel(&self, thread_id: &str) -> broadcast::Receiver<crate::runtime::ThreadEvent> {
+    pub async fn get_or_create_thread_event_channel(
+        &self,
+        thread_id: &str,
+    ) -> broadcast::Receiver<crate::runtime::ThreadEvent> {
         // First check with read lock
         {
             let channels = self.thread_event_channels.read().await;
@@ -103,16 +112,16 @@ impl RuntimeManager {
                 return tx.subscribe();
             }
         }
-        
+
         // Create new channel
         let (tx, rx) = broadcast::channel(100);
         let mut channels = self.thread_event_channels.write().await;
-        
+
         // Double-check
         if let Some(existing_tx) = channels.get(thread_id) {
             return existing_tx.subscribe();
         }
-        
+
         channels.insert(thread_id.to_string(), tx);
         rx
     }
@@ -123,12 +132,18 @@ impl RuntimeManager {
     }
 
     /// Deprecated: Use get_or_create_thread_channel instead
-    pub async fn create_thread_channel(&self, thread_id: &str) -> broadcast::Receiver<RuntimeEvent> {
+    pub async fn create_thread_channel(
+        &self,
+        thread_id: &str,
+    ) -> broadcast::Receiver<RuntimeEvent> {
         self.get_or_create_thread_channel(thread_id).await
     }
 
     /// Deprecated: Use get_or_create_thread_event_channel instead
-    pub async fn create_thread_event_channel(&self, thread_id: &str) -> broadcast::Receiver<crate::runtime::ThreadEvent> {
+    pub async fn create_thread_event_channel(
+        &self,
+        thread_id: &str,
+    ) -> broadcast::Receiver<crate::runtime::ThreadEvent> {
         self.get_or_create_thread_event_channel(thread_id).await
     }
 
@@ -149,7 +164,12 @@ impl RuntimeManager {
         let mut runs = self.runs.write().await;
         if let Some(run) = runs.get_mut(run_id) {
             run.status = status.clone();
-            if matches!(status, RuntimeRunStatus::Completed | RuntimeRunStatus::Failed | RuntimeRunStatus::Cancelled) {
+            if matches!(
+                status,
+                RuntimeRunStatus::Completed
+                    | RuntimeRunStatus::Failed
+                    | RuntimeRunStatus::Cancelled
+            ) {
                 run.completed_at = Some(chrono::Utc::now());
             }
         }
@@ -174,7 +194,11 @@ impl RuntimeManager {
     }
 
     /// Register a cancel handle for a run
-    pub async fn register_cancel_handle(&self, run_id: String, handle: crate::runtime::registry::CancelHandle) {
+    pub async fn register_cancel_handle(
+        &self,
+        run_id: String,
+        handle: crate::runtime::registry::CancelHandle,
+    ) {
         let mut handles = self.cancel_handles.write().await;
         handles.insert(run_id, handle);
     }
@@ -184,7 +208,8 @@ impl RuntimeManager {
         let mut handles = self.cancel_handles.write().await;
         if let Some(handle) = handles.remove(run_id) {
             handle.cancel().await?;
-            self.update_run_status(run_id, RuntimeRunStatus::Cancelled).await;
+            self.update_run_status(run_id, RuntimeRunStatus::Cancelled)
+                .await;
             Ok(())
         } else {
             Err(RuntimeError::InternalError("No cancel handle found".into()))
@@ -204,7 +229,10 @@ impl RuntimeManager {
     }
 
     /// Get sender for a thread event channel (ThreadEvent)
-    async fn get_thread_event_sender(&self, thread_id: &str) -> Option<broadcast::Sender<crate::runtime::ThreadEvent>> {
+    async fn get_thread_event_sender(
+        &self,
+        thread_id: &str,
+    ) -> Option<broadcast::Sender<crate::runtime::ThreadEvent>> {
         let channels = self.thread_event_channels.read().await;
         channels.get(thread_id).cloned()
     }
@@ -224,7 +252,11 @@ impl RuntimeManager {
     }
 
     /// Broadcast event to thread subscribers (ThreadEvent)
-    pub async fn broadcast_to_thread_event(&self, thread_id: &str, event: crate::runtime::ThreadEvent) {
+    pub async fn broadcast_to_thread_event(
+        &self,
+        thread_id: &str,
+        event: crate::runtime::ThreadEvent,
+    ) {
         if let Some(tx) = self.get_thread_event_sender(thread_id).await {
             let _ = tx.send(event);
         }
@@ -235,18 +267,20 @@ impl RuntimeManager {
         let mut runs = self.runs.write().await;
         let mut channels = self.run_channels.write().await;
         let mut handles = self.cancel_handles.write().await;
-        
+
         let finished: Vec<String> = runs
             .iter()
             .filter(|(_, run)| {
                 matches!(
                     run.status,
-                    RuntimeRunStatus::Completed | RuntimeRunStatus::Failed | RuntimeRunStatus::Cancelled
+                    RuntimeRunStatus::Completed
+                        | RuntimeRunStatus::Failed
+                        | RuntimeRunStatus::Cancelled
                 )
             })
             .map(|(id, _)| id.clone())
             .collect();
-        
+
         for id in finished {
             runs.remove(&id);
             channels.remove(&id);

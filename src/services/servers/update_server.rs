@@ -2,9 +2,7 @@ use anyhow::{bail, Result};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
-use crate::models::{
-    CredentialIndex, Server, ServerAuthMethod, ServerIndex,
-};
+use crate::models::{CredentialIndex, Server, ServerAuthMethod, ServerIndex};
 use crate::storage::servers::file_store::{get_server, upsert_server};
 
 use super::validate_server::validate_server;

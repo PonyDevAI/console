@@ -1,7 +1,7 @@
-use crate::runtime::models::{RuntimeEvent, RuntimeRequest, RuntimeRun, RuntimeTarget};
 use crate::runtime::errors::{Result, RuntimeError};
-use crate::runtime::registry::RuntimeRegistry;
 use crate::runtime::manager::RuntimeManager;
+use crate::runtime::models::{RuntimeEvent, RuntimeRequest, RuntimeRun, RuntimeTarget};
+use crate::runtime::registry::RuntimeRegistry;
 use std::sync::Arc;
 
 /// Gateway for runtime execution
@@ -19,46 +19,54 @@ impl RuntimeGateway {
     pub async fn start_run(&self, request: RuntimeRequest) -> Result<RuntimeRun> {
         // Resolve target to adapter
         let adapter_name = self.resolve_adapter(&request.target, &request.model)?;
-        let adapter = self.registry
+        let adapter = self
+            .registry
             .find(&adapter_name)
             .ok_or_else(|| RuntimeError::AdapterNotFound(adapter_name.clone()))?;
 
         // Create run record - this generates the ONE TRUE run_id
         let mut run = RuntimeRun::new(&request, adapter_name.clone());
         run.status = crate::runtime::models::RuntimeRunStatus::Running;
-        
+
         self.manager.register_run(run.clone()).await;
 
         // Start the actual run - pass the SAME run_id to adapter
         let run_id = run.id.clone();
         let thread_id = request.thread_id.clone();
         let manager = self.manager.clone();
-        
+
         tokio::spawn(async move {
             match adapter.start_run(request, run_id.clone()).await {
                 Ok(handle) => {
-                    manager.register_cancel_handle(run_id.clone(), handle.cancel_handle).await;
-                    
+                    manager
+                        .register_cancel_handle(run_id.clone(), handle.cancel_handle)
+                        .await;
+
                     let mut event_rx = handle.event_rx;
                     let mut _accumulated_output = String::new();
-                    
+
                     while let Some(event) = event_rx.recv().await {
                         // Broadcast runtime event
                         manager.broadcast_to_run(&run_id, event.clone()).await;
-                        
+
                         // Broadcast raw runtime event to thread channel
                         // ThreadService will handle the bridge to ThreadEvent
                         if let Some(ref tid) = thread_id {
                             manager.broadcast_to_thread(tid, event.clone()).await;
                         }
-                        
+
                         match &event {
                             RuntimeEvent::TextDelta { text, .. } => {
                                 _accumulated_output.push_str(text);
                             }
                             RuntimeEvent::RunCompleted { output, .. } => {
                                 manager.update_run_output(&run_id, output.clone()).await;
-                                manager.update_run_status(&run_id, crate::runtime::models::RuntimeRunStatus::Completed).await;
+                                manager
+                                    .update_run_status(
+                                        &run_id,
+                                        crate::runtime::models::RuntimeRunStatus::Completed,
+                                    )
+                                    .await;
                                 break;
                             }
                             RuntimeEvent::RunFailed { error, .. } => {
@@ -66,7 +74,12 @@ impl RuntimeGateway {
                                 break;
                             }
                             RuntimeEvent::RunCancelled { .. } => {
-                                manager.update_run_status(&run_id, crate::runtime::models::RuntimeRunStatus::Cancelled).await;
+                                manager
+                                    .update_run_status(
+                                        &run_id,
+                                        crate::runtime::models::RuntimeRunStatus::Cancelled,
+                                    )
+                                    .await;
                                 break;
                             }
                             _ => {}

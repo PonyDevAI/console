@@ -1,11 +1,9 @@
-import { useState } from "react";
 import {
   LayoutDashboard,
   Package,
   Route,
   Plug,
   Settings,
-  PanelLeftClose,
   Tag,
   KeyRound,
   Server,
@@ -36,11 +34,15 @@ type DesktopSidebarProps = {
   activeView: ViewKey;
   onNavigate: (view: ViewKey) => void;
   buildVersion: string;
+  collapsed: boolean;
 };
 
-export function DesktopSidebar({ activeView, onNavigate, buildVersion }: DesktopSidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
-
+export function DesktopSidebar({
+  activeView,
+  onNavigate,
+  buildVersion,
+  collapsed,
+}: DesktopSidebarProps) {
   return (
     <aside
       className={cn(
@@ -54,13 +56,13 @@ export function DesktopSidebar({ activeView, onNavigate, buildVersion }: Desktop
         onMouseDown={startWindowDrag}
         className={cn(
           "flex h-[76px] items-end px-4 pb-3 pt-8",
-          collapsed ? "justify-center" : "justify-between"
+          collapsed ? "justify-center" : "justify-start"
         )}
       >
         <div data-tauri-drag-region className="flex items-center gap-2">
           <div
             data-tauri-drag-region
-            className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--accent)] text-[11px] font-bold text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--logo-bg)] text-[11px] font-bold text-[var(--logo-text)]"
           >
             CC
           </div>
@@ -127,33 +129,12 @@ export function DesktopSidebar({ activeView, onNavigate, buildVersion }: Desktop
             {!collapsed && <span>Settings</span>}
           </button>
 
-          {collapsed ? (
-            <button
-              type="button"
-              onClick={() => setCollapsed(false)}
-              data-no-drag="true"
-              className="mx-auto flex h-9 w-9 items-center justify-center rounded-[10px] px-0 py-0 text-[var(--text)] transition-colors hover:bg-[var(--bg-hover)]"
-            >
-              <PanelLeftClose
-                size={17}
-                strokeWidth={1.8}
-                className="transition-transform -scale-x-100"
-              />
-            </button>
-          ) : (
+          {!collapsed && (
             <div className="flex items-center justify-between rounded-[var(--radius-md)]">
               <div className="flex items-center gap-3 px-2.5 py-1.5 text-[10.5px] font-medium text-[var(--text)]">
                 <Tag size={17} strokeWidth={1.8} />
                 <span className="leading-none">{buildVersion}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setCollapsed(true)}
-                data-no-drag="true"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text)] transition-colors hover:bg-[var(--bg-hover)]"
-              >
-                <PanelLeftClose size={17} strokeWidth={1.8} />
-              </button>
             </div>
           )}
         </div>

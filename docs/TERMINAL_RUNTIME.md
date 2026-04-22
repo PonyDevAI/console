@@ -135,18 +135,20 @@ Required backends:
 
 ### 6.1 Preferred mode
 
-Use the same backend preference policy for both local and remote targets:
+Use the same product-facing `auto` mode for both local and remote targets, but allow
+different internal resolution order where platform/runtime evidence justifies it.
 
-- supports detach/reattach
-- survives browser disconnect
-- can survive daemon restart
-- maps well to long-running desktop terminal work
-
-Priority:
+Remote priority:
 
 - `tmux`
 - fallback `screen`
 - fallback `pty`
+
+Desktop-local priority:
+
+- `tmux`
+- fallback `pty`
+- fallback `screen`
 
 ### 6.2 Fallback mode
 
@@ -166,15 +168,24 @@ Standard behavior:
 
 - `Local` means the current machine running CloudCode.
 - `Server` means one saved server-management object.
-- both target types resolve backend priority as `tmux -> screen -> pty`
+- both target types expose one `auto` mode in the product surface
 - both target types expose the same tab/session semantics in the desktop UI
 
 Local target behavior:
 
 - shell defaults to the host shell
 - `tmux` preferred
-- `screen` fallback
-- `pty` last resort
+- `pty` fallback
+- `screen` last-resort compatibility backend
+
+Desktop note:
+
+- the desktop terminal UI creates both local and remote sessions in `auto` mode
+- local desktop `auto` resolves in this order: `tmux -> pty -> screen`
+- remote `auto` resolves in this order: `tmux -> screen -> pty`
+- only sessions that resolve to durable backends participate in app-restart restore
+- current desktop behavior does not restore local `screen` sessions; local `screen` remains compatibility-only
+- sessions that resolve to `pty` remain valid runtime sessions, but are treated as temporary and are not restored after app restart
 
 Server target behavior:
 
@@ -209,7 +220,7 @@ CloudCode does not persist:
 
 Application restart behavior:
 
-- restore `persistent` sessions (`tmux` / `screen`)
+- restore only still-running `persistent` sessions (`tmux` / `screen`)
 - do not restore `ephemeral` sessions (`pty`)
 
 ## 9. Desktop UI model
@@ -225,9 +236,10 @@ Tab rules:
 
 - adding a tab creates a new terminal session shell for the currently selected target
 - each tab binds to exactly one target/session pair
-- closing a tab detaches from the session
-- closing a tab does not imply terminating a persistent session
-- terminating a session is a distinct user action
+- in the current desktop UI, closing a tab terminates that session
+- desktop tab close currently does not expose a detached-session restore flow
+- switching tabs does not create a new session; it only changes which session is visible
+- product-facing UI should present backend selection as `auto`; resolved backend is runtime detail
 
 ## 10. AI control model
 

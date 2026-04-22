@@ -19,8 +19,8 @@ pub fn delete_credential(
     store: &dyn SecureStore,
     server_index: &ServerIndex,
 ) -> Result<()> {
-    let credential = get_credential(index, id)
-        .ok_or_else(|| anyhow!("credential not found: {}", id))?;
+    let credential =
+        get_credential(index, id).ok_or_else(|| anyhow!("credential not found: {}", id))?;
 
     let referencing_servers: Vec<&str> = server_index
         .servers
@@ -43,9 +43,7 @@ pub fn delete_credential(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        OsDetectedFrom, OsDetectionStatus, OsType, Server, ServerAuthMethod,
-    };
+    use crate::models::{OsDetectedFrom, OsDetectionStatus, OsType, Server, ServerAuthMethod};
     use crate::services::credentials::generate_private_key::{
         generate_private_key, GenerateAlgorithm, GeneratePrivateKeyInput,
     };

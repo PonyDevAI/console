@@ -78,10 +78,7 @@ mod tests {
 
     #[test]
     fn test_darwin_from_uname() {
-        assert_eq!(
-            map_probe_output_to_os_type("Darwin"),
-            OsType::Apple
-        );
+        assert_eq!(map_probe_output_to_os_type("Darwin"), OsType::Apple);
     }
 
     #[test]
@@ -127,30 +124,18 @@ ID_LIKE=debian"#;
 
     #[test]
     fn test_generic_linux() {
-        assert_eq!(
-            map_probe_output_to_os_type("Linux"),
-            OsType::LinuxUnknown
-        );
+        assert_eq!(map_probe_output_to_os_type("Linux"), OsType::LinuxUnknown);
     }
 
     #[test]
     fn test_windows() {
-        assert_eq!(
-            map_probe_output_to_os_type("Windows_NT"),
-            OsType::Windows
-        );
+        assert_eq!(map_probe_output_to_os_type("Windows_NT"), OsType::Windows);
     }
 
     #[test]
     fn test_unknown_fallback() {
-        assert_eq!(
-            map_probe_output_to_os_type(""),
-            OsType::Unknown
-        );
-        assert_eq!(
-            map_probe_output_to_os_type("FreeBSD"),
-            OsType::Unknown
-        );
+        assert_eq!(map_probe_output_to_os_type(""), OsType::Unknown);
+        assert_eq!(map_probe_output_to_os_type("FreeBSD"), OsType::Unknown);
     }
 
     #[test]

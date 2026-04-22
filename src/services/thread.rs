@@ -79,13 +79,19 @@ impl ThreadService {
             let runtime_manager = runtime_manager.clone();
 
             tokio::spawn(async move {
-                let mut runtime_rx = runtime_manager.get_or_create_thread_channel(&thread_id).await;
+                let mut runtime_rx = runtime_manager
+                    .get_or_create_thread_channel(&thread_id)
+                    .await;
 
                 loop {
                     match runtime_rx.recv().await {
                         Ok(runtime_event) => {
-                            if let Some(thread_event) = thread_service.handle_runtime_event(&thread_id, &runtime_event) {
-                                runtime_manager.broadcast_to_thread_event(&thread_id, thread_event).await;
+                            if let Some(thread_event) =
+                                thread_service.handle_runtime_event(&thread_id, &runtime_event)
+                            {
+                                runtime_manager
+                                    .broadcast_to_thread_event(&thread_id, thread_event)
+                                    .await;
                             }
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => {
@@ -392,11 +398,9 @@ impl ThreadService {
         runtime_event: &RuntimeEvent,
     ) -> Option<crate::runtime::ThreadEvent> {
         match runtime_event {
-            RuntimeEvent::RunStarted { run_id } => {
-                Some(crate::runtime::ThreadEvent::RunStarted {
-                    run_id: run_id.clone(),
-                })
-            }
+            RuntimeEvent::RunStarted { run_id } => Some(crate::runtime::ThreadEvent::RunStarted {
+                run_id: run_id.clone(),
+            }),
             RuntimeEvent::TextDelta { run_id, text } => {
                 if let Some(message) = self.find_message_by_run_id(thread_id, run_id) {
                     let _ = self.append_assistant_delta(thread_id, &message.id, text.clone());

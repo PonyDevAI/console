@@ -10,17 +10,47 @@ import "xterm/css/xterm.css";
 type XtermCanvasProps = {
   sessionId: string;
   className?: string;
+  active?: boolean;
   onExit?: () => void;
   onError?: (message: string) => void;
 };
 
-export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanvasProps) {
+export function XtermCanvas({
+  sessionId,
+  className,
+  active = true,
+  onExit,
+  onError,
+}: XtermCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const unlistenRefs = useRef<UnlistenFn[]>([]);
+  const onExitRef = useRef(onExit);
+  const onErrorRef = useRef(onError);
+  const attachStartedRef = useRef(false);
+  const decoderRef = useRef(new TextDecoder("utf-8"));
   const [attached, setAttached] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onExitRef.current = onExit;
+    onErrorRef.current = onError;
+  }, [onExit, onError]);
+
+  const applyTerminalTheme = useCallback(() => {
+    if (!terminalRef.current) return;
+
+    const styles = getComputedStyle(document.documentElement);
+    terminalRef.current.options.theme = {
+      background: styles.getPropertyValue("--terminal-bg").trim() || "#0c1118",
+      foreground: styles.getPropertyValue("--terminal-text").trim() || "#e5edf6",
+      cursor: styles.getPropertyValue("--terminal-text").trim() || "#e5edf6",
+      selectionBackground:
+        styles.getPropertyValue("--terminal-selection").trim() || "rgba(148, 163, 184, 0.28)",
+    };
+    terminalRef.current.refresh(0, terminalRef.current.rows - 1);
+  }, []);
 
   const cleanup = useCallback(() => {
     // Unlisten all events
@@ -33,12 +63,31 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
     invoke("detach_terminal_session", { sessionId }).catch(() => {});
   }, [sessionId]);
 
+  const fitAndSync = useCallback(() => {
+    if (!terminalRef.current || !fitAddonRef.current) return;
+
+    try {
+      fitAddonRef.current.fit();
+      const cols = terminalRef.current.cols;
+      const rows = terminalRef.current.rows;
+      if (cols > 0 && rows > 0) {
+        invoke("resize_terminal_session", {
+          sessionId,
+          cols,
+          rows,
+        }).catch(() => {});
+      }
+    } catch {
+      // Terminal may still be hidden or not fully laid out.
+    }
+  }, [sessionId]);
+
   useEffect(() => {
     if (!containerRef.current) return;
 
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: 13,
+      fontSize: 12,
       fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas, monospace',
       allowProposedApi: true,
       scrollback: 10000,
@@ -54,6 +103,7 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
     // Fit after a brief delay to ensure container is sized
     requestAnimationFrame(() => {
       try {
+        applyTerminalTheme();
         fitAddon.fit();
       } catch {
         // Container may not be visible yet
@@ -62,18 +112,7 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
 
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
-      try {
-        const dims = fitAddon.proposeDimensions();
-        if (dims && dims.cols && dims.rows) {
-          invoke("resize_terminal_session", {
-            sessionId,
-            cols: dims.cols,
-            rows: dims.rows,
-          }).catch(() => {});
-        }
-      } catch {
-        // Fit may fail if terminal is not visible
-      }
+      fitAndSync();
     });
     if (containerRef.current.parentElement) {
       resizeObserver.observe(containerRef.current.parentElement);
@@ -91,11 +130,38 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sessionId, cleanup]);
+  }, [sessionId, cleanup, applyTerminalTheme, fitAndSync]);
+
+  useEffect(() => {
+    applyTerminalTheme();
+
+    const observer = new MutationObserver(() => {
+      applyTerminalTheme();
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme-mode"],
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [applyTerminalTheme]);
+
+  useEffect(() => {
+    if (!active) return;
+
+    requestAnimationFrame(() => {
+      fitAndSync();
+    });
+  }, [active, fitAndSync]);
 
   // Attach to the session
   useEffect(() => {
     if (!terminalRef.current || !fitAddonRef.current) return;
+    if (attachStartedRef.current) return;
+    attachStartedRef.current = true;
 
     let cancelled = false;
 
@@ -116,9 +182,14 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
         setAttachError(null);
       } catch (e) {
         if (cancelled) return;
-        const msg = e instanceof Error ? e.message : "Failed to attach to session";
+        const msg =
+          typeof e === "string"
+            ? e
+            : e instanceof Error
+              ? e.message
+              : "Failed to attach to session";
         setAttachError(msg);
-        onError?.(msg);
+        onErrorRef.current?.(msg);
       }
     };
 
@@ -127,7 +198,7 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
     return () => {
       cancelled = true;
     };
-  }, [sessionId, onError]);
+  }, [sessionId]);
 
   // Listen for output events
   useEffect(() => {
@@ -140,8 +211,12 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
           const payload = event.payload as { data: string };
           if (payload?.data && terminalRef.current) {
             try {
-              const decoded = atob(payload.data);
-              terminalRef.current.write(decoded);
+              const binary = atob(payload.data);
+              const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+              const decoded = decoderRef.current.decode(bytes, { stream: true });
+              if (decoded) {
+                terminalRef.current.write(decoded);
+              }
             } catch {
               // Ignore decode errors
             }
@@ -154,7 +229,7 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
         `terminal-exit-${sessionId}`,
         () => {
           setAttached(false);
-          onExit?.();
+          onExitRef.current?.();
         }
       );
       unlistenRefs.current.push(exitUnlisten);
@@ -164,23 +239,27 @@ export function XtermCanvas({ sessionId, className, onExit, onError }: XtermCanv
         (event: any) => {
           const payload = event.payload as { message: string };
           setAttachError(payload?.message ?? "Unknown error");
-          onError?.(payload?.message ?? "Unknown error");
+          onErrorRef.current?.(payload?.message ?? "Unknown error");
         }
       );
       unlistenRefs.current.push(errorUnlisten);
     };
 
     setupListeners();
-  }, [attached, sessionId, onExit, onError]);
+  }, [attached, sessionId]);
 
   return (
-    <div className={cn("relative flex h-full flex-col", className)}>
+    <div
+      className={cn("relative flex h-full flex-col overflow-hidden bg-[var(--terminal-bg)]", className)}
+    >
       {attachError && (
         <div className="absolute inset-x-0 top-0 z-10 rounded-b-[var(--radius-md)] border-b border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-1.5 text-[11px] text-[var(--danger)]">
           {attachError}
         </div>
       )}
-      <div ref={containerRef} className="flex-1 overflow-hidden" />
+      <div className="flex-1 p-2">
+        <div ref={containerRef} className="h-full overflow-hidden bg-[var(--terminal-bg)]" />
+      </div>
     </div>
   );
 }

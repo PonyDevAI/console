@@ -299,7 +299,7 @@ export interface CreateTerminalSessionInput {
   title?: string;
   cwd?: string;
   shell?: string;
-  backend?: string;
+  backend?: "auto" | "tmux" | "screen" | "pty";
   cols?: number;
   rows?: number;
   target_type?: "local" | "server";
@@ -328,7 +328,7 @@ export async function createTerminalSession(
 export async function terminateTerminalSession(
   sessionId: string
 ): Promise<void> {
-  return invoke<void>("terminate_terminal_session", { session_id: sessionId });
+  return invoke<void>("terminate_terminal_session", { sessionId });
 }
 
 export interface BackendInfoDto {
@@ -342,4 +342,10 @@ export async function listTerminalBackends(): Promise<{
   default_backend: string;
 }> {
   return invoke("list_terminal_backends");
+}
+
+export async function setNativeSidebarToggleState(
+  collapsed: boolean
+): Promise<void> {
+  return invoke("set_native_sidebar_toggle_state", { collapsed });
 }

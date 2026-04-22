@@ -26,7 +26,7 @@ export function ThemeModeToggle() {
         className={cn(
           "flex h-[26px] w-[26px] items-center justify-center rounded-full transition-colors",
           mode === "light"
-            ? "bg-[var(--accent)] text-white shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+            ? "bg-white text-black shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
             : "text-[var(--muted)] hover:text-[var(--text)]"
         )}
       >
@@ -38,7 +38,7 @@ export function ThemeModeToggle() {
         className={cn(
           "flex h-[26px] w-[26px] items-center justify-center rounded-full transition-colors",
           mode === "dark"
-            ? "bg-[var(--accent)] text-white shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
+            ? "bg-white text-black shadow-[0_2px_8px_rgba(0,0,0,0.15)]"
             : "text-[var(--muted)] hover:text-[var(--text)]"
         )}
       >

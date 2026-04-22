@@ -5,7 +5,9 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 
 use crate::services::terminal::backend::TerminalBackend;
-use crate::services::terminal::models::{AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta};
+use crate::services::terminal::models::{
+    AttachBridgeComponents, BackendKind, Persistence, TerminalSessionMeta,
+};
 use chrono::Utc;
 
 const REMOTE_PREFIX: &str = "console-remote-";
@@ -45,7 +47,7 @@ impl SshConnection {
 
 // ── Stdio wrappers for AttachBridgeComponents ──
 
-use std::io::{Read, Write, Result as IoResult};
+use std::io::{Read, Result as IoResult, Write};
 
 struct ChildStdoutReader(std::process::ChildStdout);
 
@@ -241,8 +243,10 @@ impl TerminalBackend for SshTmuxBackend {
             writer: Box::new(ChildStdinWriter::new(stdin)),
             resize_fn: Arc::new(move |c, r| {
                 let mut cmd = std::process::Command::new("ssh");
-                cmd.args(conn_clone.ssh_base_args())
-                    .arg(format!("tmux resize-window -t {} -x {} -y {}", session_name_clone, c, r));
+                cmd.args(conn_clone.ssh_base_args()).arg(format!(
+                    "tmux resize-window -t {} -x {} -y {}",
+                    session_name_clone, c, r
+                ));
                 let _ = cmd.output();
                 Ok(())
             }),
@@ -312,11 +316,7 @@ impl TerminalBackend for SshScreenBackend {
             .or_else(|| env::var("SHELL").ok().map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("/bin/bash"));
 
-        let screen_cmd = format!(
-            "screen -dmS {} {}",
-            backend_name,
-            shell_path.display()
-        );
+        let screen_cmd = format!("screen -dmS {} {}", backend_name, shell_path.display());
 
         let output = self
             .remote_cmd(&screen_cmd)
@@ -369,7 +369,9 @@ impl TerminalBackend for SshScreenBackend {
             .output()
             .context("Failed to check remote screen sessions")?;
         let stdout = String::from_utf8_lossy(&output.stdout);
-        if stdout.contains(session_name) && (stdout.contains("(Attached)") || stdout.contains("(Detached)")) {
+        if stdout.contains(session_name)
+            && (stdout.contains("(Attached)") || stdout.contains("(Detached)"))
+        {
             Ok("running".to_string())
         } else {
             Ok("exited".to_string())

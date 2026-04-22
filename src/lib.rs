@@ -1,16 +1,20 @@
-pub mod cli;
-pub mod api;
-pub mod services;
 pub mod adapters;
-pub mod sync;
-pub mod storage;
+pub mod api;
+pub mod cli;
 pub mod models;
 pub mod runtime;
+pub mod services;
+pub mod storage;
+pub mod sync;
 
 use clap::Parser;
 
 #[derive(Parser)]
-#[command(name = "cloudcode", about = "Local AI CLI unified management platform", version)]
+#[command(
+    name = "cloudcode",
+    about = "Local AI CLI unified management platform",
+    version
+)]
 pub struct Cli {
     #[command(subcommand)]
     command: cli::Command,

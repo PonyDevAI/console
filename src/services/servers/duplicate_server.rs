@@ -46,9 +46,7 @@ pub fn duplicate_server(id: &str, server_index: &mut ServerIndex) -> Result<Serv
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{
-        OsDetectedFrom, OsDetectionStatus, OsType, ServerAuthMethod,
-    };
+    use crate::models::{OsDetectedFrom, OsDetectionStatus, OsType, ServerAuthMethod};
 
     fn make_server(id: &str) -> Server {
         Server {
