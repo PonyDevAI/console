@@ -4,6 +4,11 @@ import { cn } from "../../lib/utils";
 import { PrivateKeyImportForm } from "./PrivateKeyImportForm";
 import { PrivateKeyGenerateForm } from "./PrivateKeyGenerateForm";
 import { PasswordCredentialForm } from "./PasswordCredentialForm";
+import {
+  createPasswordCredential,
+  generatePrivateKey,
+  importPrivateKey,
+} from "../../lib/server-commands";
 
 type NewCredentialMode = "menu" | "import-key" | "generate-key" | "create-password";
 
@@ -80,7 +85,6 @@ export function NewCredentialModal({ onCancel, onCreated }: NewCredentialModalPr
               <PrivateKeyImportForm
                 onCancel={() => setMode("menu")}
                 onSubmit={async (name, pem, passphrase) => {
-                  const { importPrivateKey } = await import("../../lib/server-commands");
                   await importPrivateKey(name, pem, passphrase);
                   handleCreated();
                 }}
@@ -93,7 +97,6 @@ export function NewCredentialModal({ onCancel, onCreated }: NewCredentialModalPr
               <PrivateKeyGenerateForm
                 onCancel={() => setMode("menu")}
                 onSubmit={async (name, algorithm) => {
-                  const { generatePrivateKey } = await import("../../lib/server-commands");
                   await generatePrivateKey(name, algorithm);
                   handleCreated();
                 }}
@@ -106,7 +109,6 @@ export function NewCredentialModal({ onCancel, onCreated }: NewCredentialModalPr
               <PasswordCredentialForm
                 onCancel={() => setMode("menu")}
                 onSubmit={async (name, secret) => {
-                  const { createPasswordCredential } = await import("../../lib/server-commands");
                   await createPasswordCredential(name, secret);
                   handleCreated();
                 }}

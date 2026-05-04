@@ -218,6 +218,37 @@ CloudCode does not persist:
 - raw command output history as the primary restore mechanism
 - PTY session restoration data for `ephemeral` sessions
 
+## 9. Desktop performance policy
+
+Desktop terminal performance should be improved without changing the product-facing
+session model.
+
+Current desktop performance rules:
+
+- keep the product-facing backend mode as `auto`
+- prefer renderer upgrades that can fall back safely on unsupported machines
+- batch terminal output writes on the frontend instead of writing every event immediately
+- coalesce `fit` and resize work so the frontend does not flood backend resize calls
+- do not move terminal output into React state
+
+Current desktop implementation:
+
+- `xterm.js` remains the terminal renderer
+- `@xterm/addon-webgl` is loaded opportunistically for GPU acceleration
+- if WebGL cannot be enabled, the terminal falls back silently to the default xterm renderer
+- frontend output is buffered and flushed in animation-frame batches
+- frontend write-backpressure keeps large output streams from scheduling unbounded parallel `write()` calls
+- frontend resize work is coalesced so unchanged dimensions do not trigger redundant backend resizes
+- backend output chunks are emitted in larger reads to reduce event churn during sustained output
+- the desktop app may prewarm terminal code paths during idle time or terminal-nav intent, while keeping terminal runtime code out of the main startup bundle
+
+Performance optimizations must not change these semantics:
+
+- `1 tab = 1 session`
+- attach/detach correctness takes precedence over raw throughput
+- `pty` remains single-attach and non-restorable
+- `tmux`/`screen` remain the only durable restore-capable backends
+
 Application restart behavior:
 
 - restore only still-running `persistent` sessions (`tmux` / `screen`)

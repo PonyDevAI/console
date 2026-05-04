@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { lazy, Suspense, useEffect, useState, useCallback } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { DesktopSidebar } from "./components/DesktopSidebar";
+import { TerminalErrorBoundary } from "./components/TerminalErrorBoundary";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AgentSourcesPage } from "./pages/AgentSourcesPage";
 import { ProvidersPage } from "./pages/ProvidersPage";
@@ -8,12 +9,27 @@ import { McpPage } from "./pages/McpPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { CredentialsPage } from "./pages/CredentialsPage";
 import { ServersPage } from "./pages/ServersPage";
-import { TerminalPage } from "./pages/TerminalPage";
 import {
   listServers,
   setNativeSidebarToggleState,
   type ServerDto,
 } from "./lib/server-commands";
+
+type TerminalPreloadReason = "cold" | "idle" | "hover" | "activate";
+
+let terminalPagePreloadPromise: Promise<typeof import("./pages/TerminalPage")> | null = null;
+
+function preloadTerminalPage() {
+  if (!terminalPagePreloadPromise) {
+    terminalPagePreloadPromise = import("./pages/TerminalPage");
+  }
+  return terminalPagePreloadPromise;
+}
+
+const TerminalPage = lazy(async () => {
+  const mod = await preloadTerminalPage();
+  return { default: mod.TerminalPage };
+});
 
 type ViewKey = "overview" | "agent-sources" | "providers" | "mcp" | "credentials" | "servers" | "terminal" | "settings";
 
@@ -22,6 +38,8 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [servers, setServers] = useState<ServerDto[]>([]);
   const [hasVisitedTerminal, setHasVisitedTerminal] = useState(false);
+  const [terminalPreloadReason, setTerminalPreloadReason] =
+    useState<TerminalPreloadReason>("cold");
   const buildVersion =
     import.meta.env.VITE_CLOUDCODE_BUILD_VERSION?.trim() ||
     (import.meta.env.DEV ? "Dev" : "Release");
@@ -90,14 +108,48 @@ function App() {
   useEffect(() => {
     if (activeView === "terminal") {
       setHasVisitedTerminal(true);
+      setTerminalPreloadReason((reason) => (reason === "cold" ? "activate" : reason));
+      void preloadTerminalPage();
     }
   }, [activeView]);
+
+  useEffect(() => {
+    const preload = () => {
+      void preloadTerminalPage();
+    };
+
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (idleWindow.requestIdleCallback) {
+      const idleId = idleWindow.requestIdleCallback(() => {
+        setTerminalPreloadReason((reason) => (reason === "cold" ? "idle" : reason));
+        preload();
+      }, { timeout: 2000 });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+
+    const timer = window.setTimeout(() => {
+      setTerminalPreloadReason((reason) => (reason === "cold" ? "idle" : reason));
+      preload();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
       <DesktopSidebar
         activeView={activeView}
         onNavigate={setActiveView}
+        onPrefetchTerminal={() => {
+          setTerminalPreloadReason((reason) => (reason === "cold" ? "hover" : reason));
+          void preloadTerminalPage();
+        }}
         buildVersion={buildVersion}
         collapsed={sidebarCollapsed}
       />
@@ -111,9 +163,22 @@ function App() {
             {activeView === "credentials" && <CredentialsPage />}
             {activeView === "servers" && <ServersPage />}
             {activeView === "settings" && <SettingsPage />}
-            {hasVisitedTerminal && (
+            {(activeView === "terminal" || hasVisitedTerminal) && (
               <div className={activeView === "terminal" ? "h-full" : "hidden"}>
-                <TerminalPage servers={servers} />
+                <Suspense
+                  fallback={
+                    <div className="flex h-full items-center justify-center bg-[var(--terminal-bg)]">
+                      <p className="text-[12px] text-[var(--muted)]">Loading terminal…</p>
+                    </div>
+                  }
+                >
+                  <TerminalErrorBoundary>
+                    <TerminalPage
+                      servers={servers}
+                      preloadReason={terminalPreloadReason}
+                    />
+                  </TerminalErrorBoundary>
+                </Suspense>
               </div>
             )}
           </div>

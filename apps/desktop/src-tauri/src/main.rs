@@ -59,7 +59,7 @@ mod macos_titlebar {
     use objc2::runtime::AnyObject;
     use objc2::{define_class, msg_send, sel, AnyThread};
     use objc2_app_kit::{
-        NSBezelStyle, NSButton, NSCellImagePosition, NSImage, NSWindow, NSWindowButton,
+        NSBezelStyle, NSButton, NSCellImagePosition, NSColor, NSImage, NSWindow, NSWindowButton,
     };
     use objc2_foundation::{
         ns_string, MainThreadMarker, NSObject, NSObjectProtocol, NSPoint, NSRect, NSSize,
@@ -136,11 +136,15 @@ mod macos_titlebar {
         } else {
             ns_string!("sidebar.right")
         };
-        NSImage::imageWithSystemSymbolName_accessibilityDescription(
+        let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(
             symbol,
             Some(ns_string!("Toggle sidebar")),
         )
-        .ok_or_else(|| "failed to create sidebar symbol image".into())
+        .ok_or_else(|| -> Box<dyn std::error::Error> {
+            "failed to create sidebar symbol image".into()
+        })?;
+        image.setTemplate(true);
+        Ok(image)
     }
 
     pub fn install_native_sidebar_toggle(
@@ -171,6 +175,7 @@ mod macos_titlebar {
         button.setBordered(true);
         button.setShowsBorderOnlyWhileMouseInside(true);
         button.setImagePosition(NSCellImagePosition::ImageOnly);
+        button.setContentTintColor(Some(&NSColor::secondaryLabelColor()));
         button.setToolTip(Some(ns_string!("Toggle sidebar")));
         button.setTag(SIDEBAR_TOGGLE_TAG);
         button.setFrame(sidebar_button_frame(ns_window, false)?);
@@ -196,6 +201,7 @@ mod macos_titlebar {
         button.setFrame(sidebar_button_frame(ns_window, collapsed)?);
         let image = sidebar_button_image(collapsed)?;
         button.setImage(Some(&image));
+        button.setContentTintColor(Some(&NSColor::secondaryLabelColor()));
         Ok(())
     }
 }
@@ -1128,7 +1134,7 @@ async fn attach_terminal_session(
     let active_terminals = state.active_terminals.clone();
     std::thread::spawn(move || {
         let mut reader = components.reader;
-        let mut buf = [0u8; 8192];
+        let mut buf = [0u8; 32768];
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => {

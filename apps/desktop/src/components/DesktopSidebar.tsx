@@ -33,6 +33,7 @@ const navItems: NavItemDef[] = [
 type DesktopSidebarProps = {
   activeView: ViewKey;
   onNavigate: (view: ViewKey) => void;
+  onPrefetchTerminal?: () => void;
   buildVersion: string;
   collapsed: boolean;
 };
@@ -40,6 +41,7 @@ type DesktopSidebarProps = {
 export function DesktopSidebar({
   activeView,
   onNavigate,
+  onPrefetchTerminal,
   buildVersion,
   collapsed,
 }: DesktopSidebarProps) {
@@ -94,6 +96,8 @@ export function DesktopSidebar({
                 key={item.key}
                 type="button"
                 onClick={() => onNavigate(item.key)}
+                onMouseEnter={item.key === "terminal" ? onPrefetchTerminal : undefined}
+                onFocus={item.key === "terminal" ? onPrefetchTerminal : undefined}
                 className={cn(
                   "flex items-center gap-3 px-2.5 py-1.5 text-[10.5px] font-medium transition-colors",
                   collapsed && "mx-auto h-9 w-9 justify-center rounded-[10px] px-0 py-0",

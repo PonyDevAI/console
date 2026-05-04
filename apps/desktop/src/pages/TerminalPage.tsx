@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { memo, useState, useEffect, useCallback } from "react";
 import { Plus, X, Terminal as TerminalIcon, Monitor, Server, ChevronDown, AlertCircle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { XtermCanvas } from "../features/terminal/XtermCanvas";
@@ -34,9 +34,13 @@ interface DesktopTab {
 
 type TerminalPageProps = {
   servers?: ServerDto[];
+  preloadReason?: "cold" | "idle" | "hover" | "activate";
 };
 
-export function TerminalPage({ servers = [] }: TerminalPageProps) {
+export function TerminalPage({
+  servers = [],
+  preloadReason: _preloadReason = "cold",
+}: TerminalPageProps) {
   const [tabs, setTabs] = useState<DesktopTab[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<TargetType>("local");
@@ -45,7 +49,6 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
   const [loading, setLoading] = useState(true);
   const [backends, setBackends] = useState<BackendInfoDto[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
-
   const createSessionTab = useCallback(
     async ({
       targetType,
@@ -151,6 +154,21 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
 
   useEffect(() => {
+    if (tabs.length === 0) {
+      if (activeTabId !== null) {
+        setActiveTabId(null);
+      }
+      return;
+    }
+
+    if (activeTabId && tabs.some((tab) => tab.id === activeTabId)) {
+      return;
+    }
+
+    setActiveTabId(tabs[tabs.length - 1].id);
+  }, [tabs, activeTabId]);
+
+  useEffect(() => {
     if (!activeTab) return;
     setSelectedTarget(activeTab.targetType);
     setSelectedServerId(activeTab.targetId);
@@ -183,15 +201,18 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
   };
 
   const closeTab = (tabId: string) => {
-    setTabs((prev) => {
-      const filtered = prev.filter((t) => t.id !== tabId);
-      if (tabId === activeTabId && filtered.length > 0) {
-        setActiveTabId(filtered[filtered.length - 1].id);
-      } else if (filtered.length === 0) {
-        setActiveTabId(null);
-      }
-      return filtered;
-    });
+    const remainingTabs = tabs.filter((t) => t.id !== tabId);
+    setTabs(remainingTabs);
+
+    if (remainingTabs.length === 0) {
+      setActiveTabId(null);
+      setCreateError(null);
+      return;
+    }
+
+    if (activeTabId === tabId || !remainingTabs.some((tab) => tab.id === activeTabId)) {
+      setActiveTabId(remainingTabs[remainingTabs.length - 1].id);
+    }
   };
 
   const terminateTabSession = async (tabId: string) => {
@@ -372,7 +393,7 @@ export function TerminalPage({ servers = [] }: TerminalPageProps) {
 
 // ── Tab Card (Arc-style) ──
 
-function TabCard({
+const TabCard = memo(function TabCard({
   tab,
   isActive,
   onSelect,
@@ -436,11 +457,11 @@ function TabCard({
       </div>
     </button>
   );
-}
+});
 
 // ── Terminal Canvas ──
 
-function TerminalCanvas({
+const TerminalCanvas = memo(function TerminalCanvas({
   tab,
   backends,
   active = true,
@@ -521,7 +542,7 @@ function TerminalCanvas({
       )}
     </div>
   );
-}
+});
 
 function TerminalCanvasStack({
   tabs,
@@ -605,7 +626,11 @@ function TerminalCanvasStack({
               tab.id === activeTabId ? "visible z-10" : "invisible pointer-events-none z-0"
             )}
           >
-            <TerminalCanvas tab={tab} backends={backends} active={tab.id === activeTabId} />
+            <TerminalCanvas
+              tab={tab}
+              backends={backends}
+              active={tab.id === activeTabId}
+            />
           </div>
         ))}
     </div>
@@ -614,7 +639,7 @@ function TerminalCanvasStack({
 
 // ── Empty Canvas ──
 
-function EmptyCanvas({ onNewTab }: { onNewTab: () => void }) {
+const EmptyCanvas = memo(function EmptyCanvas({ onNewTab }: { onNewTab: () => void }) {
   return (
     <div className="flex h-full items-center justify-center bg-[var(--terminal-bg)] p-1">
       <div className="flex flex-col items-center gap-3">
@@ -632,4 +657,4 @@ function EmptyCanvas({ onNewTab }: { onNewTab: () => void }) {
       </div>
     </div>
   );
-}
+});

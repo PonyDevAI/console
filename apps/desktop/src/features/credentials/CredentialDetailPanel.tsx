@@ -1,7 +1,11 @@
 import { KeyRound, Shield, Calendar, Hash, Cpu, Fingerprint, Database, Pencil, RotateCw, Trash2, Server } from "lucide-react";
 import { useState } from "react";
 import { cn } from "../../lib/utils";
-import type { CredentialDto, ServerDto } from "../../lib/server-commands";
+import {
+  changePrivateKeyPassphrase,
+  type CredentialDto,
+  type ServerDto,
+} from "../../lib/server-commands";
 
 type CredentialDetailPanelProps = {
   credential: CredentialDto | null;
@@ -189,7 +193,6 @@ export function CredentialDetailPanel({
           credentialId={credential.id}
           hasPassphrase={credential.has_passphrase ?? false}
           onSubmit={async (oldP, newP) => {
-            const { changePrivateKeyPassphrase } = await import("../../lib/server-commands");
             await changePrivateKeyPassphrase(credential.id, oldP, newP);
             setPassphraseModal(false);
             onChangePassphrase?.(credential.id);

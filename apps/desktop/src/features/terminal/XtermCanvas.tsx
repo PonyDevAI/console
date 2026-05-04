@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Terminal } from "xterm";
+import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { cn } from "../../lib/utils";
 
-import "xterm/css/xterm.css";
+import "@xterm/xterm/css/xterm.css";
 
 type XtermCanvasProps = {
   sessionId: string;
@@ -13,6 +13,18 @@ type XtermCanvasProps = {
   active?: boolean;
   onExit?: () => void;
   onError?: (message: string) => void;
+  onPerfUpdate?: (stats: XtermPerfStats) => void;
+};
+
+export type XtermPerfStats = {
+  renderer: "canvas" | "webgl";
+  attached: boolean;
+  queueChars: number;
+  queuedChunks: number;
+  writeInFlight: boolean;
+  cols: number;
+  rows: number;
+  attachDurationMs: number | null;
 };
 
 export function XtermCanvas({
@@ -21,6 +33,7 @@ export function XtermCanvas({
   active = true,
   onExit,
   onError,
+  onPerfUpdate,
 }: XtermCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -28,31 +41,114 @@ export function XtermCanvas({
   const unlistenRefs = useRef<UnlistenFn[]>([]);
   const onExitRef = useRef(onExit);
   const onErrorRef = useRef(onError);
+  const onPerfUpdateRef = useRef(onPerfUpdate);
   const attachStartedRef = useRef(false);
   const decoderRef = useRef(new TextDecoder("utf-8"));
+  const fitFrameRef = useRef<number | null>(null);
+  const outputFlushFrameRef = useRef<number | null>(null);
+  const outputFlushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outputQueueRef = useRef<string[]>([]);
+  const outputQueueCharsRef = useRef(0);
+  const writeInFlightRef = useRef(false);
+  const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+  const activeRef = useRef(active);
+  const rendererModeRef = useRef<"canvas" | "webgl">("canvas");
+  const attachStartRef = useRef<number | null>(null);
+  const attachDurationRef = useRef<number | null>(null);
+  const attachedRef = useRef(false);
+  const disposedRef = useRef(false);
   const [attached, setAttached] = useState(false);
   const [attachError, setAttachError] = useState<string | null>(null);
+
+  const MAX_OUTPUT_BATCH_CHARS = 32 * 1024;
+  const MAX_OUTPUT_LATENCY_MS = 12;
 
   useEffect(() => {
     onExitRef.current = onExit;
     onErrorRef.current = onError;
-  }, [onExit, onError]);
+    onPerfUpdateRef.current = onPerfUpdate;
+  }, [onExit, onError, onPerfUpdate]);
+
+  const emitPerfUpdate = useCallback(
+    (rendererOverride?: "canvas" | "webgl") => {
+      if (!onPerfUpdateRef.current || !terminalRef.current) return;
+      onPerfUpdateRef.current({
+        renderer: rendererOverride ?? rendererModeRef.current,
+        attached: attachedRef.current,
+        queueChars: outputQueueCharsRef.current,
+        queuedChunks: outputQueueRef.current.length,
+        writeInFlight: writeInFlightRef.current,
+        cols: terminalRef.current.cols,
+        rows: terminalRef.current.rows,
+        attachDurationMs: attachDurationRef.current,
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => {
+    attachedRef.current = attached;
+  }, [attached]);
 
   const applyTerminalTheme = useCallback(() => {
-    if (!terminalRef.current) return;
+    if (!terminalRef.current || disposedRef.current) return;
 
     const styles = getComputedStyle(document.documentElement);
-    terminalRef.current.options.theme = {
-      background: styles.getPropertyValue("--terminal-bg").trim() || "#0c1118",
-      foreground: styles.getPropertyValue("--terminal-text").trim() || "#e5edf6",
-      cursor: styles.getPropertyValue("--terminal-text").trim() || "#e5edf6",
-      selectionBackground:
-        styles.getPropertyValue("--terminal-selection").trim() || "rgba(148, 163, 184, 0.28)",
-    };
-    terminalRef.current.refresh(0, terminalRef.current.rows - 1);
+    try {
+      terminalRef.current.options.theme = {
+        background: styles.getPropertyValue("--terminal-bg").trim() || "#0c1118",
+        foreground: styles.getPropertyValue("--terminal-text").trim() || "#e5edf6",
+        cursor: styles.getPropertyValue("--terminal-text").trim() || "#e5edf6",
+        selectionBackground:
+          styles.getPropertyValue("--terminal-selection").trim() || "rgba(148, 163, 184, 0.28)",
+      };
+      terminalRef.current.refresh(0, terminalRef.current.rows - 1);
+    } catch {
+      // Ignore theme updates after disposal races.
+    }
   }, []);
 
   const cleanup = useCallback(() => {
+    if (fitFrameRef.current !== null) {
+      cancelAnimationFrame(fitFrameRef.current);
+      fitFrameRef.current = null;
+    }
+    if (outputFlushFrameRef.current !== null) {
+      cancelAnimationFrame(outputFlushFrameRef.current);
+      outputFlushFrameRef.current = null;
+    }
+    if (outputFlushTimeoutRef.current !== null) {
+      clearTimeout(outputFlushTimeoutRef.current);
+      outputFlushTimeoutRef.current = null;
+    }
+
+    const remaining = decoderRef.current.decode();
+    if (remaining && terminalRef.current) {
+      terminalRef.current.write(remaining);
+    }
+    outputQueueRef.current = [];
+    outputQueueCharsRef.current = 0;
+    writeInFlightRef.current = false;
+    lastSentSizeRef.current = null;
+    rendererModeRef.current = "canvas";
+    disposedRef.current = true;
+    attachStartedRef.current = false;
+    setAttached(false);
+    onPerfUpdateRef.current?.({
+      renderer: "canvas",
+      attached: false,
+      queueChars: 0,
+      queuedChunks: 0,
+      writeInFlight: false,
+      cols: 0,
+      rows: 0,
+      attachDurationMs: null,
+    });
+
     // Unlisten all events
     for (const unlisten of unlistenRefs.current) {
       unlisten();
@@ -70,27 +166,109 @@ export function XtermCanvas({
       fitAddonRef.current.fit();
       const cols = terminalRef.current.cols;
       const rows = terminalRef.current.rows;
-      if (cols > 0 && rows > 0) {
+      const lastSentSize = lastSentSizeRef.current;
+      if (
+        cols > 0 &&
+        rows > 0 &&
+        (!lastSentSize || lastSentSize.cols !== cols || lastSentSize.rows !== rows)
+      ) {
+        lastSentSizeRef.current = { cols, rows };
         invoke("resize_terminal_session", {
           sessionId,
           cols,
           rows,
         }).catch(() => {});
       }
+      emitPerfUpdate();
     } catch {
       // Terminal may still be hidden or not fully laid out.
     }
-  }, [sessionId]);
+  }, [sessionId, emitPerfUpdate]);
+
+  const scheduleFitAndSync = useCallback(() => {
+    if (!activeRef.current) return;
+    if (fitFrameRef.current !== null) return;
+    fitFrameRef.current = requestAnimationFrame(() => {
+      fitFrameRef.current = null;
+      fitAndSync();
+    });
+  }, [fitAndSync]);
+
+  const flushOutputQueue = useCallback(() => {
+    if (outputFlushFrameRef.current !== null) {
+      cancelAnimationFrame(outputFlushFrameRef.current);
+      outputFlushFrameRef.current = null;
+    }
+    if (outputFlushTimeoutRef.current !== null) {
+      clearTimeout(outputFlushTimeoutRef.current);
+      outputFlushTimeoutRef.current = null;
+    }
+    if (!terminalRef.current || outputQueueRef.current.length === 0 || writeInFlightRef.current) {
+      return;
+    }
+
+    let batchChars = 0;
+    const batchParts: string[] = [];
+    while (outputQueueRef.current.length > 0 && batchChars < MAX_OUTPUT_BATCH_CHARS) {
+      const chunk = outputQueueRef.current[0];
+      outputQueueRef.current.shift();
+      outputQueueCharsRef.current -= chunk.length;
+      batchParts.push(chunk);
+      batchChars += chunk.length;
+    }
+
+    if (batchParts.length === 0) return;
+
+    writeInFlightRef.current = true;
+    emitPerfUpdate();
+    terminalRef.current.write(batchParts.join(""), () => {
+      writeInFlightRef.current = false;
+      emitPerfUpdate();
+      if (outputQueueRef.current.length > 0) {
+        if (outputQueueCharsRef.current >= MAX_OUTPUT_BATCH_CHARS) {
+          flushOutputQueue();
+          return;
+        }
+        scheduleOutputFlush();
+      }
+    });
+  }, []);
+
+  const scheduleOutputFlush = useCallback(() => {
+    if (writeInFlightRef.current) return;
+
+    if (outputQueueCharsRef.current >= MAX_OUTPUT_BATCH_CHARS) {
+      flushOutputQueue();
+      return;
+    }
+
+    if (outputFlushFrameRef.current === null) {
+      outputFlushFrameRef.current = requestAnimationFrame(() => {
+        flushOutputQueue();
+      });
+    }
+
+    if (outputFlushTimeoutRef.current === null) {
+      outputFlushTimeoutRef.current = setTimeout(() => {
+        flushOutputQueue();
+      }, MAX_OUTPUT_LATENCY_MS);
+    }
+  }, [flushOutputQueue]);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    disposedRef.current = false;
+    let cancelled = false;
+    let initialFitFrame: number | null = null;
 
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 12,
       fontFamily: '"JetBrains Mono", "Fira Code", "SF Mono", Menlo, Consolas, monospace',
       allowProposedApi: true,
-      scrollback: 10000,
+      scrollback: 5000,
+      allowTransparency: false,
+      minimumContrastRatio: 1,
     });
 
     const fitAddon = new FitAddon();
@@ -101,10 +279,15 @@ export function XtermCanvas({
     fitAddonRef.current = fitAddon;
 
     // Fit after a brief delay to ensure container is sized
-    requestAnimationFrame(() => {
+    rendererModeRef.current = "canvas";
+    emitPerfUpdate("canvas");
+
+    initialFitFrame = requestAnimationFrame(() => {
+      if (cancelled || disposedRef.current || terminalRef.current !== term) return;
       try {
         applyTerminalTheme();
         fitAddon.fit();
+        scheduleFitAndSync();
       } catch {
         // Container may not be visible yet
       }
@@ -112,10 +295,10 @@ export function XtermCanvas({
 
     // Handle resize
     const resizeObserver = new ResizeObserver(() => {
-      fitAndSync();
+      scheduleFitAndSync();
     });
-    if (containerRef.current.parentElement) {
-      resizeObserver.observe(containerRef.current.parentElement);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
     }
 
     // Handle user input
@@ -124,13 +307,17 @@ export function XtermCanvas({
     });
 
     return () => {
+      cancelled = true;
+      if (initialFitFrame !== null) {
+        cancelAnimationFrame(initialFitFrame);
+      }
       resizeObserver.disconnect();
       cleanup();
       term.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sessionId, cleanup, applyTerminalTheme, fitAndSync]);
+  }, [sessionId, cleanup, applyTerminalTheme, scheduleFitAndSync]);
 
   useEffect(() => {
     applyTerminalTheme();
@@ -152,10 +339,8 @@ export function XtermCanvas({
   useEffect(() => {
     if (!active) return;
 
-    requestAnimationFrame(() => {
-      fitAndSync();
-    });
-  }, [active, fitAndSync]);
+    scheduleFitAndSync();
+  }, [active, scheduleFitAndSync]);
 
   // Attach to the session
   useEffect(() => {
@@ -166,6 +351,7 @@ export function XtermCanvas({
     let cancelled = false;
 
     const doAttach = async () => {
+      attachStartRef.current = performance.now();
       const dims = fitAddonRef.current!.proposeDimensions();
       const cols = dims?.cols ?? 80;
       const rows = dims?.rows ?? 24;
@@ -178,8 +364,13 @@ export function XtermCanvas({
         });
 
         if (cancelled) return;
+        lastSentSizeRef.current = { cols, rows };
+        attachDurationRef.current =
+          attachStartRef.current === null ? null : performance.now() - attachStartRef.current;
         setAttached(true);
         setAttachError(null);
+        scheduleFitAndSync();
+        emitPerfUpdate();
       } catch (e) {
         if (cancelled) return;
         const msg =
@@ -198,7 +389,7 @@ export function XtermCanvas({
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [sessionId, scheduleFitAndSync, emitPerfUpdate]);
 
   // Listen for output events
   useEffect(() => {
@@ -215,7 +406,10 @@ export function XtermCanvas({
               const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
               const decoded = decoderRef.current.decode(bytes, { stream: true });
               if (decoded) {
-                terminalRef.current.write(decoded);
+                outputQueueRef.current.push(decoded);
+                outputQueueCharsRef.current += decoded.length;
+                emitPerfUpdate();
+                scheduleOutputFlush();
               }
             } catch {
               // Ignore decode errors
@@ -246,7 +440,7 @@ export function XtermCanvas({
     };
 
     setupListeners();
-  }, [attached, sessionId]);
+  }, [attached, sessionId, scheduleOutputFlush, emitPerfUpdate]);
 
   return (
     <div
